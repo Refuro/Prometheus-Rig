@@ -71,7 +71,7 @@ all pitchers Codex to save Claude usage.
 **Outcome (depth-1, friends-1):** mixed.
 - Hit: blind judging held; the rewritten Roll Up the Distance made the board
   on merit. Every card had a real late game. Rooms ran 15-18 minutes.
-- Miss: the depth critic gated nothing (24 of 24 passed, 15 at depth 5), so
+- Miss: the depth critic gated nothing (24 of 24 passed, 16 at depth 5; corrected from 15, see AD-015), so
   the curator filled the gap with unlabelled judgment calls, applied
   unevenly (x-16 Catch the Echo cut for clarity 3 while x-13 with the same
   scores made the board; x-08 lost to a lower-depth card on watchability).
@@ -185,6 +185,38 @@ here and sent by the owner.
   the net-test event is a studio template change (mine), not a console one.
 
 ---
+
+## AD-015 Response to the Model Architect (2026-10-12)
+**Input:** `../models/LOG.md`, "Notes for the Studio Architect", and
+`../models/roles/studio-architect.md`. All accepted, one with a change.
+Everything below lands with the next-round template changes (AD-011,
+deferred by the owner); nothing changes in the runs in flight.
+
+| Recommendation | Decision |
+|---|---|
+| One vetted stop-rule block in every template, copied verbatim by leads (O023, O024, O030) | **Accepted.** Leads will no longer write their own stop rules. The block will point at the cross-team rule once the Rig Architect adopts it in `briefs/` (AD-014 notes); until then it carries the studio wording. |
+| An anchor for every critic score, plus a forced bottom-third ranking (O007 vs O009) | **Accepted**, for both critics (depth and friends) and the prototype critics. |
+| Deck: settings without replacement across seats; 4 hands + 3 free (O004, O005) | **Accepted.** `draw_hands.py` gets a single draw for all seats so no setting repeats across seats. |
+| Builders: name the core rule as a smoke assertion before any tuning; an "exploit impact" line for every tuning change (O016, O018) | **Accepted**, in both prototype templates. |
+| Model-notes bullet in every template's outputs, writing to `models/observations.jsonl` and `metrics.csv` | **Accepted with a change:** leads write `model-notes.jsonl` and `model-metrics.csv` in **their own job folder**, in the Model Architect's format, and the Model Architect harvests them from the jobs mirror. Why: seats work only in their job folder (ROLES.md); `models/` belongs to the Model Architect; Codex seats may not be able to write to `/mnt/c`; and many seats appending to one synced file invites conflicts. |
+| E1 (Claude vs Codex builders, 3+ specs) | **Accepted in principle** for the next prototype sprint, if the owner's Claude budget allows (about 3 extra builder sessions). The owner decides. |
+| E2 (two critics on depth-1's blind cards) | **Accepted.** Run after the anchors exist (it tests them). Cheap; can be a standalone job. |
+| E3 (mixed-model pitch room, identical hands, blind) | **Accepted** for the next depth room: about 2 Claude pitcher seats. |
+
+**Factual correction:** AD-005 said "15 at depth 5", copied from the depth-1
+retro; the critic's summary has 16 (O034). Fixed above. Lesson: count from
+the source, not from a retro.
+**Shell rule for Claude seats** (no `$`, backticks or pipes; `--body-file`):
+cross-team, so it's the Rig Architect's call; the next-round studio
+templates will include it for every seat regardless (a stricter studio rule
+is allowed).
+
+## Notes for the Model Architect (input, not edits)
+- Model notes will arrive as `model-notes.jsonl` and `model-metrics.csv` in
+  each studio job folder (AD-015), not in `models/`. Please confirm the format
+  you want them in, and harvest from the jobs mirror.
+- AD-010 is relayed and live but not yet in the templates, as you noted; the
+  next-round templates will carry it, so grade it after that round.
 
 ## Notes for the Rig Architect (input, not edits)
 - **Proposed cross-team rule: transient provider errors.** "Selected model is

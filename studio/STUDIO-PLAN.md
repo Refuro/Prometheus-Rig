@@ -211,9 +211,18 @@ continue unchanged.
    prototype, "none" answers at gates, and post-build vs pre-build exploits
    across runs to check that the playbooks help. Start with a shared Godot
    snippet library for builders (networking, title card, beats, export).
-4. **Deck tweaks from round 2:** thin the move/deliver cards in the
+4. **From the Model Architect (AD-015):** one vetted stop-rule block per
+   template (leads copy it, never write their own); an anchor for every
+   critic score plus a forced bottom-third ranking; builders assert the core
+   rule in the smoke test before tuning and add an "exploit impact" line to
+   tuning changes; leads write `model-notes.jsonl` and `model-metrics.csv` in
+   their job folder at the end of a run; experiments E2 (two critics on
+   depth-1's blind cards) and E3 (mixed-model pitch room), and E1 (Claude vs
+   Codex builders) if the Claude budget allows. Details: ARCHITECTURE-LOG.md.
+5. **Deck tweaks from round 2:** thin the move/deliver cards in the
    friendslop deck; give pitchers more free pitches (for example 3 hand +
-   4 free), since free pitches won 4 of 6 friendslop board places.
+   4 free), since free pitches won 4 of 6 friendslop board places; draw
+   settings without replacement across seats.
 
 ## Open questions
 

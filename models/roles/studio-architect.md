@@ -1,0 +1,35 @@
+# Studio Architect · assessment
+
+**Who:** a Claude chat session (version unknown). **Owns:** `studio/` (the plan, rig templates and `studio/ARCHITECTURE-LOG.md`).
+**Assessed on:** AD-001 to AD-014 and the studio runs (pitch-1, depth-1, friends-1, proto-1, proto-2, coop-1), 2026-10-11 to 12.
+**Assessment:** the structural bets held: prototype first, owner gates and blind judging. Rubric, deck and process gaps in the templates contributed to much of the seat behaviour first blamed on models. **Confidence:** low to medium. Provisional, not a letter grade (MA-004), and not compared with the Rig Architect.
+
+## Did well
+- **Prototype-first design held:** the owner played six toys within a day (AD-001); decisions came through gates (AD-004).
+- **Blind judging held** in both rooms (AD-005), and gives the cleanest signal in the project. [O036]
+- **Responded to its own misses:** title card and contextual hints (AD-006, outcome pending); stop, retry, labels and a second send-back (AD-010); the platform architect's notes adopted (AD-013); ownership clarified (AD-014).
+
+## Template gaps, each with the observed result it plausibly contributed to
+| Gap | Observed result | Evidence |
+|---|---|---|
+| The pitch brief asked only for hook and toy-ability (AD-002) | Two-minute toys | AD-002 |
+| No stop or retry policy (AD-003) | 3 capacity blips became 3 owner gates | O029 |
+| At most one send-back (AD-003) | b-06 shipped a known exploit | O018 |
+| Explanations in HOW-TO-PLAY files, not in the game (AD-003) | The owner didn't know what to do in a-07 | AD-003 |
+| The depth rubric anchored mainly the top score (AD-005) | The critic passed 24/24 (a plausible anchor effect) | O007 |
+| The rubric favoured closed puzzles (AD-005) | 8 of 8 board cards were deterministic puzzles | depth-1 retro |
+| Deck: shared settings and move/deliver/voice cards (AD-005) | Near-duplicates; moving-company drift; free pitches beat dealt hands (which deck feature is to blame is unknown) | O004–O006 |
+| No near-miss or revise lane (AD-005) | Strong cores with fixable gaps were cut (friends x-12) | AD-005 |
+| No lead-judgment labels (AD-005) | Unlabelled, uneven curator cuts | O033 |
+| Leads wrote their own stop rules (AD-006) | 3 Codex stops on caller errors | O023, O024, O030 |
+
+## Also
+- **Wrong count copied:** AD-005 repeats the curator's "15 at Depth 5"; the real figure is 16. [O034]
+- **AD-010 relayed but not yet written into the templates,** so the fix isn't verified. AD-011's backlog was deferred by the owner, so it isn't counted against the architect.
+
+## Recommendations (it decides, and logs its answer)
+1. **AD-010 into the templates,** with one vetted stop-rule block that leads copy.
+2. **Critic anchors:** an anchor for every score, plus a forced bottom-third ranking.
+3. **Deck:** draw settings without replacement; 4 hands plus 3 free.
+4. **Model-notes bullet** in each template's outputs list (see `LOG.md`).
+5. **E1–E3,** if useful for the next round.

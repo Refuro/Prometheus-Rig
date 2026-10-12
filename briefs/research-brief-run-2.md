@@ -1,5 +1,15 @@
 # Research brief: niche discovery, run 2
 
+> **Template note (2026-10-12):** this is the current research template. Every run also follows
+> `briefs/SHARED-RULES.md`. Before reusing it, do section 0.
+
+## 0. Answerability check (before dispatch)
+For every question the funnel must answer (screen gates, deep-dive bar, verdicts), the lead writes one
+line in `ops/answerability.md`: **can public evidence answer this?** Say yes, partly or no, and give the
+kind of source that would. Anything marked "no" (for example settled payments, buyer counts, conversion)
+moves out of the research bar into a **market test** recommendation for the checkpoint report. The lead
+shows this file at the dry run. Don't start the longlist while a gate depends on a "no" question.
+
 ## 1. Mission
 Find niches where a solo builder working with AI agents can fill a real gap
 profitably. This run produces a ranked longlist, a screened top 8, and up to

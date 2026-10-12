@@ -23,3 +23,8 @@ __pycache__/
 # Kept private: run outputs (pitches, receipts, game ideas) and the owner's personal draft brief
 studio/rigs/*/runs/
 briefs/research-brief.v0-yours.md
+
+# Model Architect evidence (quotes private run outputs)
+models/observations.jsonl
+models/metrics.csv
+models/preview/

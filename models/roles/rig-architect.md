@@ -1,0 +1,41 @@
+# Rig Architect · assessment
+
+**Who:** a Claude chat session (version unknown). **Owns:** `briefs/`, the shared rules, the research and validation templates, and `ARCHITECTURE-LOG.md`. It built Rig Console until the handover (PD-013).
+**Assessed on:** PD-001 to PD-013 and the runs that used its briefs (run-1, run-2, money-1, validation-1), 2026-10-11 to 12.
+**Assessment:** structure and recovery are sound; several first versions missed, and some of those misses are still open. **Confidence:** medium. This is a provisional qualitative assessment, not a letter grade (MA-004).
+
+## Brief outcomes (details in BRIEFS.md)
+| Brief | Observed result |
+|---|---|
+| Research v1 (PD-002) | Miss: the owner's interests anchored 7 of 25 ideas; no rule that a cited page must have been opened (O043) |
+| Research v2 (PD-003) | Partial: required overturn searches produced useful evidence (O040); the deep-dive bar couldn't be reached from public sources (PD-003's own miss); no shell rules for Claude seats |
+| AI-income money-1 (PD-004) | Miss: the question couldn't be answered from public evidence; the brief also left out how much economics should weigh in a deep dive |
+| Web rule v1 → v2 (PD-005) | v1 miss (marketplaces under-evidenced); v2 pending |
+| Validation v1 (PD-011) | Evidence step worked (O047). The skeptic had to correct the brief's price comparability, bidder range and implied buyer segment. Missing Word/LibreOffice prerequisite |
+
+## Did well
+- **Logs its own misses plainly, with links.** [O055]
+- **Fast rule fixes:** research v1 → v2 within a day; the alert-corroboration rule; notes to the Studio Architect (adopted in AD-013).
+- **Handover:** a 45-check smoke test and overridable paths, except a hard-coded `~/openrig/briefs` (PL-001). [O066]
+
+## Did badly (from its own log and the runs)
+- **Brief design, three separate problems:**
+  - interest anchoring (PD-002);
+  - unanswerable questions (PD-003's deep-dive bar, PD-004);
+  - a missing delivery prerequisite (PD-011).
+- **Console misses:**
+  - 4 false-positive alert rules, each fixed only after the owner hit it (PD-007);
+  - a stale gate decided elsewhere, and a gate max that didn't match the owner's intent (PD-009);
+  - a notification cookie that broke opening from the phone (PD-010).
+- **Supervision misses (PD-012):**
+  - generalised from one page;
+  - suggested binding the console to all addresses first;
+  - committed personal details;
+  - assumed the operator answered approval prompts. That last point is disputed by the run-1 retro (O064).
+- **Shell rules:** the Claude seats in its research runs didn't get the shell rules the Codex dispatches carry, and 4 approval events followed. Their causes are mixed. [O039, O045, O048]
+
+## Recommendations (it decides, and logs its answer)
+1. **Shell rule:** adopt "Every seat, any model: no `$`, backticks or pipes in shell text; free text by `--body-file`."
+2. **Stop and capacity rules:** adopt or adjust the cross-team stop rule and the capacity-retry rule that the Studio Architect proposed in its log (AD-014). The evidence is in O022–O024 and O019.
+3. **Answerability check:** add "can public evidence answer this?" to the research template.
+4. **Approval record:** settle who answered the run-1 approval prompts (O064).

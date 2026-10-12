@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f17" media="(prefers-color-scheme: dark)">
+<title>System · Rig Console</title>
+<link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<script src="/notify.js"></script>
+<script src="/health.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Same tokens as the live graph, so the two pages read as one family. */
+:root{
+  --paper:#eef1f4; --surface:#f7f9fb; --raised:#fff; --ink:#152033; --muted:#5d687a; --faint:#8a94a4;
+  --line:#d7dde5; --grid:#dfe4ea; --signal:#c98200; --signal-soft:#fbf0d9; --cut:#c2412b; --cut-soft:#fbe5e0;
+  --edge:#b9c2cd; --team:#e6ebf0; --idle:#c7cfd8; --ok:#2e9d62;
+  --font:"Schibsted Grotesk",ui-sans-serif,system-ui,"Segoe UI",sans-serif; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0a0f17; --surface:#0f1621; --raised:#141d2a; --ink:#e3e8ef; --muted:#8e9aac; --faint:#5d6a7e;
+  --line:#212c3c; --grid:#121a26; --signal:#f0b23c; --signal-soft:#2f2511; --cut:#f0765c; --cut-soft:#311a16;
+  --edge:#2c394c; --team:#0e1520; --idle:#344257; --ok:#3cb371;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:14px/1.45 var(--font);-webkit-font-smoothing:antialiased}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px;border-radius:8px}
+code{font:12px var(--mono)}
+
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;min-height:calc(100vh - var(--rcnav, 0px))}
+.stage{display:flex;flex-direction:column;min-width:0}
+
+/* Toolbar: same chips and buttons as the live graph */
+.bar{display:flex;align-items:center;gap:8px 12px;padding:12px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.bar h1{margin:0;font-size:15px;font-weight:700;color:var(--muted)}
+.spacer{flex:1}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);padding:4px 10px;border-radius:999px;border:1px solid var(--line);font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--idle)}
+.chip.ok i{background:var(--ok)}
+.chip.need{color:var(--cut);border-color:color-mix(in srgb,var(--cut) 45%,transparent);background:var(--cut-soft)}
+.chip.need i{background:var(--cut)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;padding:2px;gap:2px}
+.btn{all:unset;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);padding:5px 11px;border:1px solid var(--line);border-radius:8px;white-space:nowrap}
+.seg .btn{border-color:transparent;border-radius:7px}
+.btn:hover{color:var(--ink)}
+.btn[aria-pressed="true"]{color:var(--ink);background:var(--raised);border-color:var(--line)}
+.btn.go{color:#111;background:var(--signal);border-color:var(--signal)}
+.btn.go:hover{color:#111;filter:brightness(1.06)}
+.btn:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+/* Canvas */
+.map{position:relative;flex:1;display:flex;flex-direction:column;justify-content:center;padding:34px 30px 110px;background-image:radial-gradient(var(--grid) 1px,transparent 1px);background-size:22px 22px}
+.cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:64px;align-items:start;width:100%;max-width:1180px;margin:0 auto}
+.grp{background:var(--team);border:1px solid var(--line);border-radius:16px;padding:12px 12px 14px;display:flex;flex-direction:column;gap:10px}
+.grp header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:0 4px}
+.grp header b{font-size:13px;font-weight:700}
+.grp header span{font-size:12px;color:var(--faint);white-space:nowrap}
+.nd{all:unset;position:relative;z-index:3;display:block;cursor:pointer;background:var(--raised);border:1px solid var(--line);border-radius:11px;padding:9px 12px 10px;transition:opacity .25s,border-color .2s,box-shadow .2s}
+.nd:hover{border-color:var(--faint)}
+.nd:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.nd .t{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700}
+.nd .t em{margin-left:auto;white-space:nowrap;padding-left:6px;font-style:normal;font-size:11px;font-weight:600;color:var(--faint)}
+.nd .s{display:block;font-size:12.5px;color:var(--faint);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--idle)}
+.nd.ok .dot{background:var(--ok)}
+.nd.live{border-color:color-mix(in srgb,var(--signal) 70%,transparent);box-shadow:0 0 0 .5px color-mix(in srgb,var(--signal) 70%,transparent)}
+.nd.live .dot{background:var(--signal)}
+.nd.live .s,.nd.ok .s{color:var(--ink)}
+.nd.bad{background:var(--cut-soft);border-color:var(--cut)}
+.nd.bad .dot{background:var(--cut)}
+.nd.bad .s{color:var(--cut);font-weight:600}
+.nd.sel{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.nd.you{border-color:color-mix(in srgb,var(--signal) 55%,var(--line))}
+.strip{display:flex;gap:2px;height:4px;margin-top:8px}
+.strip i{flex:1;border-radius:1px;background:var(--line)}
+.strip i.w{background:var(--signal)} .strip i.b{background:var(--cut)} .strip i.i{background:var(--idle)}
+.map.tracing .nd:not(.on){opacity:.28}
+.map.tracing .nd.on{border-color:var(--signal);box-shadow:0 0 0 1px var(--signal),0 0 24px color-mix(in srgb,var(--signal) 30%,transparent)}
+
+/* Edges, drawn over the group boxes and under the cards */
+svg.edges{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none;overflow:visible}
+.edge{fill:none;stroke:var(--edge);stroke-width:1.4;stroke-linecap:round;transition:opacity .25s}
+.edge.live{stroke:var(--signal);stroke-width:2;stroke-dasharray:5 7;animation:flow 1s linear infinite}
+.edge.bad{stroke:var(--cut);stroke-width:2}
+.edge.back{stroke-dasharray:2 6;stroke:var(--faint);opacity:.75}
+.map.tracing .edge{opacity:.15}
+.map.tracing .edge.on{opacity:1;stroke:var(--signal);stroke-width:2.2;stroke-dasharray:5 7;animation:flow .7s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-24}}
+.head{fill:var(--edge)}
+.lbl{opacity:0;transition:opacity .25s} .lbl.back,.map.tracing .lbl.on{opacity:1}
+.lbl rect{fill:var(--paper);stroke:var(--edge)}
+.lbl text{font-size:10.5px;font-weight:650;fill:var(--muted);text-anchor:middle;dominant-baseline:central}
+.lbl.live rect{stroke:color-mix(in srgb,var(--signal) 60%,transparent)} .lbl.live text{fill:var(--signal)}
+.lbl.bad rect{stroke:var(--cut)} .lbl.bad text{fill:var(--cut)}
+.map.tracing .lbl.back:not(.on){opacity:.2}
+.spark{fill:var(--signal);filter:drop-shadow(0 0 6px var(--signal))}
+.hint{position:absolute;left:30px;bottom:16px;font-size:12px;color:var(--faint)}
+@media (prefers-reduced-motion:reduce){.edge.live,.map.tracing .edge.on{animation:none!important}}
+
+/* Side panel: same feel as the graph's detail panel */
+aside{background:var(--surface);border-left:1px solid var(--line);padding:18px 18px 28px;position:sticky;top:var(--rcnav, 0px);height:calc(100vh - var(--rcnav, 0px));overflow:auto}
+aside h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.02em}
+aside .sub{color:var(--muted);font-size:13px;margin:2px 0 14px}
+.state{display:flex;align-items:center;gap:8px;font-weight:650;margin-bottom:10px}
+.state i{width:9px;height:9px;border-radius:50%;background:var(--idle)}
+.state.ok i{background:var(--ok)} .state.live i{background:var(--signal)} .state.bad{color:var(--cut)} .state.bad i{background:var(--cut)}
+.say{font-size:14.5px;line-height:1.55;margin:0 0 14px}
+.facts{margin:0;padding:0;list-style:none;font-size:13px}
+.facts li{display:grid;grid-template-columns:78px 1fr;gap:8px;padding:8px 0;border-top:1px solid var(--line)}
+.facts li span{color:var(--faint);font-weight:600}
+.allclear{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--muted);padding:9px 11px;border:1px solid var(--line);border-radius:10px}
+.allclear i{width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.prob{all:unset;cursor:pointer;display:block;padding:9px 11px;border-radius:10px;background:var(--cut-soft);border:1px solid color-mix(in srgb,var(--cut) 40%,transparent);margin-bottom:6px}
+.prob b{display:block;color:var(--cut);font-size:13.5px}
+.prob span{font-size:12.5px;color:var(--muted)}
+.sec{margin-top:22px}
+.sec h3{font-size:13px;font-weight:700;margin:0 0 8px;color:var(--muted)}
+.cta{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;border-radius:12px;background:var(--signal-soft);border:1px solid color-mix(in srgb,var(--signal) 45%,transparent)}
+.cta b{display:block;font-size:14px}
+.cta span{font-size:12.5px;color:var(--muted)}
+.cta .pl{flex:none;width:30px;height:30px;border-radius:50%;background:var(--signal);color:#111;display:grid;place-items:center;font-size:12px}
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:12.5px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:7px}
+.legend i{width:9px;height:9px;border-radius:50%;background:var(--idle)}
+.legend svg{width:26px;height:8px;flex:none}
+.open{display:inline-block;margin-top:14px;font-weight:700;font-size:13.5px;color:var(--signal);text-decoration:none}
+.back-x{all:unset;cursor:pointer;font-size:12.5px;font-weight:650;color:var(--muted);margin-bottom:12px;display:inline-block}
+.back-x:hover{color:var(--ink)}
+/* Trace player */
+.tr .n{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--signal)}
+.tr h2{margin:4px 0 8px}
+.pips{display:flex;gap:4px;margin:4px 0 16px}
+.pips i{flex:1;height:4px;border-radius:2px;background:var(--line)}
+.pips i.done{background:var(--signal)}
+.ctl{display:flex;gap:8px;margin-top:16px}
+
+@media (max-width:1100px){ .cols{gap:44px} .map{padding:30px 20px 96px} }
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr}
+  aside{position:static;height:auto;border-left:0;border-top:1px solid var(--line)}
+  .cols{grid-template-columns:1fr;gap:46px;max-width:440px}
+  .map{padding:26px 22px 40px}
+  .hint{display:none}
+  .bar{padding:10px 14px}
+  /* While a trace plays, its caption rides along at the bottom so the map stays in view. */
+  .wrap.tracing aside{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:40;max-height:46vh;padding:14px 16px calc(14px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--line);border-radius:16px 16px 0 0;box-shadow:0 -12px 32px color-mix(in srgb,#000 30%,transparent)}
+  .wrap.tracing .tr .say{margin-bottom:0}
+  .wrap.tracing .map{padding-bottom:46vh}
+}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<div class="wrap">
+  <div class="stage">
+    <div class="bar">
+      <h1>System map</h1>
+      <div class="seg" role="group" aria-label="View">
+        <button class="btn" id="vSystem" aria-pressed="true" type="button">System</button>
+        <button class="btn" id="vPeople" aria-pressed="false" type="button">People</button>
+      </div>
+      <span class="spacer"></span>
+      <span class="chip" id="cWork"><i></i><span>…</span></span>
+      <span class="chip" id="cNeed"><i></i><span>…</span></span>
+      <button class="btn go" id="trace" type="button">▶ Trace an alert</button>
+    </div>
+    <div class="map" id="map">
+      <svg class="edges" id="edges" aria-hidden="true"></svg>
+      <div class="cols" id="cols"></div>
+      <div class="hint" id="hint">Tap any box to see what it does. Dashed lines are the way back to the agents.</div>
+    </div>
+  </div>
+  <aside id="panel" aria-live="polite"></aside>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ago = s => s < 60 ? `${Math.round(s)} s ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`;
+const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + "s")}`;
+
+// ---------- What's on the map. Cards carry a name and one live line; the explaining lives in the panel.
+const SYSTEM = {
+  groups: [
+    {id: "agents", title: "Agents", meta: "OpenRig in WSL", nodes: ["daemon", "operator", "teams"]},
+    {id: "files", title: "Files", meta: "what the console reads", nodes: ["logger", "jobs"]},
+    {id: "console", title: "Rig Console", meta: "this dashboard", nodes: ["watcher", "store", "pages"]},
+    {id: "you", title: "You", meta: "", nodes: ["ntfy", "phone", "desktop"]},
+  ],
+  edges: [
+    {from: "daemon", to: "logger", label: "state"},
+    {from: "teams", to: "jobs", label: "files"},
+    {from: "logger", to: "watcher", label: "every 10 s"},
+    {from: "jobs", to: "watcher", label: "gates"},
+    {from: "watcher", to: "store", label: ""},
+    {from: "store", to: "pages", label: ""},
+    {from: "watcher", to: "ntfy", label: "alerts"},
+    {from: "ntfy", to: "phone", label: "push"},
+    {from: "pages", to: "desktop", label: ""},
+    {from: "pages", to: "phone", label: "Tailscale"},
+    {from: "pages", to: "jobs", label: "decisions", back: true},
+    {from: "pages", to: "teams", label: "rig send", back: true},
+  ],
+  nodes: {
+    teams: {name: "Teams", tag: "Claude · Codex", say: "The agent teams: a lead and its seats per job. They research, validate and build, and stop at a gate when they need you.",
+      facts: [["Writes", "work files, <code>gate.json</code>, <code>events.jsonl</code>, <code>builds/</code>"], ["Hears", "your decisions and messages, via <code>rig send</code>"]], link: ["/graph.html", "Open the live graph"]},
+    operator: {name: "Operator", tag: "Codex", say: "A seat that runs the rig for you: it starts, stops and configures teams, and closes gates you decided in chat. It never answers a gate.",
+      facts: [["Takes", "prompts you send it"], ["Owns", "the <code>~/openrig</code> runtime"]]},
+    daemon: {name: "OpenRig daemon", say: "Keeps every seat's terminal running and carries handoffs between seats on its queue.",
+      facts: [["Gives", "seat states, the queue, context use"], ["Read by", "the snapshot logger"]]},
+    logger: {name: "Snapshot logger", say: "A small script that copies every agent's screen, the queue and each seat's state into files. The console only ever reads those copies, so it never interrupts an agent.",
+      facts: [["Writes", "<code>snapshots/</code> and <code>activity-log.csv</code>"], ["Script", "<code>setup/rig-snapshots.sh</code>"]]},
+    jobs: {name: "Job folders", say: "One folder per piece of work. A team asks you to decide something by writing a gate file here, and your answer comes back as a decision file.",
+      facts: [["Holds", "<code>gate.json</code>, <code>events.jsonl</code>, <code>builds/</code>, <code>decisions/</code>"], ["Contract", "<code>dashboard/JOBS.md</code>"]], link: ["/decide.html", "Open decisions"]},
+    watcher: {name: "Watcher", tag: "10 s", say: "Reads the snapshots and job folders, works out what each agent is doing, and raises alerts. An alert must hold for 25 s before it notifies you, and the same one is only re-sent after 6 h, so a flicker doesn't buzz your phone.",
+      facts: [["Alerts on", "approvals, usage limits, freezes, stuck handoffs, full context, open gates"]], link: ["/graph.html", "See alerts on the live graph"]},
+    store: {name: "Event store", tag: "SQLite", say: "Every state change, handoff, file and custom event, kept so the feed and replay can show history.",
+      facts: [["Where", "<code>~/.local/share/rig-console/</code> (outside the synced folder)"]], link: ["/graph.html", "Watch a replay"]},
+    pages: {name: "Pages and API", say: "What you're looking at. It serves every page and records your decisions: the answer is written into the job folder, and the lead is told with <code>rig send</code>.",
+      facts: [["Guards", "token for remote devices, a console header on every change, agent files sandboxed"]]},
+    desktop: {name: "Desktop", tag: "localhost", say: "This PC's browser. Local requests don't need the token.", facts: [["Address", "<code>localhost:8800</code>"]]},
+    ntfy: {name: "Push alerts", tag: "ntfy.sh", say: "Delivers alert text to your phone. Tapping a notification opens the console, or the decision page for a gate.",
+      facts: [["Note", "ntfy.sh is a public service: the topic name is the only secret"]]},
+    phone: {name: "Phone", tag: "Tailscale", say: "Reaches the console over Tailscale Serve: HTTPS, from your own devices only. You sign in once with the console token and a cookie remembers it.",
+      facts: [["Opens", "the phone view, decisions, builds"]], link: ["/m.html", "Open the phone view"]},
+  },
+};
+
+const PEOPLE = {
+  groups: [
+    {id: "arch", title: "Architects", meta: "AI sessions", nodes: ["rig", "studio", "model", "platform"]},
+    {id: "chan", title: "Shared files", meta: "how roles talk", nodes: ["requests", "logs", "contract"]},
+    {id: "own", title: "You", meta: "final say", nodes: ["owner"]},
+    {id: "live", title: "Live rig", meta: "", nodes: ["op2", "seats", "gates"]},
+  ],
+  edges: [
+    {from: "g:arch", to: "requests", label: "ask"},
+    {from: "g:arch", to: "logs", label: "log"},
+    {from: "platform", to: "contract", label: "owns"},
+    {from: "logs", to: "owner", label: "you read"},
+    {from: "owner", to: "op2", label: "prompts"},
+    {from: "op2", to: "seats", label: "runs"},
+    {from: "seats", to: "gates", label: "open"},
+    {from: "requests", to: "platform", label: "triage", back: true},
+    {from: "gates", to: "owner", label: "you decide", back: true},
+    {from: "owner", to: "g:arch", label: "priorities", back: true},
+  ],
+  nodes: {
+    rig: {name: "Rig Architect", say: "Designs research and validation teams and the rules every team follows. Supervises those runs.",
+      facts: [["Owns", "<code>briefs/</code>, <code>ARCHITECTURE-LOG.md</code>, <code>SETUP.md</code>"], ["Never", "edits console code or studio files"]]},
+    studio: {name: "Studio Architect", say: "Designs the game studio pipeline and its stage templates. Supervises studio runs.",
+      facts: [["Owns", "<code>studio/</code> and its log"], ["May add", "stricter studio rules, never looser"]]},
+    platform: {name: "Platform Architect", say: "Builds and maintains this console and the setup scripts, and keeps the public repo safe.",
+      facts: [["Owns", "<code>dashboard/</code>, <code>setup/</code>, tests, docs, the console contract"], ["Log", "<code>dashboard/ARCHITECTURE-LOG.md</code>"]]},
+    model: {name: "Model Architect", say: "Grades models, roles, briefs and the other architects on evidence, and recommends which model goes in which seat.",
+      facts: [["Owns", "its ledger, report cards, routing guide"], ["Never", "edits anything it grades"]]},
+    requests: {name: "REQUESTS.md", say: "The inbox for console changes. Any architect adds a request; the Platform Architect triages it and you set the priority.",
+      facts: [["Format", "<code>### R-nnn</code> with a status"]]},
+    logs: {name: "Architecture logs", say: "Each architect logs its decisions and how they turned out, misses included. Input on someone else's design goes under “Notes for <Role>” in your own log, and you pass it on.",
+      facts: [["Graded by", "the Model Architect"]]},
+    contract: {name: "Console contract", say: "How any team plugs into the console: <code>job.json</code>, <code>gate.json</code>, <code>events.jsonl</code>, <code>builds/</code>. Team templates depend on it, so breaking changes need a migration note and your OK.",
+      facts: [["Owner", "Platform Architect"]]},
+    owner: {name: "You", tag: "owner", you: true, say: "You make every decision that matters, set priorities and budgets, approve new rules, and are the only one who sends prompts to the operator.",
+      facts: [["Owns", "every decision; secrets in <code>~/.config/</code>"]]},
+    op2: {name: "Operator", tag: "Codex", say: "Starts, stops and configures teams, enforces standing rules, and closes gates you decided in chat. Acts only for you, and never answers a gate.",
+      facts: [["Owns", "the <code>~/openrig</code> runtime"]]},
+    seats: {name: "Team seats", say: "Leads, analysts, builders. They work only from their brief and their job folder, and never read the architects' logs.",
+      facts: [["Owns", "their job folder's work"]], link: ["/graph.html", "Open the live graph"]},
+    gates: {name: "Gates", say: "A team's question to you, as a file in its job folder. You answer in the console; nothing else answers for you.",
+      facts: [["Answer", "<code>decisions/&lt;id&gt;.json</code>"]], link: ["/decide.html", "Open decisions"]},
+  },
+};
+
+// The alert's journey, played on the System map.
+const TRACE = [
+  {t: "A seat needs you", s: "It writes a gate file in its job folder, or stops at an approval prompt, a usage limit or a stall.", nodes: ["teams", "jobs"], edges: ["teams>jobs"]},
+  {t: "The logger copies it", s: "Every 10 s, screens, the queue and each seat's state are copied into files.", nodes: ["daemon", "logger"], edges: ["daemon>logger"]},
+  {t: "The watcher reads it", s: "It works out what each agent is doing and raises an alert.", nodes: ["logger", "jobs", "watcher"], edges: ["logger>watcher", "jobs>watcher"]},
+  {t: "It checks before alerting", s: "The alert must hold for 25 s, not be dismissed, and not have been sent in the last 6 h. That stops false alarms.", nodes: ["watcher"], edges: []},
+  {t: "Your phone buzzes", s: "ntfy delivers it. Tapping opens the console, or the decision page for a gate.", nodes: ["watcher", "ntfy", "phone"], edges: ["watcher>ntfy", "ntfy>phone"]},
+  {t: "You decide", s: "On your phone or desktop. Remote devices need your token, which a cookie remembers.", nodes: ["phone", "pages"], edges: ["pages>phone"]},
+  {t: "The answer lands in a file", s: "A decision file in the job folder. The gate closes.", nodes: ["pages", "jobs"], edges: ["pages>jobs"]},
+  {t: "The lead is told", s: "The console sends the lead a message pointing at the decision, and the team carries on.", nodes: ["pages", "teams"], edges: ["pages>teams"]},
+];
+
+// ---------- State
+let view = "system", sel = null, step = -1, playing = null, live = {}, problems = [];
+const V = () => view === "system" ? SYSTEM : PEOPLE;
+const wide = () => matchMedia("(min-width: 861px)").matches;
+
+function renderMap(){
+  const M = V();
+  $("cols").innerHTML = M.groups.map(g => `<section class="grp" data-g="${g.id}"><header><b>${esc(g.title)}</b><span id="gm-${g.id}">${esc(g.meta)}</span></header>
+    ${g.nodes.map(id => { const n = M.nodes[id], l = live[id] || {}; return `<button class="nd ${l.cls || ""} ${n.you ? "you" : ""} ${sel === id ? "sel" : ""}" data-id="${id}" type="button">
+      <span class="t"><i class="dot"></i>${esc(n.name)}${n.tag ? `<em>${esc(n.tag)}</em>` : ""}</span>
+      <span class="s">${esc(l.line || n.idle || " ")}</span>${l.strip ? `<span class="strip">${l.strip.map(c => `<i class="${c}"></i>`).join("")}</span>` : ""}</button>`; }).join("")}</section>`).join("");
+  for (const g of SYSTEM.groups.concat(PEOPLE.groups)) { const el = $("gm-" + g.id); if (el && live["g:" + g.id]) el.textContent = live["g:" + g.id]; }
+  $("cols").querySelectorAll(".nd").forEach(b => b.onclick = () => { stopTrace(); select(sel === b.dataset.id ? null : b.dataset.id); });
+  $("trace").hidden = view !== "system";
+  $("hint").textContent = view === "system" ? "Tap any box to see what it does. Dashed lines are the way back to the agents."
+                                            : "Tap a role to see what it owns. Dashed lines come back to where they started.";
+  requestAnimationFrame(drawEdges);
+  applyTrace();
+}
+
+// Edges are drawn from the cards' real positions, so they follow the layout on any screen size.
+function drawEdges(){
+  const svg = $("edges"), map = $("map"), mr = map.getBoundingClientRect(), M = V();
+  const box = id => {
+    const el = id.startsWith("g:") ? map.querySelector(`.grp[data-g="${id.slice(2)}"]`) : map.querySelector(`.nd[data-id="${id}"]`);
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return {x: r.left - mr.left, y: r.top - mr.top, w: r.width, h: r.height, cx: r.left - mr.left + r.width / 2, cy: r.top - mr.top + r.height / 2};
+  };
+  const all = [...map.querySelectorAll(".grp")].map(g => g.getBoundingClientRect());
+  const floor = Math.max(...all.map(r => r.bottom)) - mr.top, leftWall = Math.min(...all.map(r => r.left)) - mr.left;
+  const W = wide();
+  let backN = 0, out = "";
+  let edges = M.edges;
+  if (!W) {
+    // On a phone the groups stack: one spine between them reads better than a dozen crossing lines.
+    // The real edges come back while a trace plays, so the spark still has a path to follow.
+    const gOf = id => M.groups.find(g => g.nodes.includes(id))?.id;
+    const spine = M.groups.slice(1).map((g, i) => {
+      const from = M.groups[i].id, under = M.edges.filter(e => !e.back && gOf(e.from) === from && gOf(e.to) === g.id).map(e => live["e:" + e.from + ">" + e.to] || "");
+      live["e:g:" + from + ">g:" + g.id] = under.includes("bad") ? "bad" : under.includes("live") ? "live" : "";
+      return {from: "g:" + from, to: "g:" + g.id};
+    });
+    const tr = step >= 0 && view === "system" ? TRACE[step].edges : [];
+    edges = spine.concat(M.edges.filter(e => tr.includes(e.from + ">" + e.to)).map(e => ({...e, back: false})));
+  }
+  for (const e of edges) {
+    const a = box(e.from), b = box(e.to); if (!a || !b) continue;
+    let d, lx, ly;
+    if (e.back) {
+      // The way back runs in its own lane: under everything on desktop, down the left side on a phone.
+      const k = ++backN;
+      if (W) {
+        const y = floor + 16 + k * 16, x1 = a.cx + (k - 2) * 10, x2 = b.cx + (k - 2) * 10;
+        d = `M${x1},${a.y + a.h} C${x1},${y} ${x1},${y} ${(x1 + x2) / 2},${y} S${x2},${y} ${x2},${b.y + b.h + 4}`; lx = (x1 + x2) / 2; ly = y;
+      } else {
+        const x = leftWall - 12 - k * 7;
+        d = `M${a.x},${a.cy} C${x},${a.cy} ${x},${a.cy} ${x},${(a.cy + b.cy) / 2} S${x},${b.cy} ${b.x - 4},${b.cy}`; lx = x; ly = (a.cy + b.cy) / 2;
+      }
+    } else if (Math.abs(b.cx - a.cx) > Math.max(a.w, b.w) / 2) {
+      const dir = b.cx > a.cx ? 1 : -1, x1 = dir > 0 ? a.x + a.w : a.x, x2 = dir > 0 ? b.x - 4 : b.x + b.w + 4, c = Math.max(30, Math.abs(x2 - x1) / 2);
+      d = `M${x1},${a.cy} C${x1 + dir * c},${a.cy} ${x2 - dir * c},${b.cy} ${x2},${b.cy}`; lx = (x1 + x2) / 2; ly = (a.cy + b.cy) / 2;
+    } else {
+      const dir = b.cy > a.cy ? 1 : -1, y1 = dir > 0 ? a.y + a.h : a.y, y2 = dir > 0 ? b.y - 4 : b.y + b.h + 4, c = Math.max(14, Math.abs(y2 - y1) / 2);
+      d = `M${a.cx},${y1} C${a.cx},${y1 + dir * c} ${b.cx},${y2 - dir * c} ${b.cx},${y2}`; lx = (a.cx + b.cx) / 2; ly = (y1 + y2) / 2;
+    }
+    const st = (live["e:" + e.from + ">" + e.to]) || "", key = `${e.from}>${e.to}`;
+    out += `<path class="edge ${e.back ? "back" : ""} ${st}" data-k="${key}" d="${d}" marker-end="url(#ah)"/>`;
+    if (e.label) {
+      const w = e.label.length * 6 + 14;
+      out += `<g class="lbl ${e.back ? "back" : ""} ${st}" data-k="${key}"><rect x="${lx - w / 2}" y="${ly - 9}" width="${w}" height="18" rx="9"/><text x="${lx}" y="${ly}">${esc(e.label)}</text></g>`;
+    }
+  }
+  svg.innerHTML = `<defs><marker id="ah" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,0 L8,4 L0,8 z"/></marker></defs>${out}<circle class="spark" id="spark" r="0"/>`;
+  applyTrace();
+}
+
+// ---------- Side panel
+const STATE_WORD = {ok: "Running", live: "Busy", bad: "Needs attention"};
+function select(id){
+  sel = id;
+  document.querySelectorAll(".nd").forEach(b => b.classList.toggle("sel", b.dataset.id === id));
+  panel();
+  if (id && !wide()) $("panel").scrollIntoView({behavior: "smooth", block: "start"});
+}
+function panel(){
+  const P = $("panel");
+  if (step >= 0) return tracePanel();
+  const M = V(), n = sel && M.nodes[sel];
+  if (n) {
+    const l = live[sel] || {};
+    P.innerHTML = `<button class="back-x" id="px" type="button">← Overview</button>
+      <h2>${esc(n.name)}</h2><div class="sub">${esc(M.groups.find(g => g.nodes.includes(sel)).title)}${n.tag ? " · " + esc(n.tag) : ""}</div>
+      ${l.line ? `<div class="state ${l.cls || ""}"><i></i>${esc(l.line)}</div>` : ""}
+      <p class="say">${n.say}</p>
+      <ul class="facts">${(n.facts || []).map(([k, v]) => `<li><span>${esc(k)}</span><div>${v}</div></li>`).join("")}</ul>
+      ${n.link ? `<a class="open" href="${n.link[0]}">${esc(n.link[1])} →</a>` : ""}`;
+    $("px").onclick = () => select(null);
+    return;
+  }
+  const people = view === "people";
+  P.innerHTML = `<h2>${people ? "Who owns what" : "How it fits together"}</h2>
+    <div class="sub">${people ? "Every file has one owner. Roles ask each other through you." : "Agents work, the console watches their files, and you decide."}</div>
+    ${people ? "" : `<div class="sec" style="margin-top:6px">${problems.length ? problems.map(p => `<button class="prob" data-id="${p.id}" type="button"><b>${esc(p.t)}</b><span>${esc(p.s)}</span></button>`).join("")
+      : `<div class="allclear"><i></i>All the plumbing is running.</div>`}</div>
+    <div class="sec"><button class="cta" id="pTrace" type="button"><span class="pl">▶</span><span><b>Trace an alert to your phone</b><span>8 steps, played on the map</span></span></button></div>`}
+    <div class="sec"><h3>Reading the map</h3><div class="legend">
+      <span><i style="background:var(--ok)"></i>Running</span><span><i style="background:var(--signal)"></i>Busy</span>
+      <span><i style="background:var(--cut)"></i>Needs attention</span><span><i></i>Idle or unknown</span>
+      <span><svg viewBox="0 0 26 8"><path d="M1,4H25" stroke="var(--signal)" stroke-width="2" stroke-dasharray="5 4"/></svg>Flowing now</span>
+      <span><svg viewBox="0 0 26 8"><path d="M1,4H25" stroke="var(--faint)" stroke-width="1.5" stroke-dasharray="2 4"/></svg>Way back</span></div></div>
+    <div class="sec"><h3>${people ? "Ground rules" : "Tap a box"}</h3><p class="say" style="font-size:13.5px;color:var(--muted)">${people
+      ? "Only the owning role edits a file. Console changes go through <code>REQUESTS.md</code>, input on someone else's design goes in your own log, and only you send prompts to the operator."
+      : "Every box explains what it does, what it reads and writes, and where to look next."}</p></div>`;
+  P.querySelectorAll(".prob").forEach(b => b.onclick = () => select(b.dataset.id));
+  const pt = $("pTrace"); if (pt) pt.onclick = startTrace;
+}
+
+// ---------- Trace player
+function tracePanel(){
+  const s = TRACE[step];
+  $("panel").innerHTML = `<div class="tr"><button class="back-x" id="tx" type="button">✕ Stop tracing</button>
+    <div class="n">Step ${step + 1} of ${TRACE.length}</div><h2>${esc(s.t)}</h2>
+    <div class="pips">${TRACE.map((_, i) => `<i class="${i <= step ? "done" : ""}"></i>`).join("")}</div>
+    <p class="say">${esc(s.s)}</p>
+    <div class="ctl"><button class="btn" id="tp" type="button" ${step ? "" : "disabled"}>← Back</button>
+      <button class="btn" id="tpl" type="button">${playing ? "Pause" : "Play"}</button>
+      <button class="btn go" id="tn" type="button">${step === TRACE.length - 1 ? "Done" : "Next →"}</button></div></div>`;
+  $("tx").onclick = stopTrace;
+  $("tp").onclick = () => { pause(); go(step - 1); };
+  $("tn").onclick = () => { pause(); step === TRACE.length - 1 ? stopTrace() : go(step + 1); };
+  $("tpl").onclick = () => playing ? (pause(), tracePanel()) : play();
+}
+function startTrace(){ if (view !== "system") setView("system"); sel = null; document.querySelectorAll(".nd.sel").forEach(b => b.classList.remove("sel")); go(0); play(); }
+function stopTrace(){ pause(); step = -1; wide() ? applyTrace() : drawEdges(); panel(); }
+function pause(){ clearInterval(playing); playing = null; }
+function play(){ pause(); playing = setInterval(() => step >= TRACE.length - 1 ? (pause(), tracePanel()) : go(step + 1), 3200); tracePanel(); }
+function go(i){
+  step = Math.max(0, Math.min(TRACE.length - 1, i)); wide() ? applyTrace() : drawEdges(); tracePanel();
+  // On a phone the step's boxes may be off screen: bring them above the caption sheet.
+  if (!wide()) { const n = document.querySelector(`.nd[data-id="${TRACE[step].nodes.at(-1)}"]`); n && n.scrollIntoView({behavior: "smooth", block: "center"}); }
+}
+let sparkAnim = null;
+function applyTrace(){
+  const map = $("map"), on = step >= 0 && view === "system";
+  map.classList.toggle("tracing", on); document.querySelector(".wrap").classList.toggle("tracing", on);
+  const s = on ? TRACE[step] : {nodes: [], edges: []};
+  map.querySelectorAll(".nd").forEach(b => b.classList.toggle("on", s.nodes.includes(b.dataset.id)));
+  map.querySelectorAll("[data-k]").forEach(p => p.classList.toggle("on", s.edges.includes(p.dataset.k)));
+  cancelAnimationFrame(sparkAnim);
+  const spark = $("spark"); if (!spark) return;
+  const paths = s.edges.map(k => map.querySelector(`path[data-k="${k}"]`)).filter(Boolean);
+  if (!paths.length || matchMedia("(prefers-reduced-motion: reduce)").matches) { spark.setAttribute("r", 0); return; }
+  const t0 = performance.now(), dur = 1300;
+  const tick = t => {
+    const f = ((t - t0) % (dur * paths.length)) / dur, p = paths[Math.floor(f)], L = p.getTotalLength(), pt = p.getPointAtLength(L * (f % 1));
+    spark.setAttribute("cx", pt.x); spark.setAttribute("cy", pt.y); spark.setAttribute("r", 5);
+    sparkAnim = requestAnimationFrame(tick);
+  };
+  sparkAnim = requestAnimationFrame(tick);
+}
+
+function setView(v){
+  view = v; sel = null; if (v !== "system") { pause(); step = -1; }
+  $("vSystem").setAttribute("aria-pressed", v === "system"); $("vPeople").setAttribute("aria-pressed", v === "people");
+  renderMap(); panel();
+}
+$("vSystem").onclick = () => setView("system");
+$("vPeople").onclick = () => setView("people");
+$("trace").onclick = () => step >= 0 ? stopTrace() : startTrace();
+
+// ---------- Live status. Read-only: the same GET APIs the other pages use.
+const get = async p => { try { const r = await fetch(p, {cache: "no-store"}); return r.ok ? await r.json() : null; } catch { return null; } };
+async function load(){
+  const [health, graph, gates, builds, jobs, ev] = await Promise.all(
+    ["/api/health", "/api/graph", "/api/gates", "/api/builds", "/api/jobs", "/api/events?limit=1"].map(get));
+  const L = {}, P = [];
+  if (!health && !graph) {
+    L.pages = {cls: "bad", line: "Not answering"};
+    P.push({id: "pages", t: "The dashboard isn't answering", s: "The service may have stopped. Restart it from Ubuntu."});
+  } else L.pages = {cls: "ok", line: "Answering"};
+  const h = health || {};
+  if (h.daemon) {
+    L.daemon = h.daemon.ok ? {cls: "ok", line: "Running"} : {cls: "bad", line: "Not running"};
+    if (!h.daemon.ok) P.push({id: "daemon", t: "OpenRig isn't running", s: "Agents can't work until it's back."});
+  }
+  if (h.logger) {
+    const secs = Number((h.logger.detail || "").match(/(\d+)s/)?.[1]), when = Number.isFinite(secs) ? ago(secs) : "";
+    L.logger = h.logger.ok ? {cls: "ok", line: `Copied ${when}`} : {cls: "bad", line: when ? `Stopped ${when}` : "Stopped"};
+    L["e:logger>watcher"] = h.logger.ok ? "live" : "bad";
+    L["e:daemon>logger"] = h.logger.ok ? "live" : "bad";
+    if (!h.logger.ok) P.push({id: "logger", t: `Snapshot logger stopped${when ? " " + when : ""}`, s: "The console is showing old data. Restart the logger service."});
+  }
+  const nodes = (graph && graph.nodes) || [], alerts = ((graph && graph.alerts) || []).filter(a => !a.dismissed);
+  const op = nodes.find(n => /^operator/.test(n.name || "")), seats = nodes.filter(n => n !== op);
+  const count = s => seats.filter(n => (n.state || "").startsWith(s)).length, working = count("working"), waiting = count("needs_input");
+  L.operator = L.op2 = op ? {cls: (op.state || "").startsWith("working") ? "live" : "ok", line: (op.state || "").startsWith("working") ? "Working" : "Up, idle"} : {line: "Not running"};
+  if (graph) {
+    // One 30-minute strip for all teams, like each card's strip on the live graph.
+    const strip = Array.from({length: 30}, (_, i) => { const c = seats.map(n => (n.history || [])[i]); return c.includes("b") ? "b" : c.includes("w") ? "w" : c.includes("i") ? "i" : ""; });
+    L.teams = {cls: waiting ? "bad" : working ? "live" : seats.length ? "ok" : "", strip: seats.length ? strip : null,
+      line: !seats.length ? "No seats running" : waiting ? `${waiting} waiting for approval` : working ? `${working} working, ${seats.length - working} idle` : `${seats.length} seats, all idle`};
+    L.seats = {cls: L.teams.cls, line: L.teams.line};
+    L["e:teams>jobs"] = working ? "live" : "";
+    L["g:agents"] = plural(seats.length + (op ? 1 : 0), "seat");
+  }
+  const open = (gates && gates.open) || [], broken = (gates && gates.errors) || [];
+  if (jobs) {
+    L.jobs = {cls: open.length ? "live" : "ok", line: open.length ? `${open.length} waiting for you` : `${plural(jobs.length, "job")}, nothing waiting`};
+    L["e:jobs>watcher"] = open.length ? "live" : "";
+    L["g:files"] = `${plural(jobs.length, "job")}${builds && builds.length ? " · " + plural(builds.length, "build") : ""}`;
+    if (broken.length) P.push({id: "jobs", t: plural(broken.length, "gate file") + " can't be read", s: "Open Decisions to see which one. The team needs to fix the JSON."});
+  }
+  L.gates = {cls: open.length ? "live" : "ok", line: open.length ? `${open.length} waiting for you` : "None open"};
+  if (graph) {
+    const urgent = alerts.filter(a => a.severity !== "warn").length;
+    L.watcher = {cls: urgent ? "bad" : alerts.length ? "live" : "ok", line: alerts.length ? `${plural(alerts.length, "alert")}${urgent ? `, ${urgent} urgent` : ""}` : "All clear"};
+    L["e:watcher>ntfy"] = alerts.length ? "live" : "";
+    L["e:ntfy>phone"] = alerts.length ? "live" : "";
+  }
+  const last = ev && ev.events && ev.events[0];
+  if (ev) L.store = {cls: "ok", line: last && last.ts ? `Last event ${ago(Math.max(0, Date.now() / 1000 - last.ts))}` : "No events yet"};
+  L.desktop = {cls: "ok", line: "Open here"};
+  L.ntfy = {line: alerts.length ? "Has alerts to send" : "Nothing to send"};
+  L.phone = {line: "Sign in once with the token"};
+  L.owner = {cls: open.length ? "live" : "ok", line: open.length ? `${open.length} decisions waiting` : "Nothing to decide"};
+  L["g:console"] = L.pages.line; L["g:live"] = L.gates.line;
+  live = L; problems = P;
+  const cw = $("cWork"), cn = $("cNeed");
+  cw.className = "chip" + (working ? " ok" : ""); cw.querySelector("i").style.background = working ? "var(--signal)" : "";
+  cw.querySelector("span").textContent = `${working} working`;
+  const need = open.length + waiting;
+  cn.className = "chip" + (need ? " need" : ""); cn.querySelector("span").textContent = `${need} need you`;
+  renderMap(); if (step < 0) panel();
+}
+let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(drawEdges, 80); });
+document.fonts && document.fonts.ready.then(drawEdges);
+renderMap(); panel(); load();
+setInterval(() => { if (!document.hidden && step < 0) load(); }, 15000);
+</script>
+</body>
+</html>

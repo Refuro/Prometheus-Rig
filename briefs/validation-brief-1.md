@@ -2,6 +2,7 @@
 
 **Status:** approved by the user to start Phase 0. Offer confirmed by run 2 checkpoint 2: A07. The postal address (a PO box) is still pending; it is required before any real email is sent (Phase 2), not before.
 **Output folder:** `research/validation-1/`
+**Also follow:** `briefs/SHARED-RULES.md` (stops, provider errors, shell commands, gates, end-of-run model notes).
 **Offer:** A07, Word multilevel numbering and template repair (done-for-you service), starting price about $150 per sanitized template. B05 was cut at run 2 checkpoint 2.
 
 ## 1. Mission

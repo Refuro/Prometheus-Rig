@@ -71,9 +71,13 @@ def main():
         print(f"Rig Console smoke test (server on :{port}, data in {tmp})")
 
         print("Pages")
-        for p in ["/", "/graph.html", "/runs.html", "/decide.html", "/play.html", "/m.html", "/nav.js", "/manifest.json"]:
+        for p in ["/", "/graph.html", "/runs.html", "/decide.html", "/play.html", "/system.html", "/m.html", "/nav.js", "/manifest.json"]:
             st, _, _ = c.req("GET", p)
             check(f"GET {p}", st == 200, st)
+
+        st, _, raw = c.req("GET", "/system.html")
+        check("system page linked from desktop nav and phone footer",
+              b"System map" in raw and b'"/system.html"' in c.req("GET", "/nav.js")[2] and b'href="/system.html"' in c.req("GET", "/m.html")[2])
 
         print("Graph and alerts")
         st, g = c.json("/api/graph")

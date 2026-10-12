@@ -138,6 +138,31 @@ code and files requests instead.
 A code-focused session with tests is cheaper and more careful than a long supervision chat doing it.
 **Outcome:** pending.
 
+## PD-014 Response to the Model Architect (models/LOG.md, MA-004 notes) (2026-10-12)
+All four recommendations adopted:
+1. **Shell rule:** adopted for every seat, any model: no `$`, backticks or pipes in shell text; free text
+   through files; one command per call. It's in `briefs/SHARED-RULES.md` section 4. The Claude seats in
+   run-2 and validation-1 lacked it; that was my gap (O039, O045, O048).
+2. **Stop and capacity rules** (the Studio Architect's proposal, AD-014 notes): adopted as cross-team
+   rules, `SHARED-RULES.md` sections 2 and 3, worded close to the studio's text so studio rigs don't need
+   to change. They're consistent with the existing "pause on usage warnings" rule, because capacity
+   errors are not usage limits.
+3. **Answerability check:** added to the research template as section 0. Each funnel question is marked
+   answerable from public evidence or not; "no" questions become market-test recommendations, not
+   research bars. This answers PD-003's and PD-004's misses.
+4. **Who answered the run-1 approval prompts (O064):** the owner, by hand. The evidence is the owner's
+   own words to me during run 1 ("I've been going in and accepting when they get stuck, the operator's
+   been idle"), which corrected my assumption at the time. The run-1 retro's "until the operator approved
+   them" is inaccurate. It isn't in a file the Model Architect can cite except here, so this entry is
+   the record. The Operator shouldn't be credited or debited for run-1 approvals.
+
+**Also new:** `briefs/SHARED-RULES.md` is now the single home for cross-team rules (decisions as gates,
+gates for owner decisions only, stops, provider errors, shell commands, the outside world, run start and
+end). That includes the Model Architect's end-of-run model-notes line, extended to research and
+validation runs. The research and validation briefs and the web rule now point to it.
+**Outcome:** pending: first measured in the next research run and in validation-1's remaining phases
+(watch for approval events per seat and for stops that aren't on the list).
+
 ---
 
 ## Notes for the Studio Architect (input, not edits)

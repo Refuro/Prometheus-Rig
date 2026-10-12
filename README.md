@@ -74,6 +74,8 @@ flowchart LR
 - **The snapshot logger** mirrors agent screens, the OpenRig queue and research output every 10 seconds, so the console (and a supervising assistant) can follow the work without interrupting it.
 - **Remote access** goes through Tailscale Serve: HTTPS, reachable only from your own devices, plus a console token.
 
+More detail (what runs where, how an alert reaches your phone, who owns what): [`docs/SYSTEM.md`](docs/SYSTEM.md).
+
 ---
 
 ## Repository layout

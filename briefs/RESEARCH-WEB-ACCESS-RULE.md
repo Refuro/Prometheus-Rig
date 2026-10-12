@@ -1,6 +1,6 @@
 # Research web access rule (v2, 2026-10-11)
 
-Applies to every research and validation seat. Replaces v1 ("never route around blocks; built-in tools only"). Where a brief says otherwise, this file wins.
+Applies to every seat that reads the web (all teams). Part of `briefs/SHARED-RULES.md`. Replaces v1 ("never route around blocks; built-in tools only"). Where a brief says otherwise, this file wins.
 
 ## Goal
 Get the evidence a verdict needs from public pages, using the lightest tool that works, without putting the user's accounts at risk or defeating a site's protections.

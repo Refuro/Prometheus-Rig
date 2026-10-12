@@ -3,7 +3,7 @@
 // Page-specific controls (e.g. a run picker) can carry data-rc-tools and get moved into the bar.
 (() => {
   const PAGES = [["/", "Niche board"], ["/graph.html", "Live graph"], ["/runs.html", "Run report"],
-                 ["/decide.html", "Decisions"], ["/play.html", "Play builds"]];
+                 ["/decide.html", "Decisions"], ["/play.html", "Play builds"], ["/system.html", "System"]];
   const here = location.pathname === "/index.html" ? "/" : location.pathname;
   const phone = matchMedia("(max-width: 700px)").matches;
   const cur = (PAGES.find(([p]) => p === here) || [here, document.title])[1];
