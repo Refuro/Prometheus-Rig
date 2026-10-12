@@ -15,8 +15,8 @@ import gates as G
 
 DASH = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.expanduser(os.environ.get("RIG_RESEARCH_DIR", "~/openrig/research"))
-ACTIVITY = os.environ.get("RIG_ACTIVITY_LOG",
-                          os.path.join(DASH, "..", "snapshots", "activity-log.csv"))
+SNAP = os.path.expanduser(os.environ.get("RIG_SNAPSHOTS", os.path.join(DASH, "..", "snapshots")))
+ACTIVITY = os.environ.get("RIG_ACTIVITY_LOG", os.path.join(SNAP, "activity-log.csv"))
 PORT = int(os.environ.get("PORT", "8800"))
 
 
@@ -97,7 +97,6 @@ def team():
             "age_seconds": int(age), "seats": seats}
 
 
-SNAP = os.path.join(DASH, "..", "snapshots")
 _screen_seen = {}  # session -> (hash, last_change_epoch)
 _watch_start = {}  # session -> when this server first saw it
 ACTION_RE = re.compile(r"^\s*(?:•|●|⏺)\s+(.*\S)")
@@ -452,7 +451,7 @@ def graph():
 
 
 RUN_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
-DISMISSED = os.path.join(DASH, "state", "dismissed.json")
+DISMISSED = os.path.join(F.STATE, "dismissed.json")
 
 
 def _dismissed():
@@ -472,6 +471,8 @@ def _save_dismissed(d):
 
 
 def _rig_bin():
+    if "RIG_BIN" in os.environ:          # tests set RIG_BIN="" so nothing is ever sent to a real rig
+        return os.environ["RIG_BIN"] or None
     found = shutil.which("rig")
     if found:
         return found

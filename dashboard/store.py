@@ -55,7 +55,8 @@ MIGRATIONS = {
         "UPDATE events SET job = peer WHERE kind = 'file'",
     ],
 }
-JOBS_CONFIG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs.json")
+JOBS_CONFIG = os.path.expanduser(os.environ.get("RIG_JOBS_CONFIG",
+                                               os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs.json")))
 DEFAULT_ROOTS = [{"root": "~/openrig/research", "type": "research"},
                  {"root": "~/openrig/jobs", "type": "general"}]
 SKIP_DIRS = {"node_modules", "__pycache__", ".godot", ".import", "build", "dist", "venv", ".venv", "target"}
@@ -265,7 +266,7 @@ class Collector:
                     continue
                 newest = max(newest or 0, m)
                 rel = os.path.relpath(p, base)
-                rows.append((m, "file", rig, self._writer(fn, seats, j["writers"]), j["name"], rel,
+                rows.append((m, "file", rig, self._writer(rel, seats, j["writers"]), j["name"], rel,
                              f"{j['name']}/{rel}:{int(m // 60)}", j["name"], None))
         return newest
 
@@ -309,14 +310,17 @@ class Collector:
         _meta(k, off + end)
 
     @staticmethod
-    def _writer(fn, seats, writers=None):
-        """Seats prefix their files (pain-, market-, skeptic-, lead-...); job.json can map prefixes to seats.
-        Unprefixed files belong to the lead."""
+    def _writer(rel, seats, writers=None):
+        """Seats prefix their files (pain-, market-, skeptic-, lead-...); job.json "writers" can map a
+        file-name prefix or a top folder ("pitches", "builds") to a seat. Everything else belongs to the lead."""
+        fn = os.path.basename(rel)
         pre = fn.split("-", 1)[0].split(".", 1)[0].lower()
-        if writers and pre in writers:
-            hit = next((n for n in seats if n["name"] == writers[pre]), None)
-            if hit:
-                return hit["id"]
+        top = rel.split(os.sep, 1)[0].lower() if os.sep in rel else None
+        for key in (pre, top):
+            if writers and key and key in writers:
+                hit = next((n for n in seats if n["name"] == writers[key]), None)
+                if hit:
+                    return hit["id"]
         for n in seats:
             if pre in n["name"].lower().split("-"):
                 return n["id"]

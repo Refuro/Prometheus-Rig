@@ -1,0 +1,4 @@
+timestamp,rig,session,lifecycle,activity,work
+2026-10-12 03:00:00,demo-team,demo-lead@demo-team,run,idle,no
+2026-10-12 03:00:10,demo-team,demo-lead@demo-team,run,working,yes
+2026-10-12 03:00:20,demo-team,demo-analyst@demo-team,run,working,yes

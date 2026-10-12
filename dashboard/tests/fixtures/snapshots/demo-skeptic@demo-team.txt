@@ -1,0 +1,4 @@
+== demo-skeptic@demo-team ==
+Done. Objections are in skeptic-objections.md.
+
+❯ 

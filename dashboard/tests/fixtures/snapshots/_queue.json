@@ -1,0 +1,41 @@
+[
+ {
+  "qitemId": "qitem-20261012100000-aaaa0001",
+  "sourceSession": "operator-agent@kernel",
+  "destinationSession": "demo-lead@demo-team",
+  "state": "done",
+  "tags": [
+   "demo-team",
+   "kickoff"
+  ],
+  "tsCreated": "2026-10-12T10:00:00Z",
+  "claimedAt": "2026-10-12T10:00:05Z",
+  "tsUpdated": "2026-10-12T10:01:00Z"
+ },
+ {
+  "qitemId": "qitem-20261012100500-aaaa0002",
+  "sourceSession": "demo-lead@demo-team",
+  "destinationSession": "demo-analyst@demo-team",
+  "state": "in-progress",
+  "tags": [
+   "demo-team",
+   "longlist"
+  ],
+  "tsCreated": "2026-10-12T10:05:00Z",
+  "claimedAt": "2026-10-12T10:05:10Z",
+  "tsUpdated": "2026-10-12T10:05:10Z"
+ },
+ {
+  "qitemId": "qitem-20261012100600-aaaa0003",
+  "sourceSession": "demo-lead@demo-team",
+  "destinationSession": "demo-skeptic@demo-team",
+  "state": "pending",
+  "tags": [
+   "demo-team",
+   "review"
+  ],
+  "tsCreated": "2026-10-12T10:06:00Z",
+  "claimedAt": null,
+  "tsUpdated": "2026-10-12T10:06:00Z"
+ }
+]

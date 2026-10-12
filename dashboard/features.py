@@ -5,8 +5,9 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 DASH = os.path.dirname(os.path.abspath(__file__))
-STATE = os.path.join(DASH, "state")
-SNAP = os.path.join(DASH, "..", "snapshots")
+STATE = os.path.expanduser(os.environ.get("RIG_STATE_DIR", os.path.join(DASH, "state")))
+SNAP = os.path.expanduser(os.environ.get("RIG_SNAPSHOTS", os.path.join(DASH, "..", "snapshots")))
+os.makedirs(STATE, exist_ok=True)
 ACTIVITY = os.path.join(SNAP, "activity-log.csv")
 os.makedirs(STATE, exist_ok=True)
 _lock = threading.Lock()

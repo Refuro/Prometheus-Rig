@@ -1,12 +1,12 @@
 # Live mirrors written every 10 s by the snapshot logger (agent screens, rig state, research copies)
-snapshots/
-research-mirror/
+/snapshots/
+/research-mirror/
 
 # Dashboard runtime state (dismissed alerts, usage readings, evidence checks)
 dashboard/state/
 
 # Scratch
-_to_delete/
+/_to_delete/
 __pycache__/
 *.pyc
 
@@ -18,7 +18,7 @@ __pycache__/
 .env*
 
 # Mirror of ~/openrig/jobs (game studio and other jobs), regenerated
-jobs-mirror/
+/jobs-mirror/
 
 # Kept private: run outputs (pitches, receipts, game ideas) and the owner's personal draft brief
 studio/rigs/*/runs/

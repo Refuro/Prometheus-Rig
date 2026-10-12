@@ -23,7 +23,8 @@ A game repo can live anywhere: add its parent folder as a root with its own type
 }
 ```
 - `rig`: which OpenRig team works on it (otherwise guessed from the folder name).
-- `writers`: file-name prefix → seat name, so file pops land on the right agent. Without it, files named
+- `writers`: file-name prefix or top-level folder → seat name (e.g. `"pitches": "pitcher-a"`), so file
+  pops land on the right agent. Without it, files named
   `<seat-word>-...` are matched to that seat, and everything else is credited to the lead.
 - `watch_depth`: how many folder levels to watch for new files (default 2). Build, cache, `.git`,
   `node_modules` and `.godot` folders are always skipped.

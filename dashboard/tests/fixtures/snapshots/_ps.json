@@ -1,0 +1,53 @@
+[
+ {
+  "canonicalSessionName": "operator-agent@kernel",
+  "rigName": "kernel",
+  "runtime": "codex",
+  "sessionStatus": "running",
+  "lifecycleState": "run",
+  "agentActivity": {
+   "state": "idle"
+  }
+ },
+ {
+  "canonicalSessionName": "demo-lead@demo-team",
+  "rigName": "demo-team",
+  "runtime": "claude-code",
+  "sessionStatus": "running",
+  "lifecycleState": "run",
+  "agentActivity": {
+   "state": "running"
+  }
+ },
+ {
+  "canonicalSessionName": "demo-analyst@demo-team",
+  "rigName": "demo-team",
+  "runtime": "codex",
+  "sessionStatus": "running",
+  "lifecycleState": "run",
+  "agentActivity": {
+   "state": "needs_input",
+   "reason": "permission_prompt"
+  }
+ },
+ {
+  "canonicalSessionName": "demo-skeptic@demo-team",
+  "rigName": "demo-team",
+  "runtime": "claude-code",
+  "sessionStatus": "running",
+  "lifecycleState": "run",
+  "agentActivity": {
+   "state": "unknown"
+  }
+ },
+ {
+  "canonicalSessionName": "old-lead@stopped-team",
+  "rigName": "stopped-team",
+  "runtime": "claude-code",
+  "sessionStatus": "exited",
+  "lifecycleState": "recoverable",
+  "agentActivity": {
+   "state": "unknown"
+  }
+ }
+]

@@ -1,0 +1,5 @@
+== demo-lead@demo-team ==
+⏺ Read(research/run-demo/niches.json)
+  ⎿ Read 40 lines
+
+✻ Thinking… (3m 12s · ↓ 2.1k tokens)

@@ -1,0 +1,32 @@
+{
+ "phase": "screen",
+ "phase_note": "Demo run",
+ "targets": {
+  "longlist": 3,
+  "screened": 2,
+  "shortlist": 1
+ },
+ "niches": [
+  {
+   "id": "N01",
+   "name": "Demo niche one",
+   "stage": "screened",
+   "total": 30,
+   "reason": "Fixture"
+  },
+  {
+   "id": "N02",
+   "name": "Demo niche two",
+   "stage": "longlist",
+   "total": 20,
+   "reason": "Fixture"
+  },
+  {
+   "id": "N03",
+   "name": "Demo niche three",
+   "stage": "cut",
+   "total": 10,
+   "reason": "Fixture cut"
+  }
+ ]
+}
