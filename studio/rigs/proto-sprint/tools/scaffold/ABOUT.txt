@@ -1,0 +1,5 @@
+[TODO] Title of the game
+[TODO] What it is: one or two sentences a stranger understands (the fantasy and the goal).
+[TODO] How you win / how you lose.
+[TODO] What each object does: one line per interactable thing.
+[TODO] Controls.

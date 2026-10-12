@@ -1,0 +1,7 @@
+# Copy to C:\Users\you\.wslconfig (no file extension), then run: wsl --shutdown
+[wsl2]
+# Cap WSL's RAM so Windows and the local model keep room (PC has 32 GB).
+memory=16GB
+# Lets WSL and Windows share localhost (WSL agents can call Ollama on Windows).
+# Requires Windows 11 22H2 or newer.
+networkingMode=mirrored

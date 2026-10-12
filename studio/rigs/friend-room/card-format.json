@@ -1,0 +1,10 @@
+{
+  "hand_cards": 4,
+  "max_hook_words": 20,
+  "max_body_words": 400,
+  "sections": [
+    "What it is", "The rule", "Players and roles", "Session shape",
+    "The friends moment", "Voice", "Tenth session", "Exploit check",
+    "Why watch", "Hand use", "Prototype beats", "Netcode risk", "Look", "Risk"
+  ]
+}

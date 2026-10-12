@@ -1,0 +1,96 @@
+version: "0.2"
+name: coop-1
+summary: >
+  Studio stage 2 for co-op picks. A Claude lead hands co-op prototype specs
+  to three Codex builders; each builds a 2-4 player host-authoritative Godot
+  prototype that must pass a multi-instance sync test and export for Windows;
+  a Codex depth critic hunts carry exploits; the sprint ends with a Rig
+  Console gate after the owner plays with friends. Brief: brief.md.
+
+culture_file: CULTURE.md
+
+docs:
+  - path: brief.md
+  - path: README.md
+
+pods:
+  - id: proto
+    label: Prototype lead
+    members:
+      - id: lead
+        label: "Prototype lead (Claude)"
+        agent_ref: "local:agents/proto-lead"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: depth
+    label: Depth critic
+    members:
+      - id: critic
+        label: "Depth critic (Codex)"
+        agent_ref: "local:agents/critic"
+        runtime: codex
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: build
+    label: Builders
+    summary: One Codex builder per prototype at a time, in waves.
+    members:
+      - id: a
+        label: "Builder A (Codex)"
+        agent_ref: "local:agents/builder"
+        runtime: codex
+        profile: default
+        cwd: "."
+        startup:
+          files: []
+          actions:
+            - type: send_text
+              value: "You are builder A (seat build-a). Prefix your helper files with build-a-. Read brief.md, then wait for a spec from proto-lead."
+              phase: after_ready
+              idempotent: true
+      - id: b
+        label: "Builder B (Codex)"
+        agent_ref: "local:agents/builder"
+        runtime: codex
+        profile: default
+        cwd: "."
+        startup:
+          files: []
+          actions:
+            - type: send_text
+              value: "You are builder B (seat build-b). Prefix your helper files with build-b-. Read brief.md, then wait for a spec from proto-lead."
+              phase: after_ready
+              idempotent: true
+      - id: c
+        label: "Builder C (Codex)"
+        agent_ref: "local:agents/builder"
+        runtime: codex
+        profile: default
+        cwd: "."
+        startup:
+          files: []
+          actions:
+            - type: send_text
+              value: "You are builder C (seat build-c). Prefix your helper files with build-c-. Read brief.md, then wait for a spec from proto-lead."
+              phase: after_ready
+              idempotent: true
+    edges: []
+
+edges:
+  - kind: delegates_to
+    from: proto.lead
+    to: build.a
+  - kind: delegates_to
+    from: proto.lead
+    to: build.b
+  - kind: delegates_to
+    from: proto.lead
+    to: build.c
+  - kind: delegates_to
+    from: proto.lead
+    to: depth.critic

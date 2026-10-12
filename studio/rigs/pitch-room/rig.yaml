@@ -1,0 +1,95 @@
+version: "0.2"
+name: pitch-1
+summary: >
+  Studio stage 1, pitch room. A Claude curator draws collision hands for
+  three independent pitchers (one Claude, two Codex), a Codex scout
+  novelty-checks every card, and the curator builds a board of about ten
+  original game pitches, then stops for the owner's pick. Brief: brief.md.
+
+culture_file: CULTURE.md
+
+docs:
+  - path: brief.md
+  - path: README.md
+
+pods:
+  - id: room
+    label: Curation
+    members:
+      - id: lead
+        label: "Curator"
+        agent_ref: "local:agents/curator"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: pitch
+    label: Pitchers
+    summary: Three independent pitchers. They never read each other's cards.
+    members:
+      - id: a
+        label: "Pitcher A (Claude)"
+        agent_ref: "local:agents/pitcher"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+        startup:
+          files: []
+          actions:
+            - type: send_text
+              value: "You are pitcher A. Your card ids start with a- and your files are pitches/a-NN.md. Read brief.md, then wait for your hands from room-lead."
+              phase: after_ready
+              idempotent: true
+      - id: b
+        label: "Pitcher B (Codex)"
+        agent_ref: "local:agents/pitcher"
+        runtime: codex
+        profile: default
+        cwd: "."
+        startup:
+          files: []
+          actions:
+            - type: send_text
+              value: "You are pitcher B. Your card ids start with b- and your files are pitches/b-NN.md. Read brief.md, then wait for your hands from room-lead."
+              phase: after_ready
+              idempotent: true
+      - id: c
+        label: "Pitcher C (Codex, strange deck)"
+        agent_ref: "local:agents/pitcher"
+        runtime: codex
+        profile: default
+        cwd: "."
+        startup:
+          files: []
+          actions:
+            - type: send_text
+              value: "You are pitcher C. Your card ids start with c- and your files are pitches/c-NN.md. Your hands come from the strange-weighted deck: lean into the odd inputs. Read brief.md, then wait for your hands from room-lead."
+              phase: after_ready
+              idempotent: true
+    edges: []
+
+  - id: scout
+    label: Novelty scout
+    members:
+      - id: novelty
+        label: "Scout (Codex)"
+        agent_ref: "local:agents/scout"
+        runtime: codex
+        profile: default
+        cwd: "."
+    edges: []
+
+edges:
+  - kind: delegates_to
+    from: room.lead
+    to: pitch.a
+  - kind: delegates_to
+    from: room.lead
+    to: pitch.b
+  - kind: delegates_to
+    from: room.lead
+    to: pitch.c
+  - kind: delegates_to
+    from: room.lead
+    to: scout.novelty

@@ -1,0 +1,10 @@
+{
+  "hand_cards": 4,
+  "max_hook_words": 20,
+  "max_body_words": 400,
+  "sections": [
+    "What it is", "The rule", "Loop", "First five minutes", "Hour one",
+    "Late game", "Variety engine", "Exploit check", "Why watch", "Hand use",
+    "Prototype beats", "Look", "Risk"
+  ]
+}

@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""Scaffold, verify and web-export one prototype.
+
+Usage (from the job folder):
+    python3 tools/build.py <id> --new                 # scaffold protos/<id>/
+    python3 tools/build.py <id> --seat build-a        # import, run, smoke test, export
+    python3 tools/build.py <id> --seat build-a --no-export
+
+Steps of a build run (stops at the first failure, exit 1):
+  1. import       godot --headless --path protos/<id> --import
+  2. run          godot --headless --path protos/<id> --quit-after 180
+                  (fails on SCRIPT ERROR / Parse Error / non-zero exit)
+  3. smoke test   godot --headless --path protos/<id> -s res://tests/smoke.gd
+                  (only if the file exists; its exit code is the verdict)
+  4. export       godot --headless --path protos/<id> --export-release Web builds/<id>/index.html
+Then appends a "build" event to events.jsonl. Full output: protos/<id>/build-log.txt.
+
+Godot's user data, config and cache are redirected into .godot/home/ inside the
+job folder, so sandboxed seats can run it. Export templates are linked in from
+~/.local/share/godot/export_templates (installed once by install-godot-wsl.sh).
+"""
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+JOB = Path(__file__).resolve().parent.parent
+SCAFFOLD = Path(__file__).resolve().parent / "scaffold"
+ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+BAD_OUTPUT = re.compile(r"SCRIPT ERROR|Parse Error|Failed to load script|Invalid call|Cannot open file", re.I)
+
+
+def godot_bin():
+    cand = os.environ.get("GODOT") or shutil.which("godot") or str(Path.home() / ".local/bin/godot")
+    if not Path(cand).exists() and not shutil.which(cand):
+        sys.exit("godot not found: run studio/setup/install-godot-wsl.sh, or set GODOT=/path/to/godot")
+    return cand
+
+
+def godot_env():
+    home = JOB / ".godot" / "home"  # .godot folders are skipped by the Rig Console watcher
+    env = dict(os.environ)
+    for key, sub in (("XDG_DATA_HOME", "data"), ("XDG_CONFIG_HOME", "config"), ("XDG_CACHE_HOME", "cache")):
+        d = home / sub
+        d.mkdir(parents=True, exist_ok=True)
+        env[key] = str(d)
+    real_templates = Path.home() / ".local/share/godot/export_templates"
+    link = home / "data/godot/export_templates"
+    if real_templates.exists() and not link.exists():
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(real_templates, target_is_directory=True)
+    return env
+
+
+def run(cmd, env, log, label, timeout=600):
+    log.write(f"\n===== {label}: {' '.join(cmd)}\n")
+    log.flush()
+    try:
+        p = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        log.write("TIMEOUT\n")
+        return False, "timed out"
+    out = (p.stdout or "") + (p.stderr or "")
+    log.write(out)
+    log.write(f"\n[exit {p.returncode}]\n")
+    bad = BAD_OUTPUT.search(out)
+    if p.returncode != 0:
+        return False, f"exit {p.returncode}"
+    if bad:
+        return False, f"error in output: {bad.group(0)}"
+    return True, "ok"
+
+
+def scaffold(pid):
+    dest = JOB / "protos" / pid
+    if dest.exists():
+        sys.exit(f"protos/{pid} already exists")
+    shutil.copytree(SCAFFOLD, dest)
+    for name in ("project.godot", "export_presets.cfg"):
+        f = dest / name
+        f.write_text(f.read_text(encoding="utf-8").replace("__NAME__", pid), encoding="utf-8")
+    (dest / "tests").mkdir(exist_ok=True)
+    print(f"scaffolded protos/{pid}/ (project.godot, main.tscn, main.gd, proto_ui.gd, ABOUT.txt, export_presets.cfg)")
+    print("next: fill ABOUT.txt, build the core rule in main.gd, add tests/smoke.gd, then run build.py with --seat")
+
+
+def event(kind, seat, text, data):
+    line = {"kind": kind, "text": text[:300], "data": data, "ts": int(time.time())}
+    if seat:
+        line["seat"] = seat
+    with (JOB / "events.jsonl").open("a", encoding="utf-8") as f:
+        f.write(json.dumps(line) + "\n")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("id")
+    ap.add_argument("--new", action="store_true", help="scaffold protos/<id>/")
+    ap.add_argument("--seat", default="")
+    ap.add_argument("--no-export", action="store_true")
+    args = ap.parse_args()
+
+    if not ID_RE.match(args.id):
+        sys.exit("id must be letters, digits, . _ -")
+    if args.new:
+        scaffold(args.id)
+        return 0
+
+    proj = JOB / "protos" / args.id
+    if not (proj / "project.godot").exists():
+        sys.exit(f"protos/{args.id}/project.godot missing: scaffold with --new first")
+
+    about = proj / "ABOUT.txt"
+    about_problem = None
+    if not about.exists():
+        about_problem = "ABOUT.txt missing (the title card text)"
+    elif "[TODO]" in about.read_text(encoding="utf-8"):
+        about_problem = "ABOUT.txt still has [TODO] lines (fill in what the game is, the goal, every object)"
+
+    gd = godot_bin()
+    env = godot_env()
+    out_dir = JOB / "builds" / args.id
+    results = []
+    ok = True
+    with (proj / "build-log.txt").open("w", encoding="utf-8") as log:
+        steps = [
+            ("import", [gd, "--headless", "--path", str(proj), "--import"]),
+            ("run", [gd, "--headless", "--path", str(proj), "--quit-after", "180"]),
+        ]
+        if (proj / "tests" / "smoke.gd").exists():
+            steps.append(("smoke", [gd, "--headless", "--path", str(proj), "-s", "res://tests/smoke.gd"]))
+        else:
+            results.append("smoke: MISSING (tests/smoke.gd is required before hand-back)")
+        if not args.no_export:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            steps.append(("export", [gd, "--headless", "--path", str(proj), "--export-release", "Web",
+                                     str(out_dir / "index.html")]))
+        for label, cmd in steps:
+            good, why = run(cmd, env, log, label)
+            results.append(f"{label}: {'ok' if good else 'FAIL (' + why + ')'}")
+            if not good:
+                ok = False
+                break
+    if ok and not args.no_export:
+        needed = ["index.html", "index.pck", "index.wasm", "index.js"]
+        missing = [n for n in needed if not (out_dir / n).exists()]
+        if missing:
+            ok = False
+            results.append("export files missing: " + ", ".join(missing))
+
+    if about_problem:
+        results.append("about: FAIL (" + about_problem + ")")
+    for r in results:
+        print(r)
+    smoke_missing = any(r.startswith("smoke: MISSING") for r in results)
+    ok = ok and not about_problem
+    verdict = "GREEN" if ok and not smoke_missing else ("GREEN (no smoke test yet)" if ok else "RED")
+    print(f"\n{args.id}: {verdict}. Log: protos/{args.id}/build-log.txt")
+    if ok and not args.no_export:
+        print(f"Web build: builds/{args.id}/index.html (shows on the console's Play builds page)")
+    event("build", args.seat, f"{args.id} build {verdict}", {"id": args.id, "steps": results})
+    return 0 if ok and not smoke_missing else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

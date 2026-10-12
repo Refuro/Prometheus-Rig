@@ -1,0 +1,3 @@
+{"type": "design", "rig": "design-1", "title": "Design team",
+ "writers": {"pillars": "creative-director", "decisions": "creative-director", "design": "design-systems", "balance": "design-balance", "onboarding": "design-onboarding", "story": "words-narrative", "art-bible": "art-director"},
+ "watch_depth": 3}

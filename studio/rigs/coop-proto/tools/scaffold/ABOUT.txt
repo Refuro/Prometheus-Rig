@@ -1,0 +1,5 @@
+[TODO] Title of the game
+[TODO] What it is: one or two sentences a stranger understands (the fantasy and the goal).
+[TODO] How the group wins / how it loses.
+[TODO] What each object does: one line per interactable thing.
+[TODO] Controls. One player clicks Host; everyone else types the host's Tailscale address and clicks Join.

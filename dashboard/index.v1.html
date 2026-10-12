@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rig Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#e9eef3; --surface:#f7f9fb; --raised:#ffffff; --ink:#152033; --muted:#5d687a; --faint:#8a94a4;
+  --line:#d3dae3; --signal:#d38a00; --signal-soft:#fbefd6; --advance:#0e8a7d; --advance-soft:#d9f1ee;
+  --cut:#b0533a; --track:#dde3ea;
+  --font:"Schibsted Grotesk",ui-sans-serif,system-ui,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0f1520; --surface:#151d2a; --raised:#1a2433; --ink:#e5eaf1; --muted:#97a2b4; --faint:#6c788b;
+  --line:#253145; --signal:#f2b33d; --signal-soft:#3a2f17; --advance:#3cc2b2; --advance-soft:#15322f;
+  --cut:#e07a5f; --track:#223044;
+}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px;border-radius:6px}
+.app{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100%}
+
+/* Runs rail */
+.rail{background:var(--surface);border-right:1px solid var(--line);padding:22px 14px;display:flex;flex-direction:column;gap:22px}
+.brand{font-weight:800;font-size:17px;letter-spacing:-.02em;padding:0 8px}
+.brand span{color:var(--faint);font-weight:500}
+.views{display:flex;flex-direction:column;gap:2px}
+.views a{padding:8px 10px;border-radius:9px;text-decoration:none;color:var(--muted);font-weight:600;font-size:14px}
+.views a:hover{background:var(--paper);color:var(--ink)}
+.views a[aria-current="page"]{color:var(--ink);background:var(--raised);box-shadow:inset 0 0 0 1px var(--line)}
+.rail h2{font-size:13px;font-weight:600;color:var(--muted);margin:0 8px 8px}
+.runlist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+.runlist button{all:unset;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:2px 8px;width:100%;box-sizing:border-box;padding:9px 10px;border-radius:9px}
+.runlist button:hover{background:var(--paper)}
+.runlist button[aria-current="true"]{background:var(--raised);box-shadow:inset 0 0 0 1px var(--line)}
+.runlist .rn{font-weight:600}
+.runlist .rp{font-size:12.5px;color:var(--muted)}
+.runlist .rc{grid-row:span 2;align-self:center;font-size:12.5px;color:var(--muted)}
+.rail .foot{margin-top:auto;font-size:12.5px;color:var(--faint);padding:0 8px}
+
+/* Main */
+main{padding:26px 34px 60px;width:100%;min-width:0}
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 24px;margin-bottom:18px}
+.head h1{font-size:30px;font-weight:800;letter-spacing:-.03em;margin:0;line-height:1.1}
+.head p{margin:6px 0 0;color:var(--muted);max-width:70ch}
+.fresh{font-size:13px;color:var(--muted);white-space:nowrap}
+.fresh.stale{color:var(--cut)}
+
+/* Your-turn banner */
+.attn{display:none;align-items:center;gap:14px;background:color-mix(in srgb,var(--cut) 14%,transparent);border:1px solid color-mix(in srgb,var(--cut) 50%,transparent);border-radius:12px;padding:14px 16px;margin-bottom:18px}
+.attn.show{display:flex}
+.attn b{display:block;color:var(--cut)}
+.attn span{color:var(--muted);font-size:14px}
+.attn code{font-size:13px;background:var(--raised);border:1px solid var(--line);padding:2px 6px;border-radius:6px;color:var(--ink);user-select:all}
+.attn a{margin-left:auto;font-weight:650;font-size:14px;white-space:nowrap}
+.attn .dot{width:10px;height:10px;border-radius:50%;background:var(--cut);flex:none}
+.yourturn{display:none;align-items:center;gap:14px;background:var(--signal-soft);border:1px solid color-mix(in srgb,var(--signal) 45%,transparent);border-radius:12px;padding:14px 16px;margin-bottom:18px}
+.yourturn.show{display:flex}
+.yourturn b{display:block}
+.yourturn span{color:var(--muted);font-size:14px}
+.yourturn .dot{width:10px;height:10px;border-radius:50%;background:var(--signal);flex:none}
+
+/* Funnel: the centerpiece */
+.funnel{background:var(--raised);border:1px solid var(--line);border-radius:16px;padding:22px 22px 18px;margin-bottom:18px}
+.stages{display:grid;grid-template-columns:1.25fr 1fr .8fr;gap:10px;align-items:end}
+.stage{position:relative}
+.vessel{position:relative;background:var(--track);overflow:hidden;clip-path:polygon(0 0,100% 9%,100% 91%,0 100%)}
+.stage:nth-child(1) .vessel{height:132px}
+.stage:nth-child(2) .vessel{height:104px}
+.stage:nth-child(3) .vessel{height:78px}
+.fill{position:absolute;left:0;bottom:0;top:0;background:var(--advance);opacity:.85;transition:width .6s cubic-bezier(.2,.7,.2,1)}
+.stage.now .fill{background:var(--signal)}
+.stage.cleared .fill{background:var(--advance)}
+.count,.tot,.share,.rc,.sstate{font-variant-numeric:tabular-nums}
+.count{position:absolute;inset:0;display:flex;align-items:center;padding-left:18px;font-size:44px;font-weight:800;letter-spacing:-.04em;color:var(--ink);mix-blend-mode:normal}
+.count small{font-size:16px;font-weight:600;color:var(--ink);opacity:.62;margin-left:6px;letter-spacing:0}
+.stage .label{display:flex;justify-content:space-between;align-items:baseline;margin-top:10px}
+.stage .label b{font-weight:650}
+.stage .label span{font-size:13px;color:var(--muted)}
+.stage.now .label b::after{content:"In progress";margin-left:8px;font-size:12px;font-weight:600;color:var(--signal)}
+.stage.waiting .label b::after{content:"Waiting for you";margin-left:8px;font-size:12px;font-weight:600;color:var(--signal)}
+.cutline{margin-top:14px;font-size:13.5px;color:var(--muted)}
+.cutline b{color:var(--cut);font-weight:650}
+@media (prefers-reduced-motion:reduce){.fill{transition:none}}
+
+/* Team */
+.team{margin-bottom:26px}
+.team h2,.niches h2{font-size:17px;font-weight:700;letter-spacing:-.01em;margin:0 0 10px;display:flex;align-items:baseline;gap:10px}
+.team h2 span,.niches h2 span{font-size:13px;font-weight:500;color:var(--muted)}
+.rigs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.rig{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.rig h3{margin:0 0 6px;font-size:14px;font-weight:700}
+.seat{display:grid;grid-template-columns:12px 1fr auto;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--line)}
+.seat:first-of-type{border-top:0}
+.sdot{width:9px;height:9px;border-radius:50%;background:var(--faint)}
+.seat.blocked .sdot{background:var(--cut)}
+.seat.blocked .sstate{color:var(--cut);font-weight:600}
+.seat.working .sdot{background:var(--signal);box-shadow:0 0 0 0 color-mix(in srgb,var(--signal) 60%,transparent);animation:pulse 2s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 7px transparent}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.seat.working .sdot{animation:none}}
+.sname{font-weight:600;font-size:14px}
+.sstate{font-size:12.5px;color:var(--muted)}
+.share{font-size:12.5px;color:var(--muted);text-align:right}
+.share i{display:block;width:64px;height:4px;border-radius:2px;background:var(--track);margin-top:4px;overflow:hidden}
+.share i::before{content:"";display:block;height:100%;width:var(--w);background:var(--muted)}
+.notice{font-size:13.5px;color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:12px 14px}
+
+/* Niches */
+.groups{display:flex;flex-direction:column;gap:22px}
+.group h3{font-size:14px;font-weight:700;margin:0 0 10px;display:flex;gap:10px;align-items:baseline}
+.group h3 span{color:var(--muted);font-weight:500}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px;align-items:start}
+.group.top .niche{border-left:3px solid var(--advance)}
+.group.short .niche{border-left:3px solid var(--signal)}
+.waiting-note{font-size:13.5px;color:var(--faint)}
+.lane{min-width:0}
+.lane h3{font-size:14px;font-weight:700;margin:0 0 8px;display:flex;justify-content:space-between;color:var(--ink)}
+.lane h3 span{color:var(--muted);font-weight:500}
+.lane .empty{font-size:13.5px;color:var(--faint);padding:14px;border:1px dashed var(--line);border-radius:12px}
+.niche{background:var(--raised);border:1px solid var(--line);border-radius:12px;margin-bottom:8px}
+.lane.top .niche{border-left:3px solid var(--advance)}
+.lane.short .niche{border-left:3px solid var(--signal)}
+.niche>button{all:unset;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:12px 14px;width:100%;box-sizing:border-box}
+.niche .nn{font-weight:650;line-height:1.3}
+.niche .nl{grid-column:1;font-size:13.5px;color:var(--muted);line-height:1.4}
+.sig{grid-row:1/span 2;grid-column:2;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.sig .tot{font-weight:800;font-size:18px;letter-spacing:-.02em;line-height:1}
+.sig .tot small{font-size:11.5px;color:var(--faint);font-weight:500}
+.nid{font-size:11.5px;font-weight:600;color:var(--faint);font-variant-numeric:tabular-nums}
+.glyph{display:flex;gap:2px;align-items:flex-end;height:18px}
+.glyph i{width:5px;border-radius:1.5px;background:var(--advance);opacity:.9}
+.glyph i.none{background:var(--track);height:3px!important}
+.detail{display:none;padding:0 14px 14px;font-size:13.5px}
+.niche.open .detail{display:block}
+.scores{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 14px;margin:2px 0 12px}
+.scores div{display:flex;justify-content:space-between;color:var(--muted)}
+.scores b{color:var(--ink);font-weight:650}
+.why{margin:0 0 8px}
+.skeptic{margin:0 0 10px;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,var(--cut) 10%,transparent)}
+.skeptic b{color:var(--cut);font-weight:650}
+.src{display:flex;flex-direction:column;gap:3px}
+.src a{color:var(--advance);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.src a:hover{text-decoration:underline}
+.meta{margin-top:8px;font-size:12.5px;color:var(--faint)}
+.cutbox{margin-top:18px}
+.cutbox summary{cursor:pointer;font-weight:650;font-size:14px;padding:6px 0}
+.cutbox summary span{color:var(--muted);font-weight:500}
+.cutrow{display:grid;grid-template-columns:minmax(160px,1fr) 2fr;gap:14px;padding:8px 0;border-top:1px solid var(--line);font-size:13.5px}
+.cutrow b{font-weight:600}
+.cutrow span{color:var(--muted)}
+.blank{padding:70px 20px;text-align:center;color:var(--muted)}
+.blank b{display:block;color:var(--ink);font-size:18px;margin-bottom:6px}
+
+
+@media (max-width:820px){
+  .app{grid-template-columns:1fr}
+  .rail{border-right:0;border-bottom:1px solid var(--line);padding:14px 16px;gap:10px}
+  .runlist{flex-direction:row;overflow-x:auto}
+  .runlist button{width:auto;min-width:150px}
+  .rail .foot{display:none}
+  main{padding:18px 16px 40px}
+  .cards{grid-template-columns:1fr}
+  .stages{grid-template-columns:1fr;gap:14px}
+  .stage .vessel{height:72px!important;clip-path:none;border-radius:10px}
+  .count{font-size:34px}
+  .cutrow{grid-template-columns:1fr}
+}
+.pick{display:flex;flex-direction:column;gap:8px;padding:0 14px 12px}
+.pickbtn{all:unset;cursor:pointer;align-self:flex-start;font-size:13px;font-weight:650;padding:6px 11px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.pickbtn:hover{color:var(--ink);border-color:var(--muted)}
+.pickbtn:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.niche.picked{box-shadow:0 0 0 2px var(--signal)}
+.niche.picked .pickbtn{background:var(--signal);border-color:var(--signal);color:#1b1300}
+.pick textarea,.decision textarea{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;resize:vertical;min-height:38px;width:100%}
+.pick textarea:focus,.decision textarea:focus{outline:2px solid var(--signal);outline-offset:0;border-color:transparent}
+.decision{position:sticky;bottom:0;margin-top:22px;background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:14px 16px;display:none;gap:14px;align-items:flex-end;box-shadow:0 -8px 24px color-mix(in srgb,var(--paper) 80%,transparent)}
+.decision.show{display:flex}
+.decision .dl{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
+.decision b{font-size:15px}
+.decision .order{font-size:13.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sendbtn{all:unset;cursor:pointer;background:var(--signal);color:#1b1300;font-weight:700;padding:10px 16px;border-radius:10px;white-space:nowrap}
+.sendbtn[disabled]{opacity:.45;cursor:not-allowed}
+.sendbtn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.sent{font-size:13.5px;color:var(--advance);font-weight:600}
+.sent.err{color:var(--cut)}
+.rail #alertSlot{padding:0 8px}
+@media (max-width:820px){.decision{flex-direction:column;align-items:stretch}}
+</style>
+<script src="/notify.js"></script>
+<script src="/health.js"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="rail">
+    <div class="brand">Rig Console</div>
+    <div id="alertSlot"></div>
+    <nav aria-label="Views" class="views"><a href="/" aria-current="page">Niche board</a><a href="/graph.html">Live graph</a><a href="/runs.html">Run report</a></nav>
+    <nav aria-label="Research runs">
+      <h2>Runs</h2>
+      <ul class="runlist" id="runs"></ul>
+    </nav>
+    <div class="foot" id="railfoot"><div id="healthSlot" style="margin-bottom:8px"></div>Refreshes every 10 seconds</div>
+  </aside>
+
+  <main id="main">
+    <div class="head">
+      <div>
+        <h1 id="runTitle">Loading</h1>
+        <p id="phaseNote"></p>
+      </div>
+      <div class="fresh" id="fresh"></div>
+    </div>
+
+    <div class="attn" id="attn" role="alert"></div>
+
+    <div class="yourturn" id="yourturn" role="status">
+      <div class="dot"></div>
+      <div><b>Your turn: choose which niches get a deep dive</b>
+      <span>The team has stopped at the checkpoint. Choose cards in Top 8, add notes if you like, then send your decision at the bottom of the page.</span></div>
+    </div>
+
+    <section class="funnel" aria-label="Funnel progress">
+      <div class="stages" id="stages"></div>
+      <div class="cutline" id="cutline"></div>
+    </section>
+
+    <section class="team" aria-labelledby="teamH">
+      <h2 id="teamH">Team <span id="teamSub"></span></h2>
+      <div id="team"></div>
+    </section>
+
+    <section class="niches" aria-labelledby="nichesH">
+      <h2 id="nichesH">Niches <span>furthest along first, ranked by score; select one for evidence</span></h2>
+      <div class="groups" id="lanes"></div>
+      <div class="decision" id="decision" aria-live="polite"></div>
+      <details class="cutbox" id="cutbox"><summary>Cut <span id="cutCount"></span></summary><div id="cuts"></div></details>
+    </section>
+  </main>
+</div>
+
+<script>
+const PHASES = ["longlist","screen","checkpoint","deep-dive","shortlist","done"];
+const PHASE_NAME = {longlist:"Gathering the longlist",screen:"Screening",checkpoint:"Waiting at checkpoint","deep-dive":"Deep dives",shortlist:"Building the shortlist",done:"Finished"};
+const CRIT = [["spending","Proof of spending"],["gap","Gap"],["pain","Pain"],["reach","Reachability"],["build","Buildability"],["economics","Economics"]];
+const TARGETS = {longlist:25, screened:8, shortlist:3};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const safeUrl = u => /^https?:\/\//i.test(u) ? u : null;
+const host = u => { try { return new URL(u).hostname.replace(/^www\./,""); } catch { return u; } };
+let current = new URLSearchParams(location.search).get("run");
+const open = new Set();
+
+function ago(iso){
+  const t = Date.parse(iso); if (isNaN(t)) return null;
+  const m = Math.round((Date.now()-t)/60000);
+  return m < 1 ? "just now" : m < 60 ? `${m} min ago` : `${Math.round(m/60)} h ago`;
+}
+function dur(fromLocal){ // "YYYY-MM-DD HH:MM:SS" local
+  const t = Date.parse(fromLocal.replace(" ","T")); if (isNaN(t)) return "";
+  const m = Math.max(0, Math.round((Date.now()-t)/60000));
+  return m < 1 ? "under a minute" : m < 60 ? `${m} min` : `${Math.floor(m/60)} h ${m%60} min`;
+}
+
+function renderRuns(runs){
+  if (!current && runs.length) current = runs[runs.length-1].run;
+  $("runs").innerHTML = runs.length ? runs.map(r => `
+    <li><button data-run="${esc(r.run)}" aria-current="${r.run===current}">
+      <span class="rn">${esc(r.run)}</span><span class="rc">${r.error ? "!" : `${r.alive} alive`}</span>
+      <span class="rp">${esc(r.error ? "Tracker unreadable" : PHASE_NAME[r.phase] || "Starting")}</span>
+    </button></li>`).join("")
+    : `<li class="rp" style="padding:0 8px;color:var(--faint)">No runs yet</li>`;
+  $("runs").querySelectorAll("button").forEach(b => b.onclick = () => {
+    current = b.dataset.run; history.replaceState(null,"",`?run=${encodeURIComponent(current)}`); open.clear(); refresh();
+  });
+}
+
+function renderFunnel(d){
+  const n = d.niches || [];
+  const t = Object.assign({}, TARGETS, d.targets || {});
+  const counts = [
+    n.length,
+    n.filter(x => ["screened","shortlisted","finalist"].includes(x.stage)).length,
+    n.filter(x => ["shortlisted","finalist"].includes(x.stage)).length,
+  ];
+  const pi = PHASES.indexOf(d.phase);
+  const stageOf = [0, pi>=1?1:0, pi>=3?2:0];
+  const names = [["Longlist","Candidates found"],["Screened","Best of the longlist"],["Shortlist","Survived the skeptic"]];
+  const tgt = [t.longlist, t.screened, t.shortlist];
+  const active = pi<=0 ? 0 : pi<=2 ? 1 : pi<=4 ? 2 : 3;
+  $("stages").innerHTML = names.map(([name,sub],i) => {
+    const cls = d.phase==="checkpoint" && i===1 ? "waiting" : i===active ? "now" : i<active ? "cleared" : "";
+    const pct = Math.min(100, tgt[i] ? counts[i]/tgt[i]*100 : 0);
+    return `<div class="stage ${cls}">
+      <div class="vessel"><div class="fill" style="width:${pct}%"></div>
+        <div class="count">${counts[i]}<small>of ${tgt[i]}</small></div></div>
+      <div class="label"><b>${name}</b><span>${sub}</span></div></div>`;
+  }).join("");
+  const cut = n.filter(x => x.stage==="cut").length;
+  $("cutline").innerHTML = cut ? `<b>${cut} cut</b> so far. Every cut keeps its reason, listed under the niches.` : "Nothing cut yet.";
+}
+
+function glyph(s){
+  return `<span class="glyph" aria-hidden="true">${CRIT.map(([k]) => s?.[k] ? `<i style="height:${s[k]*3.6}px"></i>` : `<i class="none"></i>`).join("")}</span>`;
+}
+function niche(x, picking){
+  const isOpen = open.has(x.id);
+  const scores = CRIT.map(([k,l]) => `<div>${l}<b>${x.scores?.[k] ?? "–"}</b></div>`).join("");
+  const links = (x.evidence||[]).map(u => safeUrl(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(host(u))}</a>` : "").join("");
+  const total = x.total ?? Object.values(x.scores||{}).reduce((a,b)=>a+b,0);
+  const picked = picking && picker.order.includes(x.id);
+  return `<article class="niche ${isOpen?"open":""} ${picked?"picked":""}">
+    <button aria-expanded="${isOpen}" data-id="${esc(x.id)}">
+      <span class="nn">${esc(x.name)}</span>
+      <span class="sig"><span class="tot">${total||"–"}<small>/30</small></span>${glyph(x.scores)}<span class="nid">${esc(x.id)}</span></span>
+      <span class="nl">${esc(x.one_line)}</span>
+    </button>
+    <div class="detail">
+      <div class="scores">${scores}</div>
+      ${x.reason ? `<p class="why">${esc(x.reason)}</p>` : ""}
+      ${x.skeptic ? `<p class="skeptic"><b>Skeptic:</b> ${esc(x.skeptic)}</p>` : ""}
+      ${links ? `<div class="src">${links}</div>` : `<div class="meta">No sources attached yet.</div>`}
+      <div class="meta">${esc(x.owner || "")}${x.owner && x.updated ? ", " : ""}${x.updated ? `updated ${esc(ago(x.updated) || "")}` : ""}</div>
+    </div>${picking && x.stage==="screened" ? pickRow(x) : ""}</article>`;
+}
+
+// Checkpoint picker: the user's deep-dive choices, kept across refreshes.
+const picker = { run: null, order: [], notes: {}, general: "", sent: null, loadedFor: null };
+async function loadDecision(run){
+  if (picker.loadedFor === run) return;
+  picker.loadedFor = run; picker.order = []; picker.notes = {}; picker.general = ""; picker.sent = null;
+  try {
+    const r = await fetch(`/data/${encodeURIComponent(run)}/decision.json`, {cache:"no-store"});
+    if (r.ok){ const d = await r.json(); picker.order = d.deep_dive || []; picker.notes = d.notes || {}; picker.general = d.general_note || ""; picker.sent = {at: d.decided_at}; }
+  } catch {}
+}
+function typingInPicker(){ const a = document.activeElement; return a && a.tagName === "TEXTAREA" && (a.closest("#lanes") || a.closest("#decision")); }
+function pickRow(x){
+  const i = picker.order.indexOf(x.id);
+  return `<div class="pick"><button class="pickbtn" data-pick="${esc(x.id)}" aria-pressed="${i>=0}">${i>=0 ? `Deep dive #${i+1}` : "Choose for deep dive"}</button>
+    ${i>=0 ? `<textarea data-note="${esc(x.id)}" rows="1" placeholder="Note for the team (optional): what to check, what worries you">${esc(picker.notes[x.id]||"")}</textarea>` : ""}</div>`;
+}
+function renderDecision(d){
+  const show = d.phase === "checkpoint" || picker.sent;
+  const box = $("decision"); box.classList.toggle("show", !!show);
+  if (!show) return;
+  const names = picker.order.map((id,i) => `${i+1}. ${(d.niches||[]).find(n=>n.id===id)?.name || id}`);
+  const sentLine = picker.sent?.error ? `<span class="sent err">${esc(picker.sent.error)}</span>`
+    : picker.sent ? `<span class="sent">Sent ${esc(ago(picker.sent.at) || "")}${picker.sent.lead ? (picker.sent.lead_notified ? `, ${esc(picker.sent.lead.split("@")[0])} notified` : `. Couldn't message the lead; tell the operator the decision is in research/${esc(d.run||picker.run)}/decision.md`) : ""}</span>` : "";
+  if (!typingInPicker()) box.innerHTML = `<div class="dl">
+      <b>${picker.order.length ? `${picker.order.length} chosen for deep dive` : "Choose the niches worth a deep dive"}</b>
+      <div class="order">${esc(names.join("  ")) || "Select cards in Top 8. The order you pick them in is the order the team works."}</div>
+      <textarea id="generalNote" rows="2" placeholder="Anything else the team should know (optional)">${esc(picker.general)}</textarea>
+      ${sentLine}
+    </div>
+    <button class="sendbtn" id="sendBtn" ${picker.order.length && d.phase==="checkpoint" ? "" : "disabled"}>${picker.sent && !picker.sent.error ? "Send updated decision" : "Send decision to the lead"}</button>`;
+  const gn = $("generalNote"); if (gn) gn.oninput = e => picker.general = e.target.value;
+  const sb = $("sendBtn"); if (sb) sb.onclick = async () => {
+    sb.disabled = true; sb.textContent = "Sending…";
+    try {
+      const r = await fetch(`/api/decision?run=${encodeURIComponent(picker.run)}`, {method:"POST",
+        headers:{"Content-Type":"application/json","X-Rig-Console":"1"},
+        body: JSON.stringify({deep_dive: picker.order, notes: picker.notes, general_note: picker.general})});
+      const res = await r.json();
+      picker.sent = res.error ? {error: res.error} : {at: res.decided_at, lead: res.lead, lead_notified: res.lead_notified};
+    } catch { picker.sent = {error: "Couldn't reach the dashboard server"}; }
+    renderDecision(d);
+  };
+}
+function wirePicker(d){
+  $("lanes").querySelectorAll("[data-pick]").forEach(b => b.onclick = () => {
+    const id = b.dataset.pick, i = picker.order.indexOf(id);
+    i >= 0 ? picker.order.splice(i,1) : picker.order.push(id);
+    renderNiches(d, true); renderDecision(d);
+  });
+  $("lanes").querySelectorAll("[data-note]").forEach(t => t.oninput = e => picker.notes[t.dataset.note] = e.target.value);
+}
+
+function renderNiches(d, force){
+  if (!force && typingInPicker()) return;
+  const picking = d.phase === "checkpoint";
+  const n = (d.niches||[]).slice().sort((a,b)=>(b.total??0)-(a.total??0));
+  const groups = [
+    ["Shortlist","short",x=>x.stage==="shortlisted"||x.stage==="finalist"],
+    ["Top 8","top",x=>x.stage==="screened"],
+    ["Under review","",x=>x.stage==="longlist"],
+  ];
+  const html = groups.map(([t,c,f]) => {
+    const items = n.filter(f); if (!items.length) return "";
+    return `<div class="group ${c}"><h3>${t}<span>${items.length}</span></h3><div class="cards">${items.map(x=>niche(x, picking)).join("")}</div></div>`;
+  }).join("");
+  $("lanes").innerHTML = html || `<div class="waiting-note">Niches appear here as the analysts report them.</div>`;
+  const cuts = n.filter(x=>x.stage==="cut");
+  $("cutCount").textContent = cuts.length;
+  $("cutbox").style.display = cuts.length ? "" : "none";
+  $("cuts").innerHTML = cuts.map(x=>`<div class="cutrow"><b>${esc(x.name)} <span style="color:var(--faint);font-weight:500">${esc(x.id)}</span></b><span>${esc(x.reason||"No reason recorded")}</span></div>`).join("");
+  $("lanes").querySelectorAll(".niche>button").forEach(b => b.onclick = () => {
+    const id = b.dataset.id; open.has(id) ? open.delete(id) : open.add(id);
+    b.parentElement.classList.toggle("open"); b.setAttribute("aria-expanded", open.has(id));
+  });
+  wirePicker(d);
+}
+
+function renderTeam(t){
+  if (!t || t.logger==="missing" || t.logger==="empty"){
+    $("teamSub").textContent = "";
+    $("team").innerHTML = `<div class="notice">No activity data. Start the logger in Ubuntu with <b>sudo systemctl start rig-snapshots</b>.</div>`;
+    return;
+  }
+  t.seats = t.seats.filter(s => !/-human@/.test(s.session)); // dashboard panes, not agents
+  const blocked = t.seats.filter(s => s.activity.startsWith("needs_input"));
+  $("attn").classList.toggle("show", blocked.length > 0);
+  $("attn").innerHTML = blocked.length ? `<div class="dot"></div><div><b>${blocked.map(s=>esc(s.session.split("@")[0])).join(", ")} ${blocked.length===1?"is":"are"} waiting for approval</b><span>To approve, run <code>tmux attach -t &#39;${esc(blocked[0].session)}&#39;</code> in Ubuntu, answer the prompt, then press Ctrl+B, D.</span></div><a href="/graph.html?seat=${encodeURIComponent(blocked[0].session)}">See in graph</a>` : "";
+  const rigs = {};
+  t.seats.forEach(s => (rigs[s.rig] ||= []).push(s));
+  const working = t.seats.filter(s=>s.activity==="working").length;
+  $("teamSub").textContent = `${working} of ${t.seats.length} seats working` + (t.logger==="stale" ? ", logger stopped" : "");
+  $("team").innerHTML = `<div class="rigs">${Object.entries(rigs).map(([rig,seats]) => `
+    <div class="rig"><h3>${esc(rig)}</h3>${seats.map(s => `
+      <div class="seat ${s.activity==="working"?"working":s.activity.startsWith("needs_input")?"blocked":""}">
+        <span class="sdot"></span>
+        <div><div class="sname">${esc(s.session.split("@")[0])}</div>
+          <div class="sstate">${s.activity==="working" ? "Working" : s.activity==="idle" ? "Idle" : s.activity.startsWith("needs_input") ? "Waiting for approval" : s.activity==="unknown" ? "No activity signal" : esc(s.activity)} for ${dur(s.since)}</div></div>
+        <div class="share" title="Share of logged time spent working">${Math.round(s.work_share*100)}% busy<i style="--w:${s.work_share*100}%"></i></div>
+      </div>`).join("")}</div>`).join("")}</div>`;
+}
+
+async function refresh(){
+  let runs = [], team = null, d = null;
+  try { runs = await (await fetch("/api/runs",{cache:"no-store"})).json(); } catch {}
+  renderRuns(Array.isArray(runs) ? runs : []);
+  try { team = await (await fetch("/api/team",{cache:"no-store"})).json(); } catch {}
+  renderTeam(team);
+  if (!current){
+    $("runTitle").textContent = "No research runs yet";
+    $("phaseNote").textContent = "Runs appear here once a lead writes research/<run>/niches.json.";
+    $("stages").innerHTML = ""; $("lanes").innerHTML = ""; $("cutline").textContent = ""; $("cutbox").style.display="none";
+    return;
+  }
+  try {
+    const r = await fetch(`/data/${encodeURIComponent(current)}/niches.json`,{cache:"no-store"});
+    if (!r.ok) throw 0; d = await r.json();
+  } catch {
+    $("runTitle").textContent = current; $("phaseNote").textContent = "Waiting for this run's tracker file.";
+    return;
+  }
+  $("runTitle").textContent = `${d.run || current}: ${PHASE_NAME[d.phase] || "Starting"}`;
+  $("phaseNote").textContent = d.phase_note || "";
+  const a = d.updated ? ago(d.updated) : null;
+  const stale = d.updated && (Date.now()-Date.parse(d.updated)) > 30*60000 && !["checkpoint","done"].includes(d.phase);
+  $("fresh").textContent = a ? `Tracker updated ${a}` : "";
+  $("fresh").className = "fresh" + (stale ? " stale" : "");
+  $("yourturn").classList.toggle("show", d.phase==="checkpoint");
+  picker.run = current; await loadDecision(current);
+  renderFunnel(d); renderNiches(d); renderDecision(d);
+}
+refresh(); setInterval(refresh, 10000);
+</script>
+</body>
+</html>

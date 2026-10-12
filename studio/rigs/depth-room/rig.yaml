@@ -1,0 +1,123 @@
+version: "0.2"
+name: depth-1
+summary: >
+  Studio stage 1, Track A (depth room). A Claude curator draws collision
+  hands for three Codex pitchers, a Codex reviser rewrites returning ideas,
+  a Codex depth critic tries to break every card and a Codex scout checks
+  novelty, all judged blind. Ends with a Rig Console gate. Brief: brief.md.
+
+culture_file: CULTURE.md
+
+docs:
+  - path: brief.md
+  - path: README.md
+
+pods:
+  - id: room
+    label: Curation
+    members:
+      - id: lead
+        label: "Curator (Claude)"
+        agent_ref: "local:agents/curator"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: pitch
+    label: Pitchers
+    summary: Three independent pitchers plus the reviser. Pitchers never read each other's cards.
+    members:
+      - id: a
+        label: "Pitcher A (Codex)"
+        agent_ref: "local:agents/pitcher"
+        runtime: codex
+        profile: default
+        cwd: "."
+        startup:
+          files: []
+          actions:
+            - type: send_text
+              value: "You are pitcher A. Your card ids start with a- and your files are pitches/a-NN.md. Read brief.md, then wait for your hands from room-lead."
+              phase: after_ready
+              idempotent: true
+      - id: b
+        label: "Pitcher B (Codex)"
+        agent_ref: "local:agents/pitcher"
+        runtime: codex
+        profile: default
+        cwd: "."
+        startup:
+          files: []
+          actions:
+            - type: send_text
+              value: "You are pitcher B. Your card ids start with b- and your files are pitches/b-NN.md. Read brief.md, then wait for your hands from room-lead."
+              phase: after_ready
+              idempotent: true
+      - id: c
+        label: "Pitcher C (Codex, strange deck)"
+        agent_ref: "local:agents/pitcher"
+        runtime: codex
+        profile: default
+        cwd: "."
+        startup:
+          files: []
+          actions:
+            - type: send_text
+              value: "You are pitcher C. Your card ids start with c- and your files are pitches/c-NN.md. Your hands come from the strange-weighted deck. Read brief.md, then wait for your hands from room-lead."
+              phase: after_ready
+              idempotent: true
+    edges: []
+
+  - id: revise
+    label: Reviser
+    members:
+      - id: cards
+        label: "Reviser (Codex)"
+        agent_ref: "local:agents/reviser"
+        runtime: codex
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: depth
+    label: Depth critic
+    members:
+      - id: critic
+        label: "Depth critic (Codex)"
+        agent_ref: "local:agents/critic"
+        runtime: codex
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: scout
+    label: Novelty scout
+    members:
+      - id: novelty
+        label: "Scout (Codex)"
+        agent_ref: "local:agents/scout"
+        runtime: codex
+        profile: default
+        cwd: "."
+    edges: []
+
+edges:
+  - kind: delegates_to
+    from: room.lead
+    to: pitch.a
+  - kind: delegates_to
+    from: room.lead
+    to: pitch.b
+  - kind: delegates_to
+    from: room.lead
+    to: pitch.c
+  - kind: delegates_to
+    from: room.lead
+    to: revise.cards
+  - kind: delegates_to
+    from: room.lead
+    to: depth.critic
+  - kind: delegates_to
+    from: room.lead
+    to: scout.novelty

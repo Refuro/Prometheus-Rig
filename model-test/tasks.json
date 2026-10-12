@@ -1,0 +1,17 @@
+[
+  {
+    "id": "extract",
+    "kind": "json",
+    "prompt": "Below are app-store reviews of a fictional landlord app called RentDesk (invented test data). Return ONLY a JSON object, no prose, no code fences, shaped like {\"pain_points\": [{\"issue\": string, \"mentions\": integer, \"example\": string}]}, sorted by mentions descending.\n\n1. Rent reminders go out on the wrong day every month. Tenants get confused.\n2. I manage 4 units and there is no way to split utility bills between tenants.\n3. Reminder emails land a day late. Annoying.\n4. Love the UI but splitting the water bill across units means spreadsheets again.\n5. Support took 9 days to reply.\n6. The reminders are unreliable, tenant said she never got one.\n7. No bill splitting. Dealbreaker for multi-unit owners.\n8. Support never answered my ticket about late fees."
+  },
+  {
+    "id": "skeptic",
+    "kind": "text",
+    "prompt": "You are a skeptic on a product research team. Your job is to kill weak ideas. Idea: a subscription app ($15/month) that helps small landlords with 2 to 10 units split utility bills among tenants automatically. Give the 3 strongest reasons this could fail, and for each, one cheap test that would tell us within two weeks whether that risk is real. Be concrete and brief."
+  },
+  {
+    "id": "toolcall",
+    "kind": "json",
+    "prompt": "You are an agent. You can call exactly one of these tools: search_web(query: string), read_file(path: string), send_message(to: string, body: string). Task: tell the reviewer agent named 'reviewer' that the research summary is ready at notes/summary.md. Respond ONLY with JSON shaped like {\"tool\": string, \"args\": object}. No prose, no code fences."
+  }
+]

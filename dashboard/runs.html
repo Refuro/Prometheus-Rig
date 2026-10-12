@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#eef1f4; --surface:#f7f9fb; --raised:#fff; --ink:#152033; --muted:#5d687a; --faint:#8a94a4;
+  --line:#d7dde5; --signal:#c98200; --signal-soft:#fbf0d9; --cut:#c2412b; --cut-soft:#fbe5e0; --idle:#c7cfd8; --good:#2e8b57;
+  --font:"Schibsted Grotesk",ui-sans-serif,system-ui,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0a0f17; --surface:#0f1621; --raised:#141d2a; --ink:#e3e8ef; --muted:#8e9aac; --faint:#5d6a7e;
+  --line:#212c3c; --signal:#f0b23c; --signal-soft:#2f2511; --cut:#f0765c; --cut-soft:#311a16; --idle:#344257; --good:#5cc28a;
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:14.5px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px;border-radius:6px}
+.bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 18px;padding:12px 24px;border-bottom:1px solid var(--line);background:var(--surface);position:sticky;top:0;z-index:3}
+.bar h1{margin:0;font-size:16px;font-weight:800;letter-spacing:-.02em}
+.bar nav{display:flex;gap:14px}
+.bar nav a{color:var(--muted);text-decoration:none;font-weight:600;font-size:13.5px}
+.bar nav a:hover,.bar nav a[aria-current]{color:var(--ink)}
+.spacer{flex:1}
+select,input,textarea,button{font:inherit}
+select,input[type=number],input[type=text]{background:var(--raised);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:13.5px}
+.btn{all:unset;cursor:pointer;font-size:13.5px;font-weight:650;padding:7px 12px;border:1px solid var(--line);border-radius:8px;color:var(--ink);background:var(--raised)}
+.btn.primary{background:var(--signal);border-color:var(--signal);color:#1b1300}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+main{padding:22px 24px 60px;max-width:1500px;margin:0 auto}
+h2{font-size:18px;font-weight:800;letter-spacing:-.02em;margin:0 0 4px}
+.lede{color:var(--muted);margin:0 0 14px;max-width:80ch}
+section{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px}
+.facts{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px}
+.fact{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13.5px}
+.fact b{font-weight:700}
+.fact.warn{border-color:color-mix(in srgb,var(--cut) 40%,transparent);background:var(--cut-soft)}
+/* timeline */
+.tl{overflow-x:auto}
+.tl svg{display:block;min-width:760px}
+.tl .lab{font-size:12.5px;font-weight:650;fill:var(--ink)}
+.tl .sub{font-size:11px;fill:var(--faint)}
+.tl .tick{font-size:11px;fill:var(--faint)}
+.tl .grid{stroke:var(--line)}
+.tl .seg.w{fill:var(--signal)} .tl .seg.i{fill:var(--idle)} .tl .seg.b{fill:var(--cut)}
+.tl .ph line{stroke:var(--ink);stroke-dasharray:3 4;opacity:.45}
+.tl .ph text{font-size:11.5px;font-weight:650;fill:var(--ink)}
+.tl .ev{fill:var(--ink)} .tl .ev.sent{fill:none;stroke:var(--ink);stroke-width:1.3}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--muted);margin-top:8px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:12px;height:8px;border-radius:2px;display:inline-block}
+/* tables */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-weight:650;color:var(--muted);padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+td.num{font-variant-numeric:tabular-nums;text-align:right}
+.addrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+.msg{font-size:13px;color:var(--muted)}
+.msg.err{color:var(--cut)}
+.vchip{display:inline-block;font-size:12px;font-weight:650;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
+.vchip.ok{color:var(--good)} .vchip.dead{color:var(--cut);border-color:var(--cut)} .vchip.blocked{color:var(--signal)} .vchip.error,.vchip.unreachable{color:var(--muted)}
+.links a{color:var(--muted);word-break:break-all}
+.progress{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin:10px 0}
+.progress i{display:block;height:100%;background:var(--signal);width:0}
+details.file{border-top:1px solid var(--line);padding:8px 0}
+details.file summary{cursor:pointer;font-weight:650}
+details.file pre{white-space:pre-wrap;font:12.5px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;max-height:520px;overflow:auto}
+.empty{color:var(--faint);font-size:13.5px}
+@media (max-width:700px){main{padding:14px 12px 40px}section{padding:14px}}
+</style>
+<script src="/notify.js"></script>
+<script src="/health.js"></script>
+</head>
+<body>
+<script src="/nav.js"></script>
+<select id="runSel" aria-label="Run" data-rc-tools></select>
+<main>
+  <section aria-labelledby="tlH">
+    <h2 id="tlH">Where the time went</h2>
+    <p class="lede">One lane per agent from the first minute the team ran. Red is time stuck waiting for someone's approval: the cheapest time to win back.</p>
+    <div class="facts" id="facts"></div>
+    <div class="tl" id="tl"></div>
+    <div class="legend"><span><i style="background:var(--signal)"></i>Working</span><span><i style="background:var(--cut)"></i>Waiting for approval</span><span><i style="background:var(--idle)"></i>Idle</span>
+      <span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="none" stroke="currentColor"/></svg>Work sent to this agent</span>
+      <span><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="currentColor"/></svg>Picked up</span></div>
+  </section>
+
+  <section aria-labelledby="apH">
+    <h2 id="apH">Approval prompts</h2>
+    <p class="lede">Every time an agent stopped to ask permission, and how long it waited for you. The groups at the top are what to allowlist before the next run.</p>
+    <div id="apGroups"></div>
+    <details class="file"><summary>Every prompt</summary><div id="apRows"></div></details>
+  </section>
+
+  <section aria-labelledby="usH">
+    <h2 id="usH">Usage</h2>
+    <p class="lede">Copy the numbers from claude.ai/settings/usage and ChatGPT's usage page before and after a run. Rig Console works out what the run cost.</p>
+    <div class="facts" id="usageFacts"></div>
+    <div id="usageTable"></div>
+    <div class="addrow">
+      <select id="uMeter" aria-label="Meter"><option value="claude|session">Claude, 5-hour session</option><option value="claude|weekly">Claude, weekly</option><option value="codex|weekly">Codex, weekly</option></select>
+      <input id="uPct" type="number" min="0" max="100" step="1" placeholder="% used" aria-label="Percent used" style="width:96px">
+      <input id="uNote" type="text" placeholder="Note (optional)" aria-label="Note" style="flex:1;min-width:180px">
+      <button class="btn primary" id="uAdd" type="button">Add reading</button>
+      <span class="msg" id="uMsg"></span>
+    </div>
+  </section>
+
+  <section aria-labelledby="evH">
+    <h2 id="evH">Evidence check</h2>
+    <p class="lede">Tests every source link the team cited. Dead links and niches with no sources are problems. "Blocked" means the site refuses automated checks (Reddit does this); open those by hand if they matter.</p>
+    <div class="addrow"><button class="btn primary" id="evRun" type="button">Check all sources</button><span class="msg" id="evMsg"></span></div>
+    <div class="progress" id="evProg" hidden><i></i></div>
+    <div class="facts" id="evFacts"></div>
+    <div id="evList"></div>
+  </section>
+
+  <section aria-labelledby="dcH">
+    <h2 id="dcH">Decisions</h2>
+    <p class="lede">Every checkpoint call sent from Rig Console, across runs, and where those niches ended up.</p>
+    <div id="decisions"></div>
+  </section>
+
+  <section aria-labelledby="cmH">
+    <h2 id="cmH">All runs</h2>
+    <p class="lede">Each run side by side, to see whether changes to the brief or permissions actually helped.</p>
+    <div id="compare"></div>
+  </section>
+
+  <section aria-labelledby="fiH">
+    <h2 id="fiH">Run files</h2>
+    <p class="lede">The team's own write-ups for this run.</p>
+    <div id="files"></div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const PHASE = {longlist:"Longlist",screen:"Screening",checkpoint:"Checkpoint","deep-dive":"Deep dives",shortlist:"Shortlist",done:"Done"};
+let run = new URLSearchParams(location.search).get("run"), runs = [], rigs = [];
+const hm = d => d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
+const fmtMin = m => m < 60 ? `${Math.round(m)} min` : `${Math.floor(m/60)} h ${Math.round(m%60)} min`;
+const rigFor = r => rigs.find(x => x.endsWith(r)) || rigs.find(x => x.includes(r)) || null;
+const post = (url, body) => fetch(url, {method:"POST", headers:{"Content-Type":"application/json","X-Rig-Console":"1"}, body: JSON.stringify(body||{})}).then(r => r.json());
+
+async function init(){
+  try { runs = await (await fetch("/api/runs")).json(); } catch {}
+  try { rigs = await (await fetch("/api/rigs")).json(); } catch {}
+  if (!run && runs.length) run = runs[runs.length-1].run;
+  $("runSel").innerHTML = runs.map(r => `<option ${r.run===run?"selected":""}>${esc(r.run)}</option>`).join("") || "<option>No runs yet</option>";
+  $("runSel").onchange = e => { run = e.target.value; history.replaceState(null,"",`?run=${encodeURIComponent(run)}`); all(); };
+  $("uAdd").onclick = addUsage; $("evRun").onclick = startEvidence;
+  all();
+}
+function all(){ timeline(); approvals(); usage(); evidence(); decisionsLog(); compare(); files(); }
+const mins = s => { s = +s || 0; return s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s/60)} min` : `${Math.floor(s/3600)} h ${Math.round(s%3600/60)} min`; };
+
+async function approvals(){
+  const rig = rigFor(run); let d = {rows: [], groups: []};
+  try { d = await (await fetch(`/api/approvals${rig ? `?rig=${encodeURIComponent(rig)}` : ""}`)).json(); } catch {}
+  if (!d.rows.length){ $("apGroups").innerHTML = `<div class="empty">No prompts logged yet. Logging started when this version of Rig Console first ran; earlier waits still show in red on the timeline.</div>`; $("apRows").innerHTML = ""; return; }
+  const total = d.groups.reduce((a,g) => a + g.wait_s, 0);
+  $("apGroups").innerHTML = `<div class="facts"><div class="fact"><b>${d.rows.length}</b> prompts</div><div class="fact ${total > 300 ? "warn" : ""}"><b>${mins(total)}</b> spent waiting</div></div>
+    <table><thead><tr><th>What agents asked to do</th><th class="num">Times</th><th class="num">Total wait</th><th class="num">Longest</th><th>Example</th></tr></thead><tbody>${
+    d.groups.map(g => `<tr><td><b>${esc(g.kind)}</b></td><td class="num">${g.count}</td><td class="num">${mins(g.wait_s)}</td><td class="num">${mins(g.longest_s)}</td><td>${esc(g.example)}</td></tr>`).join("")}</tbody></table>`;
+  $("apRows").innerHTML = `<table><thead><tr><th>When</th><th>Agent</th><th>Request</th><th class="num">Waited</th></tr></thead><tbody>${
+    d.rows.map(r => `<tr><td>${esc(new Date(r.start).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}))}${r.open ? " (still waiting)" : ""}</td><td>${esc(r.seat.split("@")[0])}</td><td>${esc(r.request)}</td><td class="num">${mins(r.wait_s)}</td></tr>`).join("")}</tbody></table>`;
+}
+
+async function decisionsLog(){
+  let d = []; try { d = await (await fetch("/api/decisions")).json(); } catch {}
+  $("decisions").innerHTML = d.length ? d.map(x => `<div class="fact" style="display:block;margin-bottom:10px">
+      <b>${esc(x.run)}</b>, ${esc(new Date(x.decided_at).toLocaleString([], {month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}))}
+      <table style="margin-top:6px"><tbody>${x.outcomes.map((o,i) => `<tr><td>${i+1}. ${esc(o.name)} <span class="msg">${esc(o.id)}</span>${x.notes && x.notes[o.id] ? `<div class="msg">Your note: ${esc(x.notes[o.id])}</div>` : ""}</td><td><span class="vchip ${o.stage === "cut" ? "dead" : o.stage === "finalist" || o.stage === "shortlisted" ? "ok" : ""}">${esc(o.stage || "unknown")}</span></td><td class="msg">${esc(o.reason || "")}</td></tr>`).join("")}</tbody></table>
+      ${x.general_note ? `<div class="msg">General note: ${esc(x.general_note)}</div>` : ""}</div>`).join("")
+    : `<div class="empty">No decisions sent from Rig Console yet. Checkpoint calls made by messaging the operator don't appear here; use the picker on the Niche board to have them logged.</div>`;
+}
+
+async function compare(){
+  let d = []; try { d = await (await fetch("/api/runs_summary")).json(); } catch {}
+  if (!d.length){ $("compare").innerHTML = `<div class="empty">No runs yet.</div>`; return; }
+  const cost = c => Object.entries(c||{}).map(([k,v]) => `${k.replace("claude session","Claude 5-h").replace("claude weekly","Claude wk").replace("codex weekly","Codex wk")} +${v}`).join(", ") || "Add usage readings";
+  $("compare").innerHTML = `<table><thead><tr><th>Run</th><th>Phase</th><th class="num">Length</th><th class="num">Agent time working</th><th class="num">Waiting for approval</th><th class="num">Handoffs</th><th class="num">Longlist / screened / shortlisted</th><th>Usage (points)</th><th>Evidence</th></tr></thead><tbody>${
+    d.map(r => `<tr><td><b>${esc(r.run)}</b></td><td>${esc(PHASE[r.phase] || r.phase || "")}</td><td class="num">${r.minutes != null ? fmtMin(r.minutes) : "–"}</td><td class="num">${fmtMin(r.working_min)}</td><td class="num">${fmtMin(r.waiting_min)}</td><td class="num">${r.handoffs}</td><td class="num">${r.longlist} / ${r.screened} / ${r.shortlisted}</td><td>${esc(cost(r.cost))}</td><td>${r.evidence ? `${r.evidence.links} links, ${r.evidence.dead} dead${r.evidence.unsupported ? `, ${r.evidence.unsupported} unsourced` : ""}` : "Not checked"}</td></tr>`).join("")}</tbody></table>`;
+}
+
+// ---------- Timeline
+async function timeline(){
+  const rig = rigFor(run);
+  if (!rig){ $("tl").innerHTML = `<div class="empty">No team found for ${esc(run)} in the activity log yet.</div>`; $("facts").innerHTML = ""; return; }
+  const d = await (await fetch(`/api/timeline?rig=${encodeURIComponent(rig)}&run=${encodeURIComponent(run)}`)).json();
+  if (!d.start){ $("tl").innerHTML = `<div class="empty">No activity recorded yet.</div>`; return; }
+  const t0 = Date.parse(d.start), t1 = Math.max(Date.parse(d.end), t0 + 60000);
+  const lanes = d.lanes.slice().sort((a,b) => /lead/.test(b.session) - /lead/.test(a.session));
+  const L = 190, R = 210, TOP = 40, LH = 46, Wd = Math.max(900, $("tl").clientWidth || 1100), plotW = Wd - L - R;
+  const X = t => L + (t - t0) / (t1 - t0) * plotW;
+  const H = TOP + lanes.length * LH + 16;
+  let s = "";
+  const step = [5,10,15,30,60].map(m => m*60000).find(st => (t1 - t0) / st <= 10) || 3600000;
+  for (let t = Math.ceil(t0/step)*step; t <= t1; t += step) s += `<line class="grid" x1="${X(t)}" x2="${X(t)}" y1="${TOP-6}" y2="${H-10}"/><text class="tick" x="${X(t)}" y="${TOP-14}" text-anchor="middle">${hm(new Date(t))}</text>`;
+  lanes.forEach((ln, i) => {
+    const y = TOP + i*LH, st = d.stats[ln.session] || {w:0,i:0,b:0}, tot = st.w + st.i + st.b || 1;
+    s += `<text class="lab" x="0" y="${y+16}">${esc(ln.session.split("@")[0])}</text>
+      <text class="sub" x="0" y="${y+31}">${fmtMin(st.w)} working${st.b ? `, ${fmtMin(st.b)} waiting` : ""}</text>`;
+    ln.segments.forEach(([a, b, c]) => {
+      const xa = X(Date.parse(a)), xb = Math.max(xa + 2, X(Date.parse(b)));
+      s += `<rect class="seg ${c}" x="${xa}" y="${y+6}" width="${xb - xa}" height="22" rx="3"><title>${c==="w"?"Working":c==="b"?"Waiting for approval":"Idle"}: ${hm(new Date(Date.parse(a)))} to ${hm(new Date(Date.parse(b)))}</title></rect>`;
+    });
+    const busy = Math.round(st.w / tot * 100);
+    s += `<text class="sub" x="${Wd - R + 16}" y="${y+16}">${busy}% busy</text>
+      <rect x="${Wd - R + 16}" y="${y+22}" width="150" height="5" rx="2.5" fill="var(--line)"/><rect x="${Wd - R + 16}" y="${y+22}" width="${150*busy/100}" height="5" rx="2.5" fill="var(--signal)"/>`;
+  });
+  const laneY = sess => { const i = lanes.findIndex(l => l.session === sess); return i < 0 ? null : TOP + i*LH; };
+  d.events.forEach(e => {
+    const y = laneY(e.to); if (y == null) return; const t = Date.parse(e.ts); if (t < t0 || t > t1) return;
+    s += `<circle class="ev ${e.kind==="sent"?"sent":""}" cx="${X(t)}" cy="${y+36}" r="3.5"><title>${esc(e.kind==="sent"?"Sent":"Picked up")} ${hm(new Date(t))}: ${esc(e.from.split("@")[0])} to ${esc(e.to.split("@")[0])}${e.tags.length?` (${esc(e.tags.join(", "))})`:""}</title></circle>`;
+  });
+  d.phases.forEach(p => { const t = Date.parse(p.ts); if (t < t0 || t > t1) return;
+    s += `<g class="ph"><line x1="${X(t)}" x2="${X(t)}" y1="${TOP-4}" y2="${H-10}"/><text x="${X(t)+4}" y="${H-2}">${esc(PHASE[p.phase]||p.phase)}</text></g>`; });
+  $("tl").innerHTML = `<svg viewBox="0 0 ${Wd} ${H+6}" width="100%" role="img" aria-label="Timeline of each agent's activity">${s}</svg>`;
+  // headline facts
+  const vals = Object.entries(d.stats);
+  const waited = vals.reduce((a,[,v]) => a + v.b, 0);
+  const busiest = vals.slice().sort((a,b) => b[1].w - a[1].w)[0];
+  const quiet = vals.slice().sort((a,b) => a[1].w - b[1].w)[0];
+  $("facts").innerHTML = `<div class="fact">Ran <b>${fmtMin((t1-t0)/60000)}</b>, ${hm(new Date(t0))} to ${hm(new Date(t1))}</div>
+    <div class="fact ${waited > 5 ? "warn" : ""}"><b>${fmtMin(waited)}</b> of agent time waiting for approval</div>
+    ${busiest ? `<div class="fact">Busiest: <b>${esc(busiest[0].split("@")[0])}</b>, ${fmtMin(busiest[1].w)} working</div>` : ""}
+    ${quiet ? `<div class="fact">Least used: <b>${esc(quiet[0].split("@")[0])}</b>, ${fmtMin(quiet[1].w)} working</div>` : ""}
+    <div class="fact"><b>${d.events.filter(e=>e.kind==="sent").length}</b> handoffs</div>`;
+}
+
+// ---------- Usage
+async function usage(){
+  let rows = []; try { rows = await (await fetch("/api/usage")).json(); } catch {}
+  const mine = rows.filter(r => !r.run || r.run === run);
+  const label = r => `${r.provider === "claude" ? "Claude" : "Codex"}, ${r.meter === "session" ? "5-hour session" : "weekly"}`;
+  $("usageTable").innerHTML = mine.length ? `<table><thead><tr><th>When</th><th>Meter</th><th class="num">% used</th><th>Note</th></tr></thead><tbody>${
+    mine.slice().reverse().map(r => `<tr><td>${esc(new Date(r.ts).toLocaleString([], {month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}))}</td><td>${esc(label(r))}</td><td class="num">${esc(r.percent_used)}%</td><td>${esc(r.note)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">No readings for this run yet.</div>`;
+  const groups = {};
+  mine.forEach(r => (groups[label(r)] ||= []).push(r));
+  $("usageFacts").innerHTML = Object.entries(groups).map(([k, rs]) => {
+    const a = +rs[0].percent_used, b = +rs[rs.length-1].percent_used;
+    return rs.length > 1 ? `<div class="fact ${b >= 80 ? "warn" : ""}">${esc(k)}: <b>${a}% to ${b}%</b> (${b - a >= 0 ? "+" : ""}${(b - a).toFixed(0)} points)${b >= 80 ? ". Close to the limit: pause heavy work or switch it to Codex" : ""}</div>`
+                         : `<div class="fact">${esc(k)}: <b>${b}%</b> at start. Add an end reading to see the cost.</div>`;
+  }).join("");
+}
+async function addUsage(){
+  const [provider, meter] = $("uMeter").value.split("|");
+  const res = await post("/api/usage", {provider, meter, percent_used: $("uPct").value, note: $("uNote").value, run});
+  $("uMsg").textContent = res.error ? res.error : "Saved"; $("uMsg").className = "msg" + (res.error ? " err" : "");
+  if (!res.error){ $("uPct").value = ""; $("uNote").value = ""; usage(); }
+}
+
+// ---------- Evidence
+let evTimer = null;
+async function startEvidence(){
+  $("evRun").disabled = true; $("evMsg").textContent = "Starting…";
+  const r = await post(`/api/evidence?run=${encodeURIComponent(run)}`);
+  if (r.error){ $("evMsg").textContent = r.error; $("evRun").disabled = false; return; }
+  evidence(true);
+}
+async function evidence(poll){
+  clearTimeout(evTimer);
+  let d = {}; try { d = await (await fetch(`/api/evidence?run=${encodeURIComponent(run)}`)).json(); } catch {}
+  const res = d.results || [];
+  $("evProg").hidden = !d.running; $("evProg").firstElementChild.style.width = d.total ? `${d.done/d.total*100}%` : 0;
+  $("evRun").disabled = !!d.running;
+  $("evMsg").textContent = d.running ? `Checking ${d.done} of ${d.total}…` : d.finished ? `Last checked ${new Date(d.finished).toLocaleString([], {hour:"numeric", minute:"2-digit", month:"short", day:"numeric"})}` : "Not checked yet";
+  const count = v => res.filter(r => r.verdict === v).length;
+  $("evFacts").innerHTML = res.length ? `<div class="fact"><b>${count("ok")}</b> reachable</div><div class="fact ${count("dead")?"warn":""}"><b>${count("dead")}</b> dead</div><div class="fact"><b>${count("blocked")}</b> blocked by the site</div><div class="fact"><b>${count("error") + count("unreachable")}</b> errors</div><div class="fact ${(d.unsupported||[]).length?"warn":""}"><b>${(d.unsupported||[]).length}</b> live niches with no sources</div>` : "";
+  const bad = res.filter(r => r.verdict !== "ok").sort((a,b) => ["dead","error","unreachable","blocked"].indexOf(a.verdict) - ["dead","error","unreachable","blocked"].indexOf(b.verdict));
+  $("evList").innerHTML = (d.unsupported||[]).length ? `<p><b>No sources:</b> ${d.unsupported.map(u => esc(`${u.name} (${u.id})`)).join(", ")}</p>` : "";
+  if (bad.length) $("evList").innerHTML += `<table><thead><tr><th>Result</th><th>Link</th><th>Cited by</th></tr></thead><tbody>${bad.map(r => `<tr><td><span class="vchip ${r.verdict}">${esc(r.verdict)}${r.status ? ` ${r.status}` : ""}</span></td><td class="links"><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.url)}</a></td><td>${esc((r.niches||[]).join(", ") || "sources list")}</td></tr>`).join("")}</tbody></table>`;
+  if (d.running || poll) evTimer = setTimeout(() => evidence(d.running), 1500);
+}
+
+// ---------- Files
+async function files(){
+  const names = [["summary.md","Summary"],["decision.md","Your checkpoint decision"],["retro.md","Retro"],["longlist.md","Longlist"]];
+  const parts = await Promise.all(names.map(async ([f, label]) => {
+    try { const r = await fetch(`/data/${encodeURIComponent(run)}/${f}`, {cache:"no-store"}); if (!r.ok) return ""; const t = await r.text();
+      return `<details class="file"><summary>${esc(label)}</summary><pre>${esc(t)}</pre></details>`; } catch { return ""; }
+  }));
+  let briefs = []; try { briefs = await (await fetch("/api/briefs")).json(); } catch {}
+  const bhtml = briefs.map(b => `<details class="file"><summary>Brief: ${esc(b.name)}</summary><pre>${esc(b.text)}</pre></details>`).join("");
+  $("files").innerHTML = (bhtml + parts.join("")) || `<div class="empty">No write-ups yet.</div>`;
+}
+init();
+</script>
+</body>
+</html>

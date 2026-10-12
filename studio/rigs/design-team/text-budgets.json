@@ -1,0 +1,25 @@
+{
+  "_comment": "Word budgets per text context. The brevity editor sets the profile and numbers from the pillars (story-heavy games get bigger budgets). Defaults are for a light-text game.",
+  "profile": "light",
+  "contexts": {
+    "button": 3,
+    "menu_label": 3,
+    "item_name": 4,
+    "objective": 10,
+    "tooltip": 12,
+    "achievement": 12,
+    "hint": 15,
+    "tutorial": 15,
+    "dialogue_line": 20,
+    "item_description": 25,
+    "level_intro": 25,
+    "lore": 60
+  },
+  "max_exclamations_per_string": 1,
+  "banned_phrases": [
+    "embark", "journey awaits", "delve", "tapestry", "unleash", "testament to",
+    "a world where", "little did", "it seems that", "brace yourself",
+    "welcome, brave", "get ready to", "in a realm", "behold", "ever-changing",
+    "the stakes have never been higher", "like never before", "let's dive"
+  ]
+}

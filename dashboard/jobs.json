@@ -1,0 +1,7 @@
+{
+  "_help": "Every folder under a root is a job (a research run, a validation campaign, a game prototype...). Add roots for new kinds of work. A job.json inside a job folder can set type, rig, title, writers and watch_depth.",
+  "roots": [
+    {"root": "~/openrig/research", "type": "research"},
+    {"root": "~/openrig/jobs", "type": "general"}
+  ]
+}

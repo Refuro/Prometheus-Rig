@@ -1,0 +1,55 @@
+{
+  "_comment": "Collision deck for the pitch room. Each hand = one card per suit. 'strange' cards get extra weight when draw_hands.py runs with --strange. Edit freely; ids are just the text.",
+  "verb": [
+    "dig", "sort", "stack", "untangle", "forge", "bargain", "herd", "pour",
+    "fold", "listen", "smuggle", "repair", "translate", "balance", "shovel",
+    "polish", "count", "hide", "feed", "pack", "trace", "unscrew", "sweep",
+    "carry", "tune", "inflate", "peel", "glue", "weigh", "rewind",
+    "knit", "steer", "catch", "evict", "impersonate", "measure",
+    {"text": "apologize", "strange": true},
+    {"text": "forget", "strange": true},
+    {"text": "haunt", "strange": true},
+    {"text": "outlast", "strange": true}
+  ],
+  "setting": [
+    "a wedding", "a lighthouse", "a laundromat", "a submarine", "a bakery at 4am",
+    "a lost-and-found office", "a ski lift", "a goldfish bowl", "a moving van",
+    "a cathedral roof", "a supermarket after closing", "a dentist's waiting room",
+    "an attic", "a carnival", "a sinking ferry", "a hotel lobby", "a beehive",
+    "a parking garage", "a museum vault", "a school bus", "a junkyard",
+    "a greenhouse", "a train dining car", "a frozen lake", "a pawn shop",
+    "a recording studio", "a lighthouse keeper's kitchen", "a desert motel",
+    "the inside of a clock", "a library with no catalogue",
+    {"text": "a dream someone else is having", "strange": true},
+    {"text": "a single pixel", "strange": true},
+    {"text": "the last day of the universe", "strange": true},
+    {"text": "a spreadsheet", "strange": true}
+  ],
+  "constraint": [
+    "one button", "no text anywhere", "you can't see what you're doing",
+    "it never stops moving", "everything is fragile", "only sixty seconds",
+    "you control two things at once", "the camera is your enemy",
+    "you can't undo", "gravity changes", "you are tiny",
+    "you are enormous", "every action makes noise", "the level is one screen",
+    "you lose something every turn", "you play in reverse",
+    "the rules are hidden and must be discovered", "you can only move in a straight line",
+    "everything is slowly on fire", "you share a body with someone else",
+    {"text": "the game is lying to you", "strange": true},
+    {"text": "nobody can see your score (not even you)", "strange": true},
+    {"text": "you must lose to win", "strange": true},
+    {"text": "the tutorial never ends", "strange": true}
+  ],
+  "twist_input": [
+    "a physics sandbox", "procedural generation", "a timer you can't see",
+    "a crowd of tiny agents", "a rope or chain", "liquids", "magnetism",
+    "sound you must react to", "a map you draw yourself", "a single enormous object",
+    "an inventory with no limit", "a pet that follows you", "a needle-in-haystack search",
+    "an economy", "stacking and toppling", "mirrors and light",
+    {"text": "your microphone", "strange": true},
+    {"text": "the system clock", "strange": true},
+    {"text": "your webcam", "strange": true},
+    {"text": "the game window itself (moving and resizing)", "strange": true},
+    {"text": "your real desktop files (read-only and opt-in)", "strange": true},
+    {"text": "how long you've owned the game", "strange": true}
+  ]
+}

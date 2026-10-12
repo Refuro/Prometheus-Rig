@@ -1,0 +1,97 @@
+version: "0.2"
+name: design-1
+summary: >
+  Studio stage 3 and production support: the design team. A Claude creative
+  director leads systems, balance, onboarding, narrative, brevity-editing and
+  art-direction seats; writes pillars, design, balance and art bible; gates
+  them with the owner; then stays on to answer design questions and judge
+  discoveries during production. Brief: brief.md.
+
+culture_file: CULTURE.md
+
+docs:
+  - path: brief.md
+  - path: README.md
+
+pods:
+  - id: creative
+    label: Creative direction
+    members:
+      - id: director
+        label: "Creative director (Claude)"
+        agent_ref: "local:agents/creative-director"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: design
+    label: Game design
+    members:
+      - id: systems
+        label: "Systems designer (Claude)"
+        agent_ref: "local:agents/systems"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+      - id: balance
+        label: "Balance designer (Codex)"
+        agent_ref: "local:agents/balance"
+        runtime: codex
+        profile: default
+        cwd: "."
+      - id: onboarding
+        label: "Onboarding designer (Claude)"
+        agent_ref: "local:agents/onboarding"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: words
+    label: Words
+    members:
+      - id: narrative
+        label: "Narrative designer (Claude)"
+        agent_ref: "local:agents/narrative"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+      - id: editor
+        label: "Brevity editor (Codex)"
+        agent_ref: "local:agents/editor"
+        runtime: codex
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: art
+    label: Art direction
+    members:
+      - id: director
+        label: "Art director (Codex)"
+        agent_ref: "local:agents/art-director"
+        runtime: codex
+        profile: default
+        cwd: "."
+    edges: []
+
+edges:
+  - kind: delegates_to
+    from: creative.director
+    to: design.systems
+  - kind: delegates_to
+    from: creative.director
+    to: design.balance
+  - kind: delegates_to
+    from: creative.director
+    to: design.onboarding
+  - kind: delegates_to
+    from: creative.director
+    to: words.narrative
+  - kind: delegates_to
+    from: creative.director
+    to: words.editor
+  - kind: delegates_to
+    from: creative.director
+    to: art.director

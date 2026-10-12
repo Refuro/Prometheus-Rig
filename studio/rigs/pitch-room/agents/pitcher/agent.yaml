@@ -1,0 +1,29 @@
+name: pitcher
+version: "1.0"
+description: "Pitch-room pitcher: invents original game premises from collision hands"
+
+resources:
+  guidance:
+    - id: role
+      path: guidance/role.md
+  plugins:
+    - id: openrig-core
+      source:
+        kind: local
+        path: "openrig-home:plugins/openrig-core"
+
+profiles:
+  default:
+    uses:
+      skills: []
+      guidance: [role]
+      subagents: []
+      plugins: [openrig-core]
+      runtime_resources: []
+
+startup:
+  files:
+    - path: guidance/role.md
+      delivery_hint: send_text
+      required: true
+  actions: []

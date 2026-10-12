@@ -1,0 +1,35 @@
+{
+  "_comment": "Friendslop deck. Four suits: a shared job, a place, a social twist, and a pressure. No commas inside cards.",
+  "shared_job": [
+    "move something huge", "deliver something fragile", "keep something alive",
+    "build something before it's needed", "map somewhere unknown", "clean up a disaster",
+    "film something for an audience", "cook for something", "steer one vehicle together",
+    "repair something while it runs", "catch something that escapes", "fill a quota",
+    "rescue someone who won't cooperate", "assemble a machine from scattered parts",
+    "climb something together", "herd creatures", "dig toward something",
+    "run a shop for strange customers", "tune a broken instrument", "evacuate a place"
+  ],
+  "place": [
+    "a cargo ship in a storm", "an abandoned theme park", "a mountain at night",
+    "a haunted hotel", "the ocean floor", "a collapsing mine", "a space station",
+    "a giant's house", "a swamp", "an office tower after hours", "a frozen research base",
+    "a moving train", "a sky island chain", "a sewer city", "a desert caravan route",
+    "the inside of a whale", "a museum after closing", "a volcano observatory"
+  ],
+  "social_twist": [
+    "only one player can see the danger", "players are physically tied together",
+    "one player gives orders and can't act", "everyone controls one body part",
+    "each player has a secret goal", "players can carry each other",
+    "proximity voice is the only map", "players swap roles mid-run",
+    "one player is tiny", "the loudest player attracts trouble",
+    "dead players keep helping as something else", "every tool needs two people",
+    "players can't hear each other through walls", "one player is the vehicle"
+  ],
+  "pressure": [
+    "a quota you must hit", "a creature that hunts by sound", "rising water",
+    "a timer nobody can see", "an audience voting live", "the weather turns",
+    "the place falls apart behind you", "a boss who phones in demands",
+    "limited oxygen", "a night that's coming", "a rival crew", "money running out",
+    "the cargo fights back", "gravity keeps changing"
+  ]
+}

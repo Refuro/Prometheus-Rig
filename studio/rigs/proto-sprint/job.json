@@ -1,0 +1,13 @@
+{
+ "type": "prototype",
+ "rig": "proto-1",
+ "title": "Prototype sprint 1",
+ "writers": {
+  "lead": "proto-lead",
+  "build-a": "build-a",
+  "build-b": "build-b",
+  "build-c": "build-c",
+  "depth": "depth-critic"
+ },
+ "watch_depth": 2
+}
