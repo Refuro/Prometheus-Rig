@@ -9,6 +9,8 @@ It's a hobby and learning project. The goal is to find out how far a supervised 
 go: from finding an opportunity to validating it, building it and selling it. The rule throughout is that a
 human makes every call that matters.
 
+![Rig Console's live graph replaying a research run: three agents working, handoffs in flight, and the activity feed](docs/graph.png)
+
 ---
 
 ## What's inside
@@ -25,6 +27,17 @@ A small stdlib-Python server plus plain HTML pages, with no build step and no de
 | **Play builds** | Godot web exports from prototype jobs, one tap to play. Cross-origin isolation is handled, so threaded builds work too. |
 | **Niche board / Run report** | Research funnels, checkpoint pickers, a per-agent timeline of where the time went, approval waits, a usage log and an evidence link checker. |
 | **Phone view** | "Needs you", teams and the feed in a phone layout, installable as an app. Alerts arrive as push notifications via ntfy. |
+
+<table>
+<tr>
+<td width="68%"><img src="docs/decision.png" alt="A decision gate on desktop: pick 3 pitches, with picks numbered in order"></td>
+<td width="32%"><img src="docs/phone.png" alt="The same decision on a phone"></td>
+</tr>
+<tr>
+<td align="center"><sub>Teams ask, you decide: a gate on desktop</sub></td>
+<td align="center"><sub>…or from your phone</sub></td>
+</tr>
+</table>
 
 Under the hood:
 - **SQLite event store** for states, actions, handoffs, files and custom events. It backfills from logs, uses numbered migrations, and lives outside the synced folder.
@@ -126,4 +139,9 @@ to your console URL) and subscribe to the topic in the ntfy app.
 
 ---
 
-*Not affiliated with OpenRig, Anthropic or OpenAI. A personal project, shared in case the patterns are useful.*
+## License
+
+[MIT](LICENSE): use it, fork it, adapt it.
+
+*Not affiliated with OpenRig, Anthropic or OpenAI. A personal project, shared in case the patterns are useful.
+The screenshots show a replay of a real research run and a demo decision.*

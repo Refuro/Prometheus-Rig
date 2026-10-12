@@ -92,6 +92,7 @@ h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
 .reader .rh{display:flex;align-items:center;gap:10px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;border-bottom:1px solid var(--line)}
 .reader .rh b{flex:1;min-width:0;font:600 13.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .reader .rb{flex:1;overflow:auto;padding:6px 22px calc(30px + env(safe-area-inset-bottom))}
+@media (max-width:700px){.bar .cnt{flex-basis:100%}.bar .in > .btn,.bar .go{flex:1;text-align:center}}
 .viewer{position:fixed;inset:0;z-index:45;background:rgba(0,0,0,.88);display:none;align-items:center;justify-content:center;padding:16px}
 .viewer.open{display:flex}
 .viewer img{max-width:100%;max-height:100%;border-radius:8px}
