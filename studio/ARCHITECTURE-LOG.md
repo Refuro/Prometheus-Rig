@@ -1,7 +1,8 @@
 # Architecture log
 
-**Who writes here:** only the studio architect: the Claude chat session that
-designs the studio, or any session the owner explicitly names as architect.
+**Who writes here:** only the Studio Architect (see `../ROLES.md`): the Claude
+chat session that designs the studio, or any session the owner explicitly
+names as Studio Architect.
 **Who reads it:** the owner, future architect sessions (read this before
 changing any template), the model analyst and the Codex reviewer (read-only,
 as evidence). **Studio seats never read or write it**; their instructions
@@ -10,6 +11,12 @@ live in their briefs.
 **Format:** one entry per design decision: what, why, what it replaced, and
 later the outcome. Outcomes are filled in when evidence arrives, with links.
 Misses get written down plainly; this log exists to learn from them.
+
+**Other logs:** the Rig Architect's log is `../ARCHITECTURE-LOG.md` (PD-nnn).
+Logs never edit each other. Input for another role goes under "Notes for
+<Role> (input, not edits)" at the end of this log; their input for me is
+adopted (or not) here with a logged outcome. Console requests go to
+`../dashboard/REQUESTS.md`; new cross-team rules go through the Rig Architect.
 
 ---
 
@@ -142,3 +149,54 @@ The architect (this log's author) is in its scope too.
 **Why:** much observed "model behaviour" was really brief behaviour; route
 and write briefs on evidence.
 **Outcome:** pending.
+
+## AD-013 Adopting the platform architect's notes (2026-10-12)
+Input from `../ARCHITECTURE-LOG.md`, "Notes for the studio architect".
+- **Operational problems are alerts, not gates.** Adopted. AD-010 already
+  routes repeated capacity errors to one operator note; the next-round
+  templates will say outright that gates hold owner decisions only, and
+  that stalls, capacity and usage problems go to the operator and the
+  console's alerts.
+- **Soft gate maxima** (`max_soft`, PD-009): adopt in the next-round
+  templates once the console supports it; until then set `max` to what the
+  owner is likely to want (friends-1 showed 4, not 3).
+- **Close gates on chat decisions:** an operator rule already; nothing to
+  change in templates.
+- **events.jsonl for test results:** adopt in the next round: the co-op
+  build tool should log each net test as its own event (it currently logs
+  only the overall build), and a production playtest bot should do the same.
+
+## AD-014 Working under ROLES.md (2026-10-12, owner direction)
+**Decision:** the Studio Architect owns `studio/` only. Console features are
+requested in `dashboard/REQUESTS.md`; cross-team rules are proposed to the
+Rig Architect (notes below) and live in `briefs/`; studio rules may be
+stricter than cross-team rules, never looser. Operator prompts are drafted
+here and sent by the owner.
+**Effect on earlier entries:**
+- AD-010's capacity-retry and "ordinary errors are not stops" parts touch the
+  cross-team stop rule (briefs say to stop on usage warnings). They're
+  consistent with it (capacity errors aren't usage limits), but the owner
+  already relayed them to the operator as studio policy before ROLES.md
+  existed. Proposed below for the Rig Architect to adopt or adjust in
+  `briefs/`; until then they apply to studio rigs only.
+- AD-010's second send-back, known-exploits-first and lead-judgment labels
+  are studio-only process rules; they stay in `studio/`.
+- AD-013's soft gate maximum is already R-001 in `dashboard/REQUESTS.md`;
+  the net-test event is a studio template change (mine), not a console one.
+
+---
+
+## Notes for the Rig Architect (input, not edits)
+- **Proposed cross-team rule: transient provider errors.** "Selected model is
+  at capacity" (or similar) is not a usage-limit warning. Seats retry the same
+  step after about 2, 5 and 10 minutes; after a fourth failure the lead sends
+  one note to the operator; never a gate; never switch models to get around
+  it. Evidence: proto-1 produced three owner gates around 23:30 for blips
+  that cleared on their own (proto-1/decisions/provider-capacity-*.md).
+- **Proposed cross-team rule: what counts as a stop.** Stop only for a native
+  approval prompt, a usage-limit warning, or an approved tool failing to run.
+  Wrong paths, malformed edits, compile errors and failing tests caused by the
+  seat's own work are normal iteration. Evidence: proto-2 and coop-1 builders
+  halted on a wrong-path read and a malformed patch under a lead's "any tool
+  failure" wording (proto-2/lead-resume-x-12.md, x-14.md).
+- **Agree with PD notes:** operational problems belong in alerts, not gates.

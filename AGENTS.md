@@ -1,7 +1,7 @@
 # Working in this repo
 
 This is **prometheus-rig**: an OpenRig agent-team setup, Rig Console (`dashboard/`), team briefs and the
-game studio templates. Read `README.md` first.
+game studio templates. Read `README.md` and `ROLES.md` (who owns what) first.
 
 - **Which role are you?** The owner names it. Code in `dashboard/`, `setup/` and tests belongs to the
   **Platform Architect**: read `PLATFORM-ARCHITECT.md` before changing it. Briefs and shared rules

@@ -189,6 +189,32 @@ scripting, text/image-to-3D models, local generation on the 4080, procedural
 generation in Godot) on quality, style consistency, cost, licensing and Steam
 disclosure, and ends with a gate recommending one pipeline per asset type.
 
+## Planned for the next round (not in the current runs)
+
+Agreed 2026-10-12; build these before launching the next pitch rooms and
+prototype sprints. The runs in flight (depth-1, friends-1, proto-2, coop-1)
+continue unchanged.
+
+1. **Clarification channel:** a prototype lead may send spec questions to
+   its pitch room's room-lead while prototypes are building; the pitch room
+   is taken down once the prototype gate closes.
+2. **Lessons loop:** when a prototype gate closes, the prototype lead writes
+   `lessons.md` (why each prototype worked or failed); the next pitch
+   round's room-lead reads it before drawing hands.
+3. **Playbooks (memory as files, fresh seats):** `studio/playbooks/<role>.md`,
+   loaded at startup by every seat in that role: builder, critic, curator,
+   proto-lead, and `owner-taste.md` (owner preferences from gate notes).
+   Guardrails: pitchers get craft lessons only, never what won or the
+   owner's taste (curators and critics do); each playbook is capped at about
+   a page, every lesson dated and sourced, and retros propose additions and
+   removals for the critic or curator to approve. Track send-backs per
+   prototype, "none" answers at gates, and post-build vs pre-build exploits
+   across runs to check that the playbooks help. Start with a shared Godot
+   snippet library for builders (networking, title card, beats, export).
+4. **Deck tweaks from round 2:** thin the move/deliver cards in the
+   friendslop deck; give pitchers more free pitches (for example 3 hand +
+   4 free), since free pitches won 4 of 6 friendslop board places.
+
 ## Open questions
 
 - Platform beyond PC/Steam (web on itch for public prototypes)? Default: PC

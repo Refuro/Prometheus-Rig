@@ -86,7 +86,7 @@ flowchart LR
 | [`setup/`](setup) | WSL bootstrap, the snapshot logger, and services for the logger, the dashboard and WSL keep-alive |
 | [`model-test/`](model-test) | A small harness for testing local Ollama models on agent tasks (JSON output, skeptic reasoning, tool calls) |
 | [`ARCHITECTURE-LOG.md`](ARCHITECTURE-LOG.md) · [`studio/`](studio/ARCHITECTURE-LOG.md) · [`dashboard/`](dashboard/ARCHITECTURE-LOG.md) | Design decisions and how they turned out, misses included, one log per architect (Rig, Studio, Platform) |
-| [`PLATFORM-ARCHITECT.md`](PLATFORM-ARCHITECT.md) · [`dashboard/tests/`](dashboard/tests) | How the console is built and maintained; a stdlib smoke test (`python3 dashboard/tests/smoke.py`) against fixtures |
+| [`ROLES.md`](ROLES.md) · [`PLATFORM-ARCHITECT.md`](PLATFORM-ARCHITECT.md) · [`dashboard/tests/`](dashboard/tests) | Who owns what and how the roles work together; how the console is built and maintained; a stdlib smoke test (`python3 dashboard/tests/smoke.py`) against fixtures |
 | [`SETUP.md`](SETUP.md) · [`CHEATSHEET.md`](CHEATSHEET.md) | The setup log with the reasoning behind each choice, and day-to-day commands |
 
 Not in the repo, on purpose: live snapshots, research and job mirrors, run outputs, dashboard state,
