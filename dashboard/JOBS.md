@@ -110,7 +110,8 @@ Each message the owner sends from the console starts `Message from the owner [ms
 - **Fields:** `id` (required, the exact id from the message, matching the file name), `text` (required, up to
   20,000 characters, shown as plain text), `at` (optional ISO time; else the file's time).
 - **Follow-ups:** write `<id>-2.json`, `<id>-3.json`… They show under the first reply; nothing is replaced.
-  Rewriting a file updates that reply.
+  Rewriting a file updates that reply. Inside a follow-up, `"id"` may be the message id or the file's own
+  (`<id>-2`); either works.
 - **Pairing is by id only.** A file whose id the console never issued, whose `id` field doesn't match its
   name, or that answers another seat's message is ignored and logged once. It's never shown.
 - **What happens:** within about 10 s the reply shows beside the exact question on the Messages page, with

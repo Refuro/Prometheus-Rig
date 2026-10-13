@@ -1735,6 +1735,100 @@ correct `rig-console-deploy`. Nothing else changes, and no root files need editi
 
 ---
 
+## PL-042 The deploy command is repaired and the Lounge fix is live; follow-up replies accept either id (2026-10-13)
+**Verified read-only after the owner's deploy of 0945b71:**
+- `rig-dashboard` runs as `rigconsole` since 15:04:07 PDT;
+- `/opt/rig-console/lounge.py` is identical to the source;
+- the installed `rig-console-deploy` has `REPO="/mnt/c/.../OpenRig"` and the anchored fill-in line.
+
+So PL-040 (Lounge reads, Lounge posts, the Diplomacy pause) and PL-041 are live. The owner and the operator are
+checking the Lounge feed.
+
+**Reply by id is in real use (PL-025):**
+- The operator has written reply files for three of the owner's messages: 14:07, 14:08 and 14:11 PDT.
+- One follow-up, `m-20261013140708-8c4e-2.json`, was ignored: its `"id"` was `<id>-2`. JOBS.md §3e said
+  how to name a follow-up file but not what its `id` should be, so the ambiguity was mine.
+- Fix: a follow-up's `id` may be the message id or the file's own id (`<id>-n`), and never another file's.
+  The file name still ties it to one message. §3e now says so.
+- Smoke 229/229 (new: both forms accepted, another file's id refused).
+- Live with the next deploy; the existing follow-up then shows by itself.
+
+**Outcome for PL-025:** replies are flowing. The owner confirms the pairing on the Messages page; seats
+don't call the console.
+
+---
+
+## PL-043 Live sealed intentions and a spoiler toggle on the Diplomacy page (R-028, owner, 2026-10-13)
+**What (`diplomacy.html` only; no server change, since it reads through the existing sandboxed `/job/` route):**
+- **Power drawer:** "By phase: intention and orders", newest first, including the phase being played (marked
+  "this phase").
+  - The intention comes from `powers/<nation>/intentions/<phase>.md` while the game runs, and from
+    `archive/intentions/<nation>/<phase>.md` once `board/final.md` exists.
+  - Orders come from the phase's archive, or the power's own `orders/<phase>.txt` while the phase is open.
+  - Labelled "Sealed intention, written before press · live, unarchived until game end" (after the end:
+    without "live…").
+- **"This phase, side by side"** (new tab): for each of the seven powers, its intention, its orders and how
+  many messages it sent this phase.
+- **"Show intentions" toggle** in the bar: on by default and remembered per browser in `localStorage`. A
+  private window falls back to on. Off hides every intention.
+- **Safety:**
+  - every path is built from a checked phase name (`[SFW]dddd[MRA]`) and one of the seven power names, so
+    no agent text reaches a URL;
+  - intentions are escaped plain text exactly like press, never rendered as Markdown;
+  - files open only through `/job/` (sandboxed, inside the job folder).
+- **Also in this page:**
+  - Rig's `paused-usage` state shows as "Paused: usage limit";
+  - **a bug from the draft, fixed:** the drawer sat under the console's top bar, so its Close button couldn't
+    be clicked on desktop. Found by the new interactive check.
+
+**Checked:**
+- Smoke 232/232. New: intentions served through `/job/` with the sandbox header; `..` and encoded `..` paths
+  can't leave the job folder; the page escapes intentions, has the remembered default-on toggle, the live
+  label and the usage-limit state.
+- Interactive browser check (`scratch/platform/dip-check.mjs`), desktop and phone, 12/12: toggle on by
+  default; side by side shows France's intention and orders; a planted `<script>` stays text with no dialog;
+  the drawer shows the sealed intention; toggling off hides intentions and is remembered across a reload;
+  no page errors or sideways scroll.
+- I looked at the side-by-side and drawer screenshots.
+
+**Release:** bundled with PL-042 in one deploy (its command list is replaced; see `deploy-pl042-043.md`).
+
+## PL-044 The Advisor's four Diplomacy additions merged (owner, 2026-10-13)
+**What:** `diplomacy.html` was rebuilt from the Advisor's latest `lab/diplomacy/console/diplomacy.html`, then my
+changes were re-applied on top.
+- **From the Advisor:**
+  - pending orders under each power card and at the top of the drawer;
+  - per-pair conversation threads in the drawer (a chip for each other power, two-sided bubbles across phases);
+  - the Press tab as a plain feed, with sender and recipient each in their colour;
+  - no-flicker refresh: it re-renders only when the data changed, keeps the scroll position, swaps the board
+    image only when the SVG changed, and doesn't poll while the drawer is open or the tab is hidden.
+- **Kept from mine:**
+  - no `?base=`;
+  - phase names checked;
+  - the escaped board address;
+  - the "Paused: usage limit" state;
+  - the drawer above the top bar;
+  - live sealed intentions, the Show intentions toggle and the side-by-side tab.
+- **Merge fixes:**
+  - The Advisor's new code put agent text into style attributes (`var(--${esc(from)})`). A new `colour()`
+    helper now lets only the seven power names reach a style attribute.
+  - The current phase's live press sorted before older phases because that phase wasn't in the index. It now
+    sorts in order.
+  - This phase's intentions now load with the orders, so the side-by-side tab renders at once, and a new
+    intention counts as a data change for the no-flicker refresh.
+
+**Checked:**
+- Smoke 232/232. The safety check is stricter: it now fails if any style attribute takes agent text.
+- Interactive check (`scratch/platform/dip-check.mjs`), desktop and phone, 22/22. New checks: a card shows
+  pending orders; a refresh with unchanged data rebuilds nothing; the feed colours both names; the drawer has
+  pending orders first and seven chips; the France–Germany thread shows bubbles.
+- Standard browser check passes. The 404s for powers that haven't written orders or intentions yet are expected.
+- I looked at the drawer screenshot.
+
+**Release:** in the same 8 files as PL-042/043. One deploy covers all three (see `deploy-pl042-043.md`).
+
+---
+
 ## Notes for other roles
 
 How this works (ROLES.md): one section per role, newest first, each note dated and marked **[new]**

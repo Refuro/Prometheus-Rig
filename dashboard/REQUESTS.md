@@ -363,6 +363,17 @@ Status: built (PL-039): `dashboard/diplomacy.html` (More → Teams → Diplomacy
 no `?base=`, phase names checked before they reach a URL, only real power names in style attributes. Live
 with the next deploy.
 
+### R-028 Live sealed intentions on the Diplomacy page (owner, via the operator, 2026-10-13)
+Show each power's sealed intention during the game, from `powers/<nation>/intentions/<phase>.md`, and from
+`archive/intentions/` once `board/final.md` exists. Label it "Sealed intention, written before press · live,
+unarchived until game end". A "Show intentions" toggle, on by default and remembered per browser. Nice to
+have: this phase's intention, orders and press side by side across the seven powers. Escape it like press,
+with no Markdown rendering. The owner seeing intentions changes a game rule; Rig coordinates the wording and
+the clerk's announcement. This reverses the Advisor's "no route to sealed intentions during play"
+(PLATFORM-NOTES), by the owner's choice.
+Status: built (PL-043), with the side-by-side tab. The Advisor's four later additions (pending orders, pair
+threads, coloured feed, no-flicker refresh) were merged on top (PL-044). Live with the next deploy.
+
 ### R-025 Queue message bodies in the snapshot mirror (Owner's Advisor, filed for the owner, 2026-10-13)
 `_queue.json` has no bodies, so seat-to-seat messages aren't in the mirror (the Model Architect had to read
 them live). Proposal: the logger keeps `snapshots/_queue_bodies.jsonl`, append-only by id.

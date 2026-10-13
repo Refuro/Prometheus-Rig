@@ -12,11 +12,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <!-- Diplomacy board (lab job, drafted by the Owner's Advisor 2026-10-13; adopted by Platform, R-024/PL-039: no
-     ?base=, phase names checked before they reach a URL, only real power names in style attributes).
+     ?base=, phase names checked before they reach a URL, only real power names in style attributes. Live sealed
+     intentions and the side-by-side tab: R-028/PL-043. The Advisor's pending orders, pair threads, coloured feed
+     and no-flicker refresh merged in PL-044.)
      Reads the clerk's files through the existing read-only /job/<job>/... route. The board is the engine's own
      rendered SVG, shown as an <img> so agent-written SVG can never run script here. All agent text is escaped.
-     The only write is POST /api/lab/control {job, paused|stop} (owner cookie + X-Rig-Console), which Platform wires.
-     Contract: lab/diplomacy/REQUEST-console.md and the clerk role file. -->
+     The only write is POST /api/lab/control {job, paused|stop} (owner cookie + X-Rig-Console). -->
 <style>
 :root{
   --paper:#eef1f4; --surface:#f7f9fb; --raised:#fff; --ink:#152033; --muted:#5d687a; --faint:#8a94a4;
@@ -65,6 +66,10 @@ button:focus-visible,select:focus-visible{outline:2px solid var(--signal);outlin
 .power .num{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
 .power .num b{color:var(--ink);font-size:15px}
 .power.out{opacity:.5}
+.power{flex-wrap:wrap}
+.power .orders{flex-basis:100%;margin:4px 0 0 22px;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);white-space:pre-wrap}
+.power .orders.none{font-style:italic}
+.power .orders .live{font:700 10.5px var(--font);color:var(--signal);text-transform:uppercase;letter-spacing:.04em;margin-left:6px}
 .tabs{display:flex;gap:6px;margin-top:18px;flex-wrap:wrap}
 .tabs button{padding:6px 12px;font-size:13.5px}
 .tabs button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
@@ -76,6 +81,7 @@ button:focus-visible,select:focus-visible{outline:2px solid var(--signal);outlin
 .msg .who .ph{color:var(--faint);font-weight:600;margin-left:auto}
 .msg .text{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:3px}
 .msg .to{color:var(--muted);font-weight:600}
+.msg .arrow{color:var(--faint);margin:0 2px}
 .msg .text.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .msg .more{all:unset;cursor:pointer;font-size:12px;font-weight:700;color:var(--signal);margin-top:2px}
 .thread{border:1px solid var(--line);border-radius:12px;padding:6px 12px;margin-bottom:10px;background:var(--surface)}
@@ -89,13 +95,33 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
 .md{white-space:pre-wrap;overflow-wrap:anywhere}
 .empty{color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
 .chart{width:100%;height:220px;display:block}
-.drawer{position:fixed;inset:0 0 0 auto;width:min(560px,100%);background:var(--paper);border-left:1px solid var(--line);transform:translateX(100%);transition:transform .2s,visibility .2s;visibility:hidden;overflow:auto;padding:18px 18px 40px;z-index:20}
+.drawer{position:fixed;inset:0 0 0 auto;width:min(560px,100%);background:var(--paper);border-left:1px solid var(--line);transform:translateX(100%);transition:transform .2s,visibility .2s;visibility:hidden;overflow:auto;padding:18px 18px 40px;z-index:60}   /* above the top bar (z 30/50), so Close is clickable */
 .drawer.open{transform:none;visibility:visible;box-shadow:-10px 0 30px rgba(0,0,0,.25)}
+.cmp{display:flex;flex-direction:column;gap:8px}
+.cmprow{display:grid;grid-template-columns:150px minmax(0,1fr) minmax(0,1fr);gap:12px;border-top:1px solid var(--line);padding-top:8px}
+.cmprow:first-child{border-top:0;padding-top:0}
+.cmpname{display:flex;flex-direction:column;gap:2px}
+.cmprow .md{max-height:9.5em;overflow:auto}
+@media (max-width:700px){.cmprow{grid-template-columns:1fr}}
 .drawer h2{margin-top:16px}
 .drawer .head{display:flex;gap:10px;align-items:center}
 .drawer .head h1{flex:1}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:13.5px}
 .kv dt{color:var(--muted);font-weight:600}.kv dd{margin:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}
+.chips button{padding:5px 11px;font-size:12.5px;border-radius:999px}
+.chips button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.chips button .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.chips button .cnt{color:var(--muted);font-weight:600;margin-left:5px}
+.chips button.on .cnt{color:inherit;opacity:.75}
+.convo{display:flex;flex-direction:column;gap:8px}
+.convo .day{align-self:center;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:8px 0 2px}
+.bub{max-width:88%;padding:8px 11px;border-radius:14px;background:var(--raised);border:1px solid var(--line);border-left:4px solid var(--who)}
+.bub.me{align-self:flex-end;border-left:1px solid var(--line);border-right:4px solid var(--who);background:var(--surface)}
+.bub .hd{font-size:12px;font-weight:700;color:var(--who);display:flex;gap:8px}
+.bub .hd .t{color:var(--faint);font-weight:600;margin-left:auto}
+.bub .hd .bc{color:var(--muted);font-weight:600}
+.bub .tx{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px}
 .seal{font-size:12.5px;color:var(--faint)}
 .incident{border-left:4px solid var(--cut)}
 .note{font-size:12.5px;color:var(--faint);margin-top:8px}
@@ -113,6 +139,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     <span class="clock" id="clock"></span>
     <span class="grow"></span>
     <label style="font-size:13px;color:var(--muted)">Phase <select id="phaseSel"></select></label>
+    <label style="font-size:13px;color:var(--muted);display:flex;gap:5px;align-items:center" title="Each power's sealed intention, written before press. Turn off to avoid spoilers.">
+      <input type="checkbox" id="intToggle"> Show intentions</label>
     <button id="btnPause" class="primary" title="The clerk stops the clock and tells every power">Pause</button>
     <button id="btnResume" hidden>Resume</button>
     <button id="btnStop" class="danger" title="Ends the game after this phase">Stop</button>
@@ -126,6 +154,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   <div class="tabs" id="tabs">
     <button data-tab="digest" class="on">Digest</button>
     <button data-tab="press">Press</button>
+    <button data-tab="compare">This phase, side by side</button>
     <button data-tab="results">Results</button>
     <button data-tab="chart">Centres over time</button>
     <button data-tab="incidents">Incidents</button>
@@ -146,11 +175,24 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   // Phase names come from the clerk (an agent) and go into URLs: only real phase names are used (PL-039).
   const PHASE_RE = /^[SFW]\d{4}[MRA]$/;
   const power = s => { const p = String(s || "").toUpperCase(); return POWERS.includes(p) ? p : null; };
+  // Only a real power's name reaches a style attribute (PL-039): agent text there could load outside URLs.
+  const colour = s => `var(--${power(s) || "muted"})`;
   const nice = p => p.charAt(0) + p.slice(1).toLowerCase();
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const $ = id => document.getElementById(id);
 
-  const S = { control:null, index:null, phase:null, board:null, timeline:[], press:[], livePress:[], results:"", digest:"", incidents:"", final:false, sel:null, tab:"digest", orders:{}, intentions:{} };
+  const S = { control:null, index:null, phase:null, board:null, timeline:[], press:[], livePress:[], results:"", digest:"", incidents:"", pending:{}, final:false, sel:null, tab:"digest", orders:{}, intentions:{} };
+  // Sealed intentions are shown live during the game (owner, 2026-10-13, R-028), behind a per-browser toggle.
+  const INT_KEY = "dip.showIntentions";
+  S.showInt = (() => { try { return localStorage.getItem(INT_KEY) !== "off"; } catch { return true; } })();
+  // Where a power's intention and orders for a phase live: their own folder while the game runs; intentions move
+  // to archive/intentions/ at game end, orders to archive/<phase>/ at each adjudication. p is a checked phase,
+  // low one of the seven powers, so no agent text reaches these paths.
+  const intentionPath = (low, p) => S.final ? `archive/intentions/${low}/${p}.md` : `powers/${low}/intentions/${p}.md`;
+  async function ordersFor(low, p) {
+    return (await text(`archive/${p}/orders/${low}.txt`)) ?? (await text(`powers/${low}/orders/${p}.txt`));
+  }
+  const sealLabel = () => S.final ? "Sealed intention, written before press" : "Sealed intention, written before press · live, unarchived until game end";
 
   async function text(path) {
     try { const r = await fetch(`${BASE}/${path}`, {cache:"no-store"}); return r.ok ? await r.text() : null; } catch { return null; }
@@ -175,6 +217,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     const phases = (S.index?.phases || [...new Set(S.timeline.map(r => r.phase))]).filter(p => PHASE_RE.test(p));
     if (S.control && !PHASE_RE.test(S.control.phase || "")) S.control.phase = null;
     if (S.index && !PHASE_RE.test(S.index.current || "")) S.index.current = null;
+    if (S.index) S.index.phases = phases;   // every later use of the phase list sees checked names only
     if (S.control?.phase && !phases.includes(S.control.phase)) phases.push(S.control.phase);
     if (!S.phase) S.phase = S.index?.current || S.control?.phase || phases[phases.length - 1] || null;
     const sel = $("phaseSel"); const cur = sel.value;
@@ -192,11 +235,24 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
       Promise.all(POWERS.map(w => jsonl(`powers/${w.toLowerCase()}/press/sent.jsonl`))).then(a => a.flat().filter(m => m.phase === p)),
     ]);
     S.results = (await text(`board/${p}-results.md`)) || "";
+    // Orders as they stand right now: each power's own orders/<phase>.txt (overwritten until the deadline),
+    // or the archived copy once the phase is adjudicated. Owner-only view; powers never see the console.
+    S.pending = Object.fromEntries(await Promise.all(POWERS.map(async w => {
+      const low = w.toLowerCase();
+      const t = (await text(`archive/${p}/orders/${low}.txt`)) ?? (await text(`powers/${low}/orders/${p}.txt`));
+      return [w, t == null ? null : t.trim()];
+    })));
+    // This phase's sealed intentions, only while Show intentions is on (seven small reads, like the orders).
+    S.intent = S.showInt ? Object.fromEntries(await Promise.all(POWERS.map(async w => [w, await text(intentionPath(w.toLowerCase(), p))]))) : {};
     S.digest = (await text(`board/${p}-digest.md`)) || "";
     const img = $("board");
     const r = await fetch(`${BASE}/board/${p}.svg`, {method:"HEAD", cache:"no-store"}).catch(() => null);
-    img.innerHTML = r && r.ok ? `<img alt="Board after ${esc(phaseLabel(p))}" src="${esc(`${BASE}/board/${p}.svg?t=${Date.now()}`)}">`
-                              : `<div class="empty">No board image for ${esc(phaseLabel(p))} yet.</div>`;
+    const stamp = r && r.ok ? `${p}|${r.headers.get("last-modified") || ""}|${r.headers.get("etag") || ""}|${r.headers.get("content-length") || ""}` : `${p}|none`;
+    if (stamp !== S.boardStamp) {   // only touch the <img> when the file really changed, so the map doesn't blink
+      S.boardStamp = stamp;
+      img.innerHTML = r && r.ok ? `<img alt="Board after ${esc(phaseLabel(p))}" src="${esc(`${BASE}/board/${p}.svg?v=${encodeURIComponent(stamp)}`)}">`
+                                : `<div class="empty">No board image for ${esc(phaseLabel(p))} yet.</div>`;
+    }
   }
 
   function renderBar() {
@@ -206,6 +262,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     if (S.final) { st.textContent = "game over"; st.classList.add("over"); }
     else if (c.stop) { st.textContent = "stopping"; st.classList.add("paused"); }
     else if (c.paused) { st.textContent = "paused"; st.classList.add("paused"); }
+    // The clerk pauses itself at a usage limit (Rig, 2026-10-13; clerk role "Usage limits").
+    else if (c.state === "paused-usage") { st.textContent = "Paused: usage limit"; st.classList.add("paused"); }
     else st.textContent = c.state || "waiting for clerk";
     $("btnPause").hidden = !!c.paused || S.final; $("btnResume").hidden = !c.paused || S.final;
     $("btnStop").disabled = S.final || !!c.stop;
@@ -225,9 +283,12 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     const b = S.board || {}; const units = b.units || {}, centers = b.centers || {};
     $("powers").innerHTML = POWERS.map(p => {
       const u = (units[p] || []).length, c = (centers[p] || []).length;
+      const o = S.pending[p]; const live = S.control && S.phase === S.control.phase && !S.results;
+      const ordersHtml = S.showOrders === false ? "" : (o ? `<span class="orders">${esc(o)}${live ? '<span class="live">pending</span>' : ""}</span>`
+                               : (live ? `<span class="orders none">no orders written yet (holds)</span>` : ""));
       return `<button class="power ${S.sel===p?"sel":""} ${c===0&&u===0&&S.board?"out":""}" data-p="${p}">
         <span class="dot" style="background:var(--${p})"></span><span class="name">${nice(p)}</span>
-        <span class="num"><b>${c}</b> centres · ${u} units</span></button>`;
+        <span class="num"><b>${c}</b> centres · ${u} units</span>${ordersHtml}</button>`;
     }).join("");
     $("powers").querySelectorAll(".power").forEach(el => el.onclick = () => openPower(el.dataset.p));
   }
@@ -241,9 +302,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   }
   function msgHtml(m) {
     const from = String(m.from || "").toUpperCase(), to = String(m.to || "").toUpperCase();
-    // Only a real power's name reaches the style attribute (PL-039): agent text there could load outside URLs.
-    return `<div class="msg"><div class="who"><span class="tag" style="background:var(--${power(from) || "muted"})"></span>${esc(nice(from))}
-      <span class="to">→ ${to === "ALL" ? "everyone" : esc(nice(to))}</span>${m.archived ? "" : '<span class="live">live</span>'}
+    return `<div class="msg"><div class="who"><span class="tag" style="background:${colour(from)}"></span><span style="color:${colour(from)}">${esc(nice(from))}</span>
+      <span class="arrow">→</span>${to === "ALL" ? '<span class="to">everyone</span>' : `<span class="tag" style="background:${colour(to)}"></span><span style="color:${colour(to)}">${esc(nice(to))}</span>`}${m.archived ? "" : '<span class="live">live</span>'}
       <span class="ph">${esc(m.phase || "")}${m.ts ? " · " + esc(String(m.ts).slice(11,16)) : ""}</span></div>
       <div class="text ${String(m.text||"").length > 280 || (m.text||"").split("\n").length > 3 ? "clamp" : ""}">${esc(m.text)}</div>
       ${String(m.text||"").length > 280 || (m.text||"").split("\n").length > 3 ? '<button class="more">show all</button>' : ""}</div>`;
@@ -259,26 +319,13 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     if (t === "press") {
       const f = S.pressFilter || "";
       const msgs = allPress().filter(m => !f || String(m.from).toUpperCase() === f || String(m.to).toUpperCase() === f);
-      const view = S.pressView || "threads";
-      let body;
-      if (!msgs.length) body = `<div class="empty">No press yet this phase.</div>`;
-      else if (view === "feed") body = msgs.map(msgHtml).join("");
-      else {
-        const groups = new Map();
-        for (const m of msgs) {
-          const a = String(m.from).toUpperCase(), b = String(m.to).toUpperCase();
-          const key = b === "ALL" ? `${a} to everyone` : [a, b].sort().join(" ↔ ");
-          if (!groups.has(key)) groups.set(key, []); groups.get(key).push(m);
-        }
-        body = [...groups.entries()].sort((x, y) => y[1].length - x[1].length).map(([k, ms]) =>
-          `<details class="thread" ${ms.length <= 6 ? "open" : ""}><summary>${k.split(/ (↔|to) /).map(w => POWERS.includes(w) ? `<span><span class="tag" style="background:var(--${w})"></span>${nice(w)}</span>` : esc(w)).join(" ")}<span class="n">${ms.length}</span></summary>${ms.map(msgHtml).join("")}</details>`).join("");
-      }
+      const body = msgs.length ? msgs.map(msgHtml).join("") : `<div class="empty">No press yet this phase.</div>`;
       P.innerHTML = `<div class="filters">Show
         <select id="pf"><option value="">all powers</option>${POWERS.map(p => `<option value="${p}" ${f===p?"selected":""}>${nice(p)}</option>`).join("")}</select>
-        <select id="pv"><option value="threads" ${view==="threads"?"selected":""}>as conversations</option><option value="feed" ${view==="feed"?"selected":""}>as a feed</option></select>
-        <span>${msgs.length} message${msgs.length===1?"":"s"} in ${esc(phaseLabel(S.phase))}</span></div>` + body;
+        <span>${msgs.length} message${msgs.length===1?"":"s"} in ${esc(phaseLabel(S.phase))} · conversations by pair are in each power's drawer</span></div>` + body;
       $("pf").onchange = e => { S.pressFilter = e.target.value; renderPanel(); };
-      $("pv").onchange = e => { S.pressView = e.target.value; renderPanel(); };
+    } else if (t === "compare") {
+      P.innerHTML = compareHtml();
     } else if (t === "digest") {
       P.innerHTML = S.digest ? `<div class="digest">${esc(S.digest)}</div>` : `<div class="empty">The clerk writes a one-line-per-power digest when it adjudicates ${esc(phaseLabel(S.phase))}. Until then, the Press tab has the raw conversations.</div>`;
     } else if (t === "results") {
@@ -288,6 +335,20 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     } else {
       P.innerHTML = S.incidents ? `<div class="md incident" style="padding-left:12px">${esc(S.incidents)}</div>` : `<div class="empty">No incidents recorded. (A power reading another's folder, writing outside its own, or using the web would appear here.)</div>`;
     }
+  }
+
+  // This phase across all seven powers: what each meant (sealed intention), what it ordered, how much it talked.
+  function compareHtml() {
+    const ph = S.phase;
+    if (!ph || !PHASE_RE.test(ph)) return `<div class="empty">No phase yet.</div>`;
+    const press = allPress();
+    const cell = (t, empty) => t != null && t.trim() ? `<div class="md">${esc(t.trim())}</div>` : `<span class="seal">${empty}</span>`;
+    return `<div class="filters">${esc(phaseLabel(ph))}. ${S.showInt ? esc(sealLabel()) + "." : "Intentions hidden (Show intentions is off)."}</div>
+      <div class="cmp">${POWERS.map(p => { const o = S.pending[p], n = press.filter(m => power(m.from) === p).length; return `<div class="cmprow">
+        <div class="cmpname"><b><span class="tag" style="background:var(--${p})"></span>${nice(p)}</b><span class="seal">${n} message${n === 1 ? "" : "s"} sent</span></div>
+        ${S.showInt ? `<div><div class="who">Intention</div>${cell(S.intent?.[p], "none written")}</div>` : ""}
+        <div><div class="who">Orders</div>${o != null && o ? `<pre>${esc(o)}</pre>` : `<span class="seal">${o != null ? "holds" : "none yet"}</span>`}</div>
+      </div>`; }).join("")}</div>`;
   }
 
   function chartSvg() {
@@ -312,20 +373,50 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     const D = $("drawer"); D.classList.add("open"); D.setAttribute("aria-hidden", "false");
     const b = S.board || {}; const units = (b.units || {})[p] || [], centers = (b.centers || {})[p] || [];
     const low = p.toLowerCase();
-    const phases = (S.index?.phases || []).filter(ph => PHASE_RE.test(ph) && /M$/.test(ph));
-    const [orders, intentions] = await Promise.all([
-      Promise.all(phases.map(ph => text(`archive/${ph}/orders/${low}.txt`).then(t => [ph, t]))),
-      S.final ? Promise.all(phases.map(ph => text(`archive/intentions/${low}/${ph}.md`).then(t => [ph, t]))) : Promise.resolve([]),
-    ]);
-    const mine = allPress().filter(m => String(m.from).toUpperCase() === p || String(m.to).toUpperCase() === p || String(m.to).toUpperCase() === "ALL");
-    const intMap = Object.fromEntries(intentions);
+    // Every phase so far plus the one being played now (checked names only). Newest first for intentions and orders.
+    const allPhases = [...new Set([...(S.index?.phases || []), S.control?.phase || "", S.phase || ""])].filter(ph => PHASE_RE.test(ph));
+    const rows = await Promise.all([...allPhases].reverse().map(async ph =>
+      [ph, await ordersFor(low, ph), S.showInt ? await text(intentionPath(low, ph)) : null]));
+    // Every message this power sent or received, all phases: archived press plus each power's live sent.jsonl.
+    const archived = (await Promise.all(allPhases.map(ph => jsonl(`archive/${ph}/press.jsonl`)))).flat().map(m => ({...m, archived:true}));
+    const live = (await Promise.all(POWERS.map(w => jsonl(`powers/${w.toLowerCase()}/press/sent.jsonl`)))).flat();
+    const seen = new Set(); const everything = [];
+    for (const m of [...archived, ...live]) { const k = `${m.phase}|${m.from}|${m.to}|${m.n}`; if (!seen.has(k)) { seen.add(k); everything.push(m); } }
+    const U = x => String(x || "").toUpperCase();
+    const mine = everything.filter(m => U(m.from) === p || U(m.to) === p || U(m.to) === "ALL")
+      .sort((a, b) => allPhases.indexOf(a.phase) - allPhases.indexOf(b.phase) || (a.ts || "").localeCompare(b.ts || "") || (a.n || 0) - (b.n || 0));
+    const others = POWERS.filter(w => w !== p);
+    const count = w => mine.filter(m => (U(m.from) === p && U(m.to) === w) || (U(m.from) === w && (U(m.to) === p || U(m.to) === "ALL"))).length;
+    S.convo = S.convo && others.includes(S.convo) ? S.convo : "ALL";
+    // Intentions are agent-written: escaped plain text, exactly like press. Never rendered as Markdown.
+    const sealed = t => `<div class="who" style="margin-top:8px">${esc(sealLabel())}</div><div class="md">${esc(t.trim())}</div>`;
+    const convoHtml = () => {
+      const sel = S.convo;
+      const msgs = sel === "ALL" ? mine : mine.filter(m => (U(m.from) === p && U(m.to) === sel) || (U(m.from) === sel && (U(m.to) === p || U(m.to) === "ALL")));
+      if (!msgs.length) return `<div class="empty">${sel === "ALL" ? "No press yet." : `Nothing between ${nice(p)} and ${nice(sel)} yet.`}</div>`;
+      let out = '<div class="convo">', ph = null;
+      for (const m of msgs) {
+        if (m.phase !== ph) { ph = m.phase; out += `<div class="day">${esc(phaseLabel(ph))}</div>`; }
+        const from = U(m.from), to = U(m.to), me = from === p;
+        out += `<div class="bub ${me ? "me" : ""}" style="--who:${colour(from)}"><div class="hd">${esc(nice(from))}
+          ${to === "ALL" ? '<span class="bc">to everyone</span>' : (sel === "ALL" ? `<span class="bc">→ ${esc(nice(to))}</span>` : "")}
+          <span class="t">${m.ts ? esc(String(m.ts).slice(11,16)) : ""}${m.archived ? "" : " · live"}</span></div><div class="tx">${esc(m.text)}</div></div>`;
+      }
+      return out + "</div>";
+    };
+    const chipsHtml = () => `<div class="chips" id="chips"><button data-c="ALL" class="${S.convo==="ALL"?"on":""}">All<span class="cnt">${mine.length}</span></button>${
+      others.map(w => `<button data-c="${w}" class="${S.convo===w?"on":""}"><span class="dot" style="background:var(--${w})"></span>${nice(w)}<span class="cnt">${count(w)}</span></button>`).join("")}</div>`;
     D.innerHTML = `<div class="head"><span class="dot" style="width:16px;height:16px;border-radius:50%;background:var(--${p})"></span><h1>${nice(p)}</h1><button id="closeD">Close</button></div>
       <dl class="kv"><dt>Centres</dt><dd>${centers.length}: ${esc(centers.join(" "))}</dd><dt>Units</dt><dd>${units.length}: ${esc(units.join(", "))}</dd></dl>
-      <h2>Press this phase (${esc(S.phase)})</h2>${mine.length ? mine.map(msgHtml).join("") : '<div class="empty">None.</div>'}
-      <h2>Orders by phase</h2>${orders.filter(([, t]) => t != null).map(([ph, t]) => `<div class="msg"><div class="who">${esc(phaseLabel(ph))}</div><pre>${esc(t.trim() || "(no orders: holds)")}</pre>${
-        S.final && intMap[ph] != null ? `<div class="who" style="margin-top:8px">Sealed intention, written before press</div><div class="md">${esc(intMap[ph].trim())}</div>` : ""}</div>`).join("") || '<div class="empty">No archived orders yet.</div>'}
-      ${S.final ? "" : '<p class="seal">Sealed intentions open when the game ends; the clerk copies them to archive/intentions/.</p>'}`;
+      <h2>Orders as written for ${esc(S.phase)}</h2>${S.pending[p] ? `<pre>${esc(S.pending[p])}</pre>` : '<div class="empty">Nothing written yet; the clerk will record holds.</div>'}
+      <h2>Press</h2>${chipsHtml()}<div id="convo">${convoHtml()}</div>
+      <h2>By phase: ${S.showInt ? "intention and orders" : "orders"}</h2>${rows.filter(([, o, i]) => o != null || i != null).map(([ph, o, i]) =>
+        `<div class="msg"><div class="who">${esc(phaseLabel(ph))}${ph === S.control?.phase && !S.final ? ' <span class="live">this phase</span>' : ""}</div>${
+        i != null ? sealed(i) : ""}${o != null ? `<div class="who" style="margin-top:8px">Orders</div><pre>${esc(o.trim() || "(no orders: holds)")}</pre>` : ""}</div>`).join("")
+        || `<div class="empty">Nothing written yet${S.showInt ? "" : " (intentions are hidden: turn on Show intentions)"}.</div>`}`;
     $("closeD").onclick = () => { D.classList.remove("open"); D.setAttribute("aria-hidden", "true"); S.sel = null; renderPowers(); };
+    $("chips").querySelectorAll("button").forEach(b => b.onclick = () => { S.convo = b.dataset.c; $("chips").outerHTML = chipsHtml(); $("convo").innerHTML = convoHtml();
+      $("chips").querySelectorAll("button").forEach(bb => bb.onclick = b.onclick); });
   }
 
   async function control(body) {
@@ -341,10 +432,27 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   $("btnPause").onclick = () => control({paused: true});
   $("btnResume").onclick = () => control({paused: false});
   $("btnStop").onclick = () => { if (confirm("End the game after the current phase? The clerk finishes adjudication, writes final standings and tells every power.")) control({stop: true}); };
-  $("phaseSel").onchange = async e => { S.phase = e.target.value; await loadPhase(); renderAll(); };
-  $("tabs").querySelectorAll("button").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; renderPanel(); });
+  $("phaseSel").onchange = async e => { S.phase = e.target.value; await loadPhase(); renderAll(true); };
+  $("tabs").querySelectorAll("button").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; renderAll(true); });
+  $("intToggle").checked = S.showInt;
+  $("intToggle").onchange = async e => {
+    S.showInt = e.target.checked;
+    try { localStorage.setItem(INT_KEY, S.showInt ? "on" : "off"); } catch { /* private window: this visit only */ }
+    await loadPhase(); renderAll(true); if (S.sel) openPower(S.sel);
+  };
 
-  function renderAll() { renderBar(); renderPowers(); renderPanel(); }
+  function fingerprint() {
+    return JSON.stringify([S.phase, S.control, S.board, S.press.length, S.livePress.map(m => [m.from, m.to, m.n, m.phase]), S.results, S.digest, S.incidents, S.final, S.pending, S.intent, S.showInt, S.timeline.length, S.tab, S.pressFilter]);
+  }
+  function renderAll(force) {
+    const fp = fingerprint();
+    renderBar();                                   // cheap, text only; the countdown ticks separately
+    if (!force && fp === S.lastFp) return;         // nothing changed: leave the DOM alone
+    S.lastFp = fp;
+    const y = window.scrollY;
+    renderPowers(); renderPanel();
+    window.scrollTo(0, y);                         // a re-render shouldn't move you
+  }
   async function refresh() {
     const live = !S.control || S.phase === S.control.phase;   // follow the clerk while looking at the current phase
     await loadStatic();
@@ -353,7 +461,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   }
   refresh();
   setInterval(tick, 1000);
-  setInterval(refresh, 20000);
+  setInterval(() => { if (document.hidden || $("drawer").classList.contains("open")) return; refresh(); }, 20000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 })();
 </script>
 </body>

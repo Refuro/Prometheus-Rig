@@ -157,7 +157,10 @@ def _file_replies(d, architects_folder=None):
             except (OSError, ValueError) as ex:
                 _ignore(p, f"unreadable ({type(ex).__name__})")
                 continue
-            if not isinstance(r, dict) or r.get("id") != mid or not str(r.get("text") or "").strip():
+            # A follow-up may give the message id or its own file id (<id>-2): JOBS.md §3e said only how to name
+            # the file, and the operator's first follow-up used the second form (PL-042).
+            ok_ids = (mid,) if n == 1 else (mid, f"{mid}-{n}")
+            if not isinstance(r, dict) or r.get("id") not in ok_ids or not str(r.get("text") or "").strip():
                 _ignore(p, 'needs "id" equal to the file name\'s id and a non-empty "text"')
                 continue
             got[n] = {"n": n, "text": str(r["text"]).strip()[:MAX_REPLY], "mtime": mtime,

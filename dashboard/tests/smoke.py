@@ -437,9 +437,20 @@ def main():
               "error" in r and json.load(open(os.path.join(tmp, "elsewhere", "control.json")))["paused"] is False, r)
         st, _, raw = c.req("GET", "/diplomacy.html")
         check("Diplomacy page served from the console: no ?base=, phase names checked, only power names in styles, in the nav",
-              st == 200 and b'q.get("base")' not in raw and b"PHASE_RE" in raw and b"power(from)" in raw and b"/diplomacy.html" in c.req("GET", "/nav.js")[2])
+              st == 200 and b'q.get("base")' not in raw and b"PHASE_RE" in raw and b"colour(from)" in raw
+              and b"var(--${esc(" not in raw and b"/diplomacy.html" in c.req("GET", "/nav.js")[2])
         st, _, svg = c.req("GET", "/job/diplomacy-1/board/F1901M.svg")
         check("the board image comes through the sandboxed job route", st == 200 and b"<svg" in svg)
+        st, h, it = c.req("GET", "/job/diplomacy-1/powers/france/intentions/F1901M.md")
+        check("live intentions come through the read-only job route, sandboxed (R-028)",
+              st == 200 and b"Take Belgium" in it and (h.get("content-security-policy") or "") == "sandbox", (st, h.get("content-security-policy")))
+        bad = {p: c.req("GET", p)[0] for p in ("/job/diplomacy-1/powers/france/intentions/../../../../architects/job.json",
+               "/job/diplomacy-1/powers/france/intentions/%2e%2e/%2e%2e/%2e%2e/%2e%2e/%2e%2e/etc/passwd")}
+        check("...and that route can't climb out of the job folder", all(s in (403, 404) for s in bad.values()), bad)
+        st, _, raw = c.req("GET", "/diplomacy.html")
+        check("intentions: escaped like press, a remembered toggle that defaults on, the live label, and the usage-limit state",
+              b"esc(t.trim())" in raw and b"dip.showIntentions" in raw and b'!== "off"' in raw
+              and b"live, unarchived until game end" in raw and b"Paused: usage limit" in raw and b"powers/${low}/intentions/" in raw)
 
         print("The owner posts in the Lounge (R-021)")
         ldir = os.path.join(fx, "jobs", "architects", "lounge")
@@ -775,6 +786,12 @@ def main():
     rs = next(e for e in rs if e["id"] == op)["replies"]
     check("a second file is a follow-up shown after the first, never replacing it",
           [r["text"] for r in rs] == ["All teams green.", "Correction: bridge-prod is slow."] and rs[1]["at"], rs)
+    put(CV.REPLIES, f"{op}-4.json", {"id": f"{op}-4", "text": "Follow-up naming its own file id."})
+    put(CV.REPLIES, f"{op}-5.json", {"id": f"{op}-2", "text": "Follow-up naming another file's id."})
+    CV.capture([], lambda s: [], lambda s: False, arch_job, now=t + 145)
+    rs = next(e for e in CV.history() if e["id"] == op)["replies"]
+    check("a follow-up may give the message id or its own file id (<id>-4), but not another file's (PL-042)",
+          [r["text"] for r in rs][2:] == ["Follow-up naming its own file id."], rs)
     fake = "m-20990101000000-dead"
     put(CV.REPLIES, f"{fake}.json", {"id": fake, "text": "made-up id"})
     put(CV.REPLIES, f"{other}.json", {"id": op, "text": "id inside doesn't match the name"})
@@ -788,7 +805,7 @@ def main():
     check("never paired: a made-up id, a mismatched id inside, the wrong seat's folder, a bad name, broken JSON",
           "made-up id" not in shown and "doesn't match" not in shown and "an architect answering" not in shown
           and "the operator answering" not in shown and "bad name" not in shown
-          and by[other]["replies"] == [] and by[ar]["replies"] == [] and len(by[op]["replies"]) == 2, by[other])
+          and by[other]["replies"] == [] and by[ar]["replies"] == [] and len(by[op]["replies"]) == 3, by[other])
     put(os.path.join(arch_job, "replies"), f"{ar}.json", {"id": ar, "text": "Yes, verified."})
     CV.capture([], lambda s: [], lambda s: False, arch_job, now=t + 160)
     check("an architect's reply file in its own job folder pairs with its own question",
