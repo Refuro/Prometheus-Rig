@@ -132,7 +132,7 @@ for d in launches briefs operator activity; do   # operator: its log (R-022); ac
 done
 
 echo "== 5. History and state"
-[ -f "$OWNER_HOME/.local/share/rig-console/console.db" ] && sudo cp -n "$OWNER_HOME/.local/share/rig-console/console.db" "$STATE/console.db" || true
+[ -f "$OWNER_HOME/.local/share/rig-console/console.db" ] && sudo cp --update=none "$OWNER_HOME/.local/share/rig-console/console.db" "$STATE/console.db" || true
 # The trust anchors sat where seats could write (MA-016 finding 4):
 # - decision-fingerprints.json is carried over. Starting empty would trust every existing decision anyway
 #   (gates.unverified_decisions), and an empty-but-valid ledger would flag every past decision as forged.

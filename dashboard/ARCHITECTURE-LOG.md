@@ -1578,6 +1578,41 @@ identical copy, and the source's times were unchanged.
 
 ---
 
+## PL-038 The staged smoke test failed as "nobody"; nothing deployed (owner's install, 2026-10-13 ~20:25Z)
+**What happened:**
+- The owner ran card A on commit 72005f7. Installer stages 1–5 completed: user, helper, sudo rule, new
+  token and topic, ACLs, state copy. It also rewrote the service file (user `rigconsole`, folder
+  `/opt/rig-console`).
+- Stage 6's deploy ran the smoke test as `nobody` from root-owned staging. It failed at `smoke.py:853` with a
+  `PermissionError` on `<stage>/dashboard/state`, so nothing was deployed and `/opt/rig-console` doesn't
+  exist. The console keeps running its old process. **It must not restart before the deploy succeeds.**
+- **Cause:**
+  - The smoke test set `RIG_STATE_DIR` at line 617, but line 331 had already imported `gates`.
+  - Modules read their paths once, at import, so `gates.STATE_DIR` stayed on the default `dashboard/state`.
+  - From read-only staging that fails; in my own runs it succeeded silently, writing into the live
+    `dashboard/state/`. That left a `lounge-owner.json` there, which I've deleted. Nothing read it, and the
+    installer skips that file.
+- **Miss (mine):** my "read-only copy, bare environment" check (PL-030) ran before I added the in-process
+  Lounge tests, and I didn't repeat it after. The live-state leak went unnoticed because nothing checked
+  where tests write.
+
+**Fix:**
+- `smoke.py` sets every console path variable (state, launches, database, snapshots, research, jobs, operator,
+  activity archive, models, briefs) at the start of `main()`, before any import.
+- A new check fails if any in-process module points outside the test's temp folder.
+- The installer uses `cp --update=none` (the owner saw `cp -n`'s warning).
+- Checked the other writers the owner named: fingerprints, pins and task records all live in `gates`, which
+  the new check covers.
+
+**Checked:**
+- Smoke 218/218.
+- The owner's failing case, reproduced first: commit 72005f7 unpacked read-only and run with `env -i`. It
+  failed at line 853 exactly as reported. With the fixed test it passes 218/218.
+- Not run as `nobody` itself: seats never use `sudo` (SHARED-RULES §1). The read-only, bare-environment run
+  reproduces the failing condition.
+
+---
+
 ## Notes for other roles
 
 How this works (ROLES.md): one section per role, newest first, each note dated and marked **[new]**

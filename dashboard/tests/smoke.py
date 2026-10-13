@@ -51,6 +51,15 @@ def main():
     verbose = "-v" in sys.argv
     tmp = tempfile.mkdtemp(prefix="rig-console-smoke-")
     fx = os.path.join(tmp, "fx")
+    # Before ANY console module is imported in this process: every path it reads or writes points into tmp.
+    # Modules read these once, at import, so setting them later leaves earlier imports on the real folders
+    # (PL-038: the deploy's staged run as "nobody" failed on dashboard/state, and my own runs had written
+    # into the live dashboard/state).
+    os.environ.update({"RIG_STATE_DIR": os.path.join(tmp, "state-unit"), "RIG_LAUNCHES_DIR": os.path.join(tmp, "launches-unit"),
+                       "RIG_DB": os.path.join(tmp, "unit.db"), "RIG_SNAPSHOTS": os.path.join(fx, "snapshots"),
+                       "RIG_RESEARCH_DIR": os.path.join(fx, "research"), "RIG_JOBS_CONFIG": os.path.join(tmp, "jobs.json"),
+                       "RIG_OPERATOR_DIR": os.path.join(tmp, "operator"), "RIG_ACTIVITY_ARCHIVE": os.path.join(tmp, "activity-unit"),
+                       "RIG_MODELS_DIR": os.path.join(fx, "models"), "RIG_BRIEFS_DIR": os.path.join(fx, "briefs")})
     # Plain copies: the deploy runs this from read-only staging as another user (PL-030).
     shutil.copytree(os.path.join(HERE, "fixtures"), fx, copy_function=shutil.copyfile)
     os.chmod(fx, 0o755)
@@ -614,8 +623,7 @@ def main():
             print("\n--- server log ---\n" + open(os.path.join(tmp, "server.log")).read())
 
     print("Phone push rules (in-process, nothing sent)")
-    os.environ["RIG_STATE_DIR"] = os.path.join(tmp, "state-unit")
-    sys.path.insert(0, DASH)
+    sys.path.insert(0, DASH)   # the paths were set at the start of main()
     import features as F
     calls = []
     F.push_now = lambda text, title="", pr="", url=None: calls.append((title, text)) or (True, "sent")
@@ -855,6 +863,14 @@ def main():
               r["reply_to"] is None and [p["id"] for p in LG.posts()] == [r["posted"]], (r, LG.posts()))
     finally:
         LG._folder = real_folder
+
+    print("Tests never touch the live console's folders (PL-038)")
+    import outbox as OB, oplog as OL, store as S
+    paths = {"gates.STATE_DIR": G.STATE_DIR, "gates.STATE": G.STATE, "gates.LAUNCHES": G.LAUNCHES, "features.STATE": F.STATE,
+             "convo.STATE": CV.STATE, "escalate.STATE": EP.STATE, "outbox.STATE": OB.STATE, "lounge.MINE": LG.MINE,
+             "oplog.DIR": OL.DIR, "store.DB_PATH": S.DB_PATH}
+    outside = {k: v for k, v in paths.items() if not os.path.realpath(v).startswith(os.path.realpath(tmp) + os.sep)}
+    check("every in-process state, launch, log and database path is inside the test's temp folder", outside == {}, outside)
 
     print("The console's rig helper allows exactly four calls (option A, MA-014 finding 6; fake rig)")
     fake = os.path.join(tmp, "fake-bin")
