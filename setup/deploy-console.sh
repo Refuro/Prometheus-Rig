@@ -18,6 +18,7 @@ set -euo pipefail
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin   # never a planted sudo or git
 REPO="@REPO@"   # filled in by install-console-user.sh
 case "$REPO" in @*) REPO="$(cd "$(dirname "$0")/.." && pwd)" ;; esac   # not installed yet: run from the repo
+[ -d "$REPO/.git" ] || { echo "Can't find the console's repo at $REPO. Run 'bash setup/deploy-console.sh' from the repo once to reinstall this command."; exit 1; }
 DEST=/opt/rig-console
 MARK=/var/lib/rig-console/deployed
 SELF=/usr/local/sbin/rig-console-deploy
@@ -93,8 +94,11 @@ $SUDO mkdir -p "$DEST"
 $SUDO rsync -a --delete --exclude 'state/' --exclude '__pycache__/' --exclude 'tests/' "$STAGE/dashboard/" "$DEST/"
 $SUDO chown -R root:root "$DEST"
 $SUDO chmod -R u=rwX,go=rX "$DEST"
-# This script and the rig helper come from the same reviewed commit.
-sed "s#@REPO@#$REPO#" "$STAGE/setup/deploy-console.sh" > "$WORK/deploy"
+# This script and the rig helper come from the same reviewed commit. Only the line that starts with the
+# REPO assignment is filled in: an unanchored pattern also rewrote this sed line, so the next self-install
+# left the placeholder in and the installed command lost the repo (PL-041).
+sed "s#^REPO=\"@REPO@\"#REPO=\"$REPO\"#" "$STAGE/setup/deploy-console.sh" > "$WORK/deploy"
+grep -q "^REPO=\"$REPO\"" "$WORK/deploy" || { echo "Couldn't fill in the repo path in the deploy command. Nothing installed."; exit 1; }
 $SUDO install -o root -g root -m 755 "$WORK/deploy" "$SELF"
 $SUDO install -o root -g root -m 755 "$STAGE/setup/rig-owner" /usr/local/lib/rig-console/rig-owner
 echo "$COMMIT" | $SUDO tee "$MARK" >/dev/null

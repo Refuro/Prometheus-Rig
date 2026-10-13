@@ -948,6 +948,20 @@ def main():
     bad = [a for a in refused if helper_run(*a)[0] != 2]
     check("anything else is refused: keystroke modes, flags as text, extra arguments, other verbs", bad == [], bad)
 
+    print("The deploy command survives reinstalling itself (PL-041)")
+    # Install from the repo, then let the installed copy reinstall itself, each with the sed line of the script
+    # doing the installing. The unanchored pattern lost the repo path on the second install.
+    harness = os.path.join(tmp, "selfinstall.sh")
+    with open(harness, "w") as f:
+        f.write('set -u\nT="$1"; REPO="/home/owner/repo"; W="$(mktemp -d)"; STAGE="$W/s"; WORK="$W/w"\n'
+                'mkdir -p "$STAGE/setup" "$WORK"; cp "$T" "$STAGE/setup/deploy-console.sh"\n'
+                'run() { local line; line="$(grep \'^sed "s#\' "$1")"; eval "$line"; }\n'
+                'run "$T"; cp "$WORK/deploy" "$W/one"; run "$W/one"; cp "$WORK/deploy" "$W/two"\n'
+                'grep -h "^REPO=" "$W/one" "$W/two"\n')
+    r = subprocess.run(["bash", harness, os.path.join(DASH, "..", "setup", "deploy-console.sh")], capture_output=True, text=True, timeout=20)
+    check("the installed deploy command keeps the repo path after it reinstalls itself",
+          [ln.split()[0] for ln in r.stdout.splitlines()] == ['REPO="/home/owner/repo"'] * 2, (r.stdout, r.stderr))
+
     print("Who hears about a decision (in-process, fake rig ps)")
     import gates as G
     seats = [{"rigName": "architects", "canonicalSessionName": s} for s in ("arch-rig@architects", "arch-platform@architects")] \

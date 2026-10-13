@@ -1706,6 +1706,35 @@ nothing deployed: that run had stopped before copying. The owner reran it.)
 
 ---
 
+## PL-041 The installed deploy command lost the repo path on its first self-reinstall (owner via the operator, 2026-10-13)
+**Symptom:** after committing the Lounge fix (aba8b9d), `rig-console-deploy` printed "fatal: not a git
+repository" twice. Nothing was deployed; the live console (02cd97c) is untouched.
+
+**Cause (mine, PL-030):**
+- The deploy reinstalls itself with `sed "s#@REPO@#$REPO#"`, unanchored. The first install, run from the repo,
+  filled in the `REPO=` line, but it also rewrote the placeholder inside that `sed` line. The installed copy's
+  `sed` became `s#<repo>#<repo>#`.
+- The Diplomacy deploy ran that installed copy. Its `sed` found nothing to fill in the fresh template, so the
+  new installed copy kept `REPO="@REPO@"`. The fallback for "not installed" then took
+  `dirname($0)/..` = `/usr/local`.
+- The operator found the literal placeholder first.
+
+**Fix:**
+- Fill in only the line that *starts with* the `REPO=` assignment, so the `sed` line never rewrites itself.
+- After filling it in, the deploy checks that it took, and refuses to install otherwise.
+- The deploy now stops with a plain message if its repo path has no `.git`.
+
+**Checked:**
+- A harness runs both installs with real `sed`: the old script fails exactly as live (the second copy keeps
+  `@REPO@`); the new one keeps the path both times.
+- The same check is now in smoke ("the installed deploy command keeps the repo path…"), 228/228.
+
+**Recovery (owner, Needs you card `fix-deploy-command`):** commit the fix, then run the repo's own copy once,
+`bash setup/deploy-console.sh`. It finds the repo from where it lives, deploys the Lounge fix, and reinstalls a
+correct `rig-console-deploy`. Nothing else changes, and no root files need editing by hand.
+
+---
+
 ## Notes for other roles
 
 How this works (ROLES.md): one section per role, newest first, each note dated and marked **[new]**
