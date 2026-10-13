@@ -1,202 +1,243 @@
-# Co-op prototype sprint brief (2-4 players, Windows builds)
+# Co-op prototype sprint brief, v2: "readable together" (2-4 players)
+
+Shared rules first: every seat follows `~/openrig/briefs/SHARED-RULES.md`
+(decisions and gates, when to stop, provider-capacity retries, shell
+commands, the outside world, run start and end, end-of-run model notes).
+This brief adds studio rules on top; where it is stricter, it wins.
 
 ## 1. Mission
 
-Turn each chosen co-op pitch into a small online prototype for 2-4 friends
-that shows **three beats** (early, middle, late), export it for Windows, and
-put every build in front of me through a Rig Console gate. I play each one
-with 2-3 friends over Tailscale, then pick.
+The first co-op round had good heads but the owner couldn't read what was
+going on: what each player is, what the group is trying to do, and what one
+friend needs from another. This round rebuilds the same ideas so each one
+**feels like a small co-op game**: within seconds every player knows which
+one they are and what the group's goal is, the group learns one idea at a
+time by doing it, and the moments where friends need each other (or ruin
+each other's plans) are visible on screen, not explained in text.
 
-A prototype answers three questions: do friends cause each other's funniest
-moments, does it get deeper, and can one strong player carry the group? The
-first two must be yes; the third must be no.
+A prototype still answers three questions: do friends cause each other's
+funniest moments, does it get deeper, and can one strong player carry the
+group? The first two must be yes; the third must be no.
 
-Prototypes are throwaway. The real game is built from scratch later (with
-Steam integration and a proper architecture from the start), so never spend
-effort making prototype code reusable. It's a question, not a demo. Grey boxes, no menus, no art, no
-sound unless sound is the mechanic, no save system, no polish. A toy that
-answers its question in two ugly minutes beats a pretty one that doesn't.
+Prototypes are throwaway (production is a clean build with GodotSteam later),
+so keep the code simple. Effort goes into what players see: readability,
+pacing, feedback.
 
 ## 2. Inputs
 
-- `specs/proto-spec-<id>.md`: one page per prototype, written by the
-  friendslop room (roles, the three beats, the carry exploit to close, the
-  netcode plan). The spec is the contract. The original pitch cards are in the
-  pitch-room job folder if a builder needs the "why".
-- Waves of three: proto-lead assigns specs to build-a, build-b, build-c in
-  the order of the gate decision. A builder takes its next spec only after
-  its current toy is accepted.
+- `specs/proto-spec-<id>.md`: the previous round's spec, unchanged.
+- `inputs/<id>/`: the previous round's build notes, reviews, HOW-TO-PLAY and
+  ABOUT for that prototype, plus its old project (`inputs/<id>/old-proto/`),
+  which a builder may reuse for netcode and rules.
+- `owner-notes.md`: the picks for this round and what the owner said after
+  playing the previous one. It outranks everything except the shared rules.
+- Step 0 (proto-lead): for each prototype, write `specs/v2-<id>.md`, one
+  page: the game in two sentences a stranger understands; the **teaching
+  sequence** (section 4) with what each stage teaches and what the group
+  must do; **who is who** (how each player and any role is shown); **the
+  together moment** of each stage (what one player needs from another, and
+  how the screen shows it); the readable look of every object (section 5);
+  the owner's notes and exactly how this version answers each one; and the
+  carry exploit that must stay closed. The builder builds from v2, not the
+  old spec.
 
-## 3. Technical rules
+## 3. Picks and waves
 
-- **Engine:** Godot 4 (the version installed in WSL), GDScript, statically
-  typed. Renderer GL Compatibility (runs on friends' older PCs too).
-- **Start every prototype with the scaffold:**
-  `python3 tools/build.py <id> --new` creates `protos/<id>/` with a
-  `main.gd` that already hosts and joins over ENet (port 24565, up to 4
-  players), a Host / Join-by-address menu, Windows and Linux export presets,
-  and `ProtoUI` (title card + hints). Don't hand-edit `export_presets.cfg`.
-- **Networking pattern: host-authoritative.** Clients send *inputs* to the
-  host (`submit_input`); the host simulates everything (`_simulate`) and
-  broadcasts *state* every physics tick (`receive_state`); clients only draw
-  it. Extend `_simulate`, `_state_snapshot` and `_apply_snapshot` with the
-  game. Keep synced state small (positions, a few flags, discrete events);
-  no client-side physics that affects gameplay. If the spec's netcode plan
-  needs something else, say so in the notes before building it.
-- **Sync test:** the game's important objects must appear in the report
-  (`_write_report` state) so `tools/net_test.py` can compare them across
-  peers, not just player positions. Bots (`--bot`) must exercise the core
-  verb (e.g. trigger the handoff or the swap), not only walk.
-- **Build and verify with one command:**
+The picks and their order are at the top of `owner-notes.md`. Wave 1: the
+first three → build-a, build-b, build-c. Wave 2: the fourth (if any) → the
+first builder free. If anything must give, protect the first two.
+
+## 4. Presentation rules (the core of this round)
+
+Rules 1-7 are the studio's single-player rules; rules 8-10 are for co-op.
+They are principles, not a level system.
+
+1. **One new idea at a time.** Each stage introduces at most one new rule or
+   object and lets the group use it until it clicks. Stage 1 teaches only the
+   core verb and is winnable in under a minute. Later stages combine ideas
+   the group already knows. Aim for 4-6 short stages.
+2. **The goal is always visible.** The goal bar (`ui.goal`) says what the
+   group must do right now in a few words, and the goal is marked in the
+   world (`ui.mark`, a ring, a glow). Nobody has to remember instructions.
+3. **Things look like what they are** (section 5). No letters or
+   abbreviations standing in for objects. Colour means the same thing
+   everywhere: danger is always red, the goal is always green, and each
+   player keeps one warm colour for the whole game.
+4. **Text is the last resort.** Show first: motion, a ghost of the move, the
+   object reacting. Words only when showing can't do it, short (budgets in
+   `text-budgets.json`), and once (`ui.hint_once`). The splash is a title
+   and one sentence. No rule screens.
+5. **Clean screen.** Only what matters now. HUD at the edges, small. The
+   camera frames every player and the goal; nothing important off screen.
+6. **Feedback within a tenth of a second** for every action, visible to
+   every player, not just the one who acted. Clearing a stage is celebrated
+   for everyone; failing is quick and readable (everyone sees what went
+   wrong and who it involved), and the host restarts instantly (R).
+7. **The 30-second test.** A new player can say the group's goal in one
+   sentence after 30 seconds, and why each thing on screen matters after two
+   minutes.
+8. **You know which one you are.** Your own character is unmistakable: its
+   colour, a ring or marker under it, and a small label if roles differ. If
+   players have different roles or abilities, the difference is visible on
+   the character (shape, tool, hat), not only in text.
+9. **The together moment is on screen.** When one player needs another (hold
+   the door, carry the other end, stand on the switch), the world shows it:
+   a line between them, a glow on the thing that needs a second player, a
+   ghost of where the friend should stand. When a player ruins it for the
+   others, everyone sees who and how.
+10. **Works at 2 and at 4.** Each stage reads at both counts: nothing that
+    only makes sense with four, no screen too crowded at four.
+
+## 5. Art for prototypes
+
+Readable placeholder art, not final art:
+- **Default: simple 3D shapes and SVG icons the builder makes** (rules in
+  `art/STYLE.md`: flat unshaded colours, fixed palette roles, no text in
+  art). Players are capsules with a distinct silhouette part (hat, tool,
+  backpack) per role.
+- **Optional: Codex image generation** (`$imagegen`) for at most 8 images
+  per prototype that a shape or SVG can't make readable (an icon, a sign, a
+  texture for a key object). Flat style in the STYLE.md palette, transparent
+  background, saved into `art/`. Log every image in `ai-content-log.md`
+  (file, prompt summary, date). Image generation spends plan limits several
+  times faster than text: don't iterate on images; get the plain version
+  working first.
+- Not allowed: downloaded asset packs, fonts or sounds. Built-in Godot
+  features (particles, tweens, shaders) are fine. Sound optional; if used,
+  generate it in code.
+
+## 6. Technical rules
+
+- **Engine:** Godot 4 (WSL install), GDScript, statically typed, GL
+  Compatibility (runs on friends' older PCs).
+- **Scaffold:** `python3 tools/build.py <id> --new` gives a networked stage
+  framework (`main.gd`): Host / Join-by-address menu over ENet (port 24565,
+  up to 4 players), splash, `load_stage` on the host and `_show_stage` on
+  every peer, cleared flow, host keys R and 1-9; `ProtoUI` (goal bar,
+  one-time hints, markers, banner, H for controls); `text.json` (every
+  player-facing word lives here); `text-budgets.json`; `art/STYLE.md`; and
+  Windows, Linux and Web export presets. Set `STAGE_COUNT` to your number of
+  stages. Don't hand-edit `export_presets.cfg`. Keep host keys 1-9 working:
+  the owner and the screenshot tool use them.
+- **Host-authoritative.** Clients send inputs (`submit_input`); the host
+  simulates everything (`_simulate`) and broadcasts state every physics tick
+  (`receive_state`); clients only draw it. Keep synced state small. If the
+  spec's netcode plan needs something else, say so in the notes first.
+- **Preview mode (for screenshots).** The web export, or `--preview`, runs
+  offline with bot players instead of a network. `_bot_dir` drives the bots:
+  make them stand where the stage's together moment happens, so each
+  screenshot shows the moment, not three capsules in a corner. The preview
+  is for screenshots and a quick look only; the real game is the Windows
+  build.
+- **Sync test:** the game's important objects go in the report
+  (`_write_report` state) so `tools/net_test.py` compares them across peers.
+  Bots (`--bot`) must use the core verb, not only walk.
+- **One command builds and checks everything:**
   `python3 tools/build.py <id> --seat <seat>` imports, runs headless, runs
-  `tests/smoke.gd`, runs `tools/net_test.py` (headless host + 2 bot clients
-  on one machine must end in the same state), exports a Windows build to
-  `builds/<id>/<id>-windows.zip` with a download page
-  `builds/<id>/index.html`, logs to `protos/<id>/build-log.txt`, and
-  appends a `build` event to `events.jsonl`. It fails while `ABOUT.txt` has
-  `[TODO]` lines. **Exit 0 is the only evidence a build works.** While
-  iterating, `--no-net --no-export` is faster; hand-backs need the full run.
-  Before hand-back also run `python3 tools/net_test.py <id> --clients 3`.
-- **Smoke test required:** `protos/<id>/tests/smoke.gd` (extends
-  `SceneTree`) checks the core rule in code. Quit 0 on pass, 1 on fail.
-- No addons (GodotSteam comes in production, not here), no downloaded assets,
-  no voice chat in the prototype (friends use Discord; the spec says how the
-  game would use proximity voice later). Keyboard + mouse; controller is a
-  bonus. Primitive meshes and flat colours for everything visible; each
-  player a distinct colour.
+  `tests/smoke.gd`, runs the sync test (headless host + 2 bot clients must
+  end in the same state), exports the Windows zip with its download page to
+  `builds/<id>/`, checks every string in `text.json` against its budget (no
+  `[TODO]`, no banned phrases, no long string literals in scripts), writes
+  `builds/<id>/build.json` for the Play builds page from `build-info.json`
+  (title, pitch and controls default to `auto`, from `text.json`; the
+  builder fills `judge` and `bugs`), exports the preview to
+  `builds/<id>-preview/` and screenshots the splash and every
+  stage into `protos/<id>/shots/`. Exit 0 is the only evidence it works.
+  While iterating, `--no-net --no-export` is faster; hand-backs need the full
+  run, then `python3 tools/net_test.py <id> --clients 3`.
+- **Smoke test** (`tests/smoke.gd`) asserts the core rule in code, written
+  before any tuning. Any tuning change gets an "exploit impact" line in the
+  build notes.
+- No addons (GodotSteam comes in production), no voice chat (friends use
+  Discord). Keyboard and mouse; controller is a bonus.
 
-## 4. Done means
+## 7. Done means
 
-The owner was confused by earlier prototypes: they explained controls but
-not the game. Every prototype must explain itself.
+1. `build.py <id>` exits 0 (sync test and screenshots included) and
+   `net_test.py <id> --clients 3` passes.
+2. The presentation rules in section 4 hold, as judged by player-eyes from
+   the screenshots and by the lead from the code.
+3. The spec's carry exploit is closed: one strong player can't solve a stage
+   while the others watch. If it can't be closed, say so.
+4. `ABOUT.md` (for the owner and the gate, not shown in game): what the game
+   is, what each stage teaches, the friends moment to look for, how it
+   changes at 2 vs 4 players, and any open exploit or carry strategy.
+5. `build-<letter>-notes.md`: built, cut, known bugs, what's synced, exploit
+   impact of any tuning, and honest answers: do friends cause each other's
+   chaos, does it deepen, would a stranger understand it?
 
-For each prototype, all of:
-1. `python3 tools/build.py <id>` exits 0 (net test included),
-   `builds/<id>/<id>-windows.zip` and its download page exist, and
-   `tools/net_test.py <id> --clients 3` passes.
-2. **Title card:** `protos/<id>/ABOUT.txt` shows on launch (ProtoUI): the
-   title, what the game is in a sentence or two, how you win and lose, what
-   **every** interactable object does, and the controls. H reopens it.
-3. **Contextual hints:** whenever the player picks up, touches or unlocks
-   something new, `ui.hint("...")` says what it's for ("Drop the cheese near
-   the elephant to lure it"). No object without a purpose on screen.
-4. **Three beats:** on the host, keys `1`, `2`, `3` jump everyone to the
-   spec's early, middle and late beat. Each beat is a small hand-made level or situation; the late
-   beat must show something a first-minute player couldn't do yet. The
-   title card says the beats exist.
-5. **The spec's carry exploit is closed:** one strong player can't solve a
-   beat while the others watch (the spec names how). If it can't be closed,
-   say so in the notes.
-5b. **Works at 2 players and at 4.** Note in the build notes how each beat
-   changes with player count.
-6. A restart key (`R`).
-7. `protos/<id>/HOW-TO-PLAY.md`: starts with **what the game is** (one
-   sentence), then the goal, then controls. Max 5 lines. The gate links it.
-8. `protos/<id>/build-<letter>-notes.md`: built, cut, known bugs, what's
-   synced, and the builder's honest answers: does the rule make friends
-   cause each other's chaos, and does it deepen across the beats?
+Time box: one long working session per prototype (about 8 hours of agent
+work). Protect the first three stages and the presentation over extra
+stages.
 
-Time box: **one working session per prototype** (about 6 hours of agent
-work; networking and three beats take longer than a single-player toy). If the core rule isn't working by then, stop, make whatever works
-playable, and say so in the notes. A failed question is a valid answer.
+## 8. The team
 
-## 5. How the team works
+| Seat | Runtime | Job |
+|---|---|---|
+| `proto-lead` | Claude | Step 0 specs, dispatch, code review, the gate |
+| `player-eyes` | Claude | Reviews screenshots and text as a first-time player (section 9) |
+| `depth-critic` | Codex | Reviews code for exploits, carry strategies and client-side gameplay |
+| `build-a`, `build-b`, `build-c` | Codex | One prototype at a time each |
 
-- **proto-lead (Claude):** dispatches specs, reviews, writes the gate. Does
-  not build. Keep messages short; Claude usage is the scarce budget.
-- **depth-critic (Codex):** reviews each accepted-for-review toy's code
-  for exploits before the lead's verdict (see below). Does not build.
-- **build-a, build-b, build-c (Codex):** one prototype at a time each. Work
-  only inside `protos/<your-id>/`, plus `builds/<your-id>/` via the build
+## 9. Reviews (per prototype, in this order)
+
+1. **player-eyes** (`reviews/eyes-<id>.md`): looks only at `shots/`,
+   `text.json` and `ABOUT.md`, never the code, and answers as a first-time
+   player in a group: which one am I? What do we think the goal is on each
+   screen? What is each object? Where do we need each other? What's
+   cluttered, unreadable or unexplained? Pass or fail per section 4 rule,
+   naming the screenshot.
+2. **depth-critic** (`reviews/depth-<id>.md`): per stage, every way to skip
+   or trivialize it, every way one player can carry the rest, any gameplay
+   decided on a client, synced state the net test doesn't cover. Severity:
+   blocks the stage / weakens it / cosmetic.
+3. **proto-lead** (`reviews/lead-<id>.md`): re-runs `build.py`, reads the
+   smoke test, the net report and the core-rule code (host-authoritative?),
+   looks at the screenshots, weighs both reviews. Verdict: accept, or send
+   back with an exact list. **Up to two send-backs** when a finding defeats
+   the prototype's question or breaks a section 4 rule; otherwise accept
+   with notes. Say what couldn't be judged (only the owner and friends can
+   play it).
+
+## 10. Funnel
+
+1. **Dry run:** a throwaway `dry-run` prototype through scaffold, full build
+   (sync test and screenshots), player-eyes, critic and lead. Also confirm
+   whether `$imagegen` works in a builder seat (one test image, then delete
+   it) and record the answer in `lead-dry-run-receipt.md`. Fix anything that
+   stops for approval, then delete the dry-run files.
+2. **Step 0:** proto-lead writes the v2 specs.
+3. **Waves** per section 3. Reviews per section 9. As each prototype is
+   accepted, append to `events.jsonl`:
+   `{"kind": "playtest-ready", "seat": "proto-lead", "text": "<id> ready for a friends session"}`.
+4. **Gate:** when all are accepted (or honestly failed), write
+   `lead-summary.md` (one short section per prototype, under 800 words) and
+   `gate.json`, then stop. Per option: the first sentence names any open
+   exploit or carry strategy; `image` is the best stage screenshot; `play`
+   is `builds/<id>`; `file` is `protos/<id>/ABOUT.md`.
+   ```json
+   {"title": "Play co-op round 2 with friends and pick", "question": "Which should go to the design team? Pick one, or two to compare further.",
+    "kind": "choose", "min": 1, "max": 2, "lead": "proto-lead", "context": "lead-summary.md",
+    "options": [
+      {"id": "x-19", "title": "Borrow My Door", "summary": "Open exploits and carry strategies first. Then: what the stages teach, the friends moment, 2 vs 4 players, player-eyes verdict, known bugs.",
+       "image": "protos/x-19/shots/stage-2.png", "file": "protos/x-19/ABOUT.md", "play": "builds/x-19"},
+      {"id": "none", "title": "None yet: another co-op round", "summary": "Add notes."}]}
+   ```
+5. **After the decision:** record the owner's choice and notes in
+   `lead-decision-notes.md`, write the end-of-run model notes (shared rules
+   section 6), then stop.
+
+## 11. Studio rules (in addition to the shared rules)
+
+- Run from `~/openrig/jobs/coop-N/` (a Rig Console job, rig name = folder
+  name). Before dispatch the operator pre-approves for every seat: `rig
+  queue` commands, `python3 tools/build.py` and `python3 tools/net_test.py`
+  inside the job folder.
+- Builders work only inside `protos/<id>/` and `builds/<id>*` via the build
   tool. Never touch another builder's folders.
-
-Exploit review (depth-critic, per toy, written to `reviews/depth-<id>.md`,
-before the lead's review): read the code and the spec like a lazy, clever
-group, and like the one expert friend who wants to do everything. List every
-way to skip or trivialize each beat, every way one player can carry the
-rest, and any gameplay that's simulated on a client instead of the host (e.g. "you can place
-surfaces anywhere, so beat 3 is a staircase"), and whether the spec's named
-exploit is really closed. Severity per item: blocks the beat / weakens it /
-cosmetic. The lead sends blocking items back to the builder.
-
-Review (lead, per toy, written to `reviews/lead-<id>.md`):
-- Does `build.py` pass? (Run it yourself; don't trust the hand-back.)
-- Read the smoke test and the code that implements the core rule. Does the
-  toy actually implement the spec's rule, or a safer neighbour of it?
-- Is anything out of scope creeping in (menus, art, extra modes)?
-- Does ABOUT.txt explain the game, including Host/Join, to a stranger? Does every object get a hint?
-- Does the net test cover the game's real state, and do the bots use the core verb?
-- Do the three beats actually escalate, or are they the same beat with more stuff?
-- Are the critic's blocking exploits fixed?
-- Verdict: **Accept**, or **Send back once** with an exact list. After one
-  send-back, accept with notes; don't loop.
-The lead cannot play the build. Say what you couldn't judge.
-
-## 6. Funnel
-
-1. **Dry run.** Lead scaffolds a throwaway `protos/dry-run/` with
-   `build.py dry-run --new`, a builder claims it, fills `ABOUT.txt`, adds one
-   moving square and a trivial `tests/smoke.gd`,
-   runs `build.py dry-run --seat <seat>` green, hands back; lead re-runs it.
-   Confirm no step stops for approval (including the net test, which
-   launches several Godot processes) and that `builds/dry-run/` shows on the
-   console's Play builds page. Depth-critic writes a one-line
-   `reviews/depth-dry-run.md`. Fix any prompt first, then delete the dry-run
-   files.
-2. **Waves.** Dispatch up to three specs at once. Each hand-back goes to
-   depth-critic first, then the lead's review. As a builder's toy is
-   accepted, dispatch its next spec.
-3. **Playtest note.** As each toy is accepted, append one line to
-   `events.jsonl` (`{"kind": "playtest-ready", "seat": "proto-lead", "text": "<id> ready for a friends session"}`),
-   so the owner can line up a session; the owner's session notes, if any,
-   arrive through the gate.
-4. **Gate.** When every spec is accepted (or honestly failed), write
-   `lead-summary.md` and `gate.json`, then **stop and wait**. Never ask for
-   the decision in chat and never write a decision file.
-
-Gate format (see `~/openrig/dashboard/JOBS.md` section 4):
-```json
-{
-  "title": "Play the prototypes and pick",
-  "question": "Which prototype should become the game? Pick one, or two to compare further.",
-  "kind": "choose", "min": 1, "max": 2,
-  "lead": "proto-lead",
-  "context": "lead-summary.md",
-  "options": [
-    {"id": "x-04", "title": "Working Title", "summary": "One paragraph: what the game is, the friends moment to look for, how the three beats escalate at 2 vs 4 players, the critic's remaining carry exploits, known bugs.", "file": "protos/x-04/HOW-TO-PLAY.md", "play": "builds/x-04"},
-    {"id": "none", "title": "None of these: back to the pitch room", "summary": "Add notes on what felt closest to fun."}
-  ]
-}
-```
-`lead-summary.md`: one short section per prototype (question, builder's
-answer, lead's verdict, couldn't-judge list, known bugs), under 800 words.
-
-5. **After the decision** (`decisions/<gate-id>.json` plus a `rig send`):
-   write the owner's choice and notes into `lead-decision-notes.md`, then
-   stop. Stage 3 is a separate rig.
-
-## 7. Operations
-
-- Run from `~/openrig/jobs/proto-N/` (a Rig Console job; `job.json`
-  present; rig name = folder name). Fresh rig. Don't reuse pitch-room seats.
-- Before dispatch, the operator pre-approves for every seat: `rig queue`
-  commands and `python3 tools/build.py` inside the job folder. Lifecycle
-  commands still ask.
-- File prefixes: `lead-`, `depth-`, `build-a-`, `build-b-`, `build-c-`.
-- No `$`, backticks or pipes in shell text. Use `--body-file` for free text.
-- The lead parks its goal row on the rows it dispatches.
-- The net test runs several headless Godot instances on a free local port
-  per run, so builders can test in parallel.
-- Optional: append progress events to `events.jsonl`
-  (e.g. `{"kind": "review", "seat": "proto-lead", "text": "b-06 accepted"}`).
-- The operator does not monitor the run; it acts only when messaged.
-
-## 8. Limits and stop rules
-
-- Never: spend money, create accounts, post publicly, contact anyone, or
-  download assets, addons or code from the web.
-- Stop and wait at the gate.
-- If usage-limit warnings appear: stop, save progress (every toy should
-  have a green build by then), report.
-- If lead and builder disagree twice on the same point: write both
-  positions into the review file and let the owner decide via the gate.
+- Cuts or rankings against a reviewer's finding are labelled "lead
+  judgment". Open exploits are named first in every gate summary.
+- File prefixes: `lead-`, `eyes-`, `depth-`, `build-a-`, `build-b-`,
+  `build-c-`.
+- Never spend money, create accounts, post, contact anyone, or download
+  assets, addons or code.

@@ -1,3 +1,1 @@
-{"type": "design", "rig": "design-1", "title": "Design team",
- "writers": {"pillars": "creative-director", "decisions": "creative-director", "design": "design-systems", "balance": "design-balance", "onboarding": "design-onboarding", "story": "words-narrative", "art-bible": "art-director"},
- "watch_depth": 3}
+{"type": "design", "rig": "design-1", "title": "Design team (polished 1.0)", "writers": {"pillars": "creative-director", "decisions": "creative-director", "design": "design-systems", "balance": "design-balance", "story": "words-narrative", "art-bible": "art-director", "product": "creative-director", "quality-bar": "creative-director", "handoff": "creative-director", "feel": "design-feel", "ux": "design-ux", "steam": "design-systems"}, "watch_depth": 3}

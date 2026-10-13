@@ -20,12 +20,14 @@ A small stdlib-Python server plus plain HTML pages, with no build step and no de
 
 | Page | What it shows |
 |---|---|
-| **Live graph** | Every team as a card tree, with each agent's state, what it's doing in plain English, a 30-minute activity strip and handoffs between agents. Handoffs animate as sparks along the lines; files pop up as agents write them. |
+| **Live graph** (home) | Every team as a card tree, with each agent's state, what it's doing in plain English, a 30-minute activity strip and handoffs between agents. Handoffs animate as sparks along the lines; files pop up as agents write them. |
 | **Replay** | Any team's recorded history played back at 30–600×, with scrubbing and quiet stretches skipped. A four-hour run becomes a four-minute watch. |
 | **Activity feed** | One running story: who started, what they're doing, what they handed off, which files they wrote. |
 | **Decisions** | "Gates" the teams open for you: pick 3 pitches, approve a plan, choose a brand name. Background docs are rendered in place, with an in-page reader for every file they mention. |
-| **Play builds** | Godot web exports from prototype jobs, one tap to play. Cross-origin isolation is handled, so threaded builds work too. |
-| **Niche board / Run report** | Research funnels, checkpoint pickers, a per-agent timeline of where the time went, approval waits, a usage log and an evidence link checker. |
+| **Builds** | Godot web exports from prototype jobs as a shelf of named games, each with what it's testing, what to judge, controls and known bugs. One tap to play; threaded builds work too. |
+| **Niche board / Run report** (under More) | Research funnels, checkpoint pickers, a per-agent timeline of where the time went, approval waits, a usage log and an evidence link checker. |
+| **Models** (under More) | The Model Architect's report cards: a seat × model grid, the evidence ledger, and assessments of roles and briefs. |
+| **System** (under More) | A live map of what runs where, how an alert reaches your phone, and who owns what. |
 | **Phone view** | "Needs you", teams and the feed in a phone layout, installable as an app. Alerts arrive as push notifications via ntfy. |
 
 <table>
@@ -120,7 +122,8 @@ Then open **http://localhost:8800**. For the dashboard to survive Windows logons
 
 **Phone access (optional):** install Tailscale on the PC and phone, set `RIG_CONSOLE_TOKEN` in
 `~/.config/rig-console.env`, run `tailscale serve --bg 8800` in PowerShell, and open your
-`https://<pc>.<tailnet>.ts.net/?token=…` link once. For push alerts, set `NTFY_TOPIC` (and `NTFY_CLICK`
+`https://<pc>.<tailnet>.ts.net/?token=…` link once. Builds run on their own port (8801) so their code can't act as the console; for
+playing them on the phone, also run `tailscale serve --bg --https=8443 http://localhost:8801`. For push alerts, set `NTFY_TOPIC` (and `NTFY_CLICK`
 to your console URL) and subscribe to the topic in the ntfy app.
 
 ---

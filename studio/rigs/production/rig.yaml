@@ -1,0 +1,117 @@
+version: "0.2"
+name: prod-1
+summary: >
+  Studio stage 4: production. A Claude tech lead plans each milestone from the
+  design team's handoff, splits it into tasks for two Codex devs, merges what
+  a Claude reviewer accepts, and gates every milestone build with the owner
+  after the design team's vision check. A Codex playtest bot runs bots and long
+  tests; player-eyes, art production and art review are woken when needed.
+  Brief: brief.md.
+
+culture_file: CULTURE.md
+
+docs:
+  - path: brief.md
+  - path: README.md
+
+pods:
+  - id: tech
+    label: Tech lead
+    members:
+      - id: lead
+        label: "Tech lead (Claude)"
+        agent_ref: "local:agents/tech-lead"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: dev
+    label: Developers
+    members:
+      - id: a
+        label: "Developer A (Codex)"
+        agent_ref: "local:agents/dev"
+        runtime: codex
+        profile: default
+        cwd: "."
+      - id: b
+        label: "Developer B (Codex)"
+        agent_ref: "local:agents/dev"
+        runtime: codex
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: review
+    label: Code review
+    members:
+      - id: code
+        label: "Code reviewer (Claude)"
+        agent_ref: "local:agents/review-code"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: playtest
+    label: Playtest
+    members:
+      - id: bot
+        label: "Playtest bot (Codex)"
+        agent_ref: "local:agents/playtest-bot"
+        runtime: codex
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: player
+    label: Player eyes
+    members:
+      - id: eyes
+        label: "Player eyes (Claude)"
+        agent_ref: "local:agents/player-eyes"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: art
+    label: Art and audio
+    members:
+      - id: production
+        label: "Art production (Codex)"
+        agent_ref: "local:agents/art-production"
+        runtime: codex
+        profile: default
+        cwd: "."
+      - id: review
+        label: "Art review (Claude)"
+        agent_ref: "local:agents/art-review"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+    edges: []
+
+edges:
+  - kind: delegates_to
+    from: tech.lead
+    to: dev.a
+  - kind: delegates_to
+    from: tech.lead
+    to: dev.b
+  - kind: delegates_to
+    from: tech.lead
+    to: review.code
+  - kind: delegates_to
+    from: tech.lead
+    to: playtest.bot
+  - kind: delegates_to
+    from: tech.lead
+    to: player.eyes
+  - kind: delegates_to
+    from: tech.lead
+    to: art.production
+  - kind: delegates_to
+    from: tech.lead
+    to: art.review

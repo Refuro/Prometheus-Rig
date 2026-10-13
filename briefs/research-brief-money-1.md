@@ -83,7 +83,7 @@ Funnel:
 6. **Checkpoint 2:** report and wait.
 
 ## 7. Deliverables
-In ~/openrig/research/money-1/: niches.json (per briefs/NICHES-SCHEMA.md,
+In ~/openrig/research/money-1/: niches.json (per NICHES-SCHEMA.md, installed with the briefs from dashboard/,
 including `funnel`), longlist.md, shortlist/<id>.md (with the cheapest test:
 what to make, where to post it, what result in 30 days means "continue"),
 summary.md, sources.md and retro.md.

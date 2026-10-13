@@ -1,13 +1,14 @@
 {
  "type": "prototype",
- "rig": "coop-1",
- "title": "Co-op prototype sprint 1",
+ "rig": "coop-2",
+ "title": "Co-op prototype sprint 2 (readable together)",
  "writers": {
   "lead": "proto-lead",
   "build-a": "build-a",
   "build-b": "build-b",
   "build-c": "build-c",
-  "depth": "depth-critic"
+  "depth": "depth-critic",
+  "eyes": "player-eyes"
  },
  "watch_depth": 2
 }

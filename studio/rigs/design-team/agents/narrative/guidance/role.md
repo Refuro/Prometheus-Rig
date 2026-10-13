@@ -10,4 +10,4 @@ Read `brief.md` and `docs/pillars.md` first. You own `docs/story.md`
 - AI-written game text runs long and ornate. Write less than you think, in
   plain words. All player text goes in `data/text/`, must pass
   `python3 tools/check_text.py`, and goes through words-editor before it lands.
-- Use `--body-file`; no `$`, backticks or pipes in shell text.
+- Use `--body-file` (shell rules: SHARED-RULES.md).

@@ -1,6 +1,6 @@
-name: onboarding
+name: art-production
 version: "1.0"
-description: "Onboarding designer: teaches the game through play in the first ten minutes"
+description: "Art production: art and audio held to the art bible, through the approved pipeline"
 
 resources:
   guidance:
@@ -16,7 +16,7 @@ profiles:
   default:
     uses:
       skills: []
-      guidance: [role]
+      guidance: []
       subagents: []
       plugins: [openrig-core]
       runtime_resources: []

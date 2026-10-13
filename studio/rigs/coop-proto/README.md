@@ -1,31 +1,49 @@
 # Co-op prototype sprint (studio stage 2, friendslop picks)
 
 Template for a co-op prototype job. Copy it to `~/openrig/jobs/coop-N/`,
-drop in the specs, launch.
+copy in the specs and the previous round's work, launch.
 
-Builders make 2-4 player online prototypes in Godot. Each one hosts and joins
-over ENet, passes an automated sync test (a headless host plus bot clients on
-one machine must end in the same state), and exports a Windows zip with a
-download page that shows on the Rig Console's **Play builds** page. The sprint
-ends with a gate after you play with friends.
+Builders make 2-4 player online prototypes in Godot that teach one idea per
+stage and show every player which one they are and what the group must do.
+Each build hosts and joins over ENet, passes an automated sync test (a
+headless host plus bot clients on one machine must end in the same state),
+screenshots every stage from an offline preview with bot players, and
+exports a Windows zip with a download page on the Rig Console's **Play
+builds** page. The preview also shows there as `<id>-preview` (a look only,
+with bots; the real game is the zip). The sprint ends with a gate after you
+play with friends.
 
-## Launch (in Ubuntu)
+## One-time setup
 
-    cp -r ~/openrig/studio/rigs/coop-proto ~/openrig/jobs/coop-1
-    cp ~/openrig/jobs/friends-1/proto-spec-*.md ~/openrig/jobs/coop-1/specs/
-    cd ~/openrig/jobs/coop-1
-    ls specs
+    bash ~/openrig/studio/setup/install-godot-wsl.sh     # already done
+    bash ~/openrig/studio/setup/install-shots-wsl.sh     # screenshots
+
+If the shots installer says libraries are missing, run the `sudo` line it
+prints once.
+
+## Launch round 2 (in Ubuntu)
+
+First check the picks line at the top of `owner-notes.md` in the template
+(default: x-08, x-19, x-03, x-02) and edit it if your coop-1 decision
+changed them. Then:
+
+    cp -r ~/openrig/studio/rigs/coop-proto ~/openrig/jobs/coop-2
+    cd ~/openrig/jobs/coop-2
+    for id in x-08 x-19 x-03 x-02; do
+      cp ~/openrig/jobs/coop-1/specs/proto-spec-$id.md specs/
+      mkdir -p inputs/$id
+      cp ~/openrig/jobs/coop-1/reviews/*-$id.md inputs/$id/ 2>/dev/null
+      cp -r ~/openrig/jobs/coop-1/protos/$id inputs/$id/old-proto
+      rm -rf inputs/$id/old-proto/.godot inputs/$id/old-proto/net-test
+    done
+    cp -r ~/openrig/jobs/coop-1/decisions inputs/coop-1-decisions 2>/dev/null
+    ls specs inputs
     rig spec validate rig.yaml
     rig spec preflight rig.yaml
     rig up ./rig.yaml --cwd .
 
-Then tell the operator: "coop-1 is up in ~/openrig/jobs/coop-1. Pre-approve
-rig queue commands, python3 tools/build.py and python3 tools/net_test.py for
-every seat per brief.md section 7, then have proto-lead run the dry run from
-section 6 and start."
-
-Seats: `proto-lead`, `depth-critic`, `build-a`, `build-b`, `build-c` (each
-`@coop-1`).
+Seats: `proto-lead`, `player-eyes`, `depth-critic`, `build-a`, `build-b`,
+`build-c` (each `@coop-2`).
 
 ## Playing with friends
 
@@ -40,16 +58,21 @@ Seats: `proto-lead`, `depth-critic`, `build-a`, `build-b`, `build-c` (each
 
 ## What lands where
 
-- `protos/<id>/`: each Godot project; `protos/<id>/net-test/`: sync test logs
-- `builds/<id>/<id>-windows.zip` + `index.html`: the build and its download page
-- `reviews/depth-<id>.md`, `reviews/lead-<id>.md`: critic and lead reviews
+- `specs/v2-<id>.md`: the lead's round-2 spec (teaching sequence, who is
+  who, together moments)
+- `protos/<id>/`: each Godot project; `protos/<id>/shots/`: screenshots;
+  `protos/<id>/net-test/`: sync test logs
+- `builds/<id>/<id>-windows.zip` + `index.html`: the build and its download
+  page; `builds/<id>-preview/`: the offline web preview
+- `reviews/eyes-<id>.md`, `reviews/depth-<id>.md`, `reviews/lead-<id>.md`
 - `lead-summary.md` + `gate.json`: the end-of-sprint decision
 
 ## Tested
 
-The scaffold was run end to end with Godot 4.7.1 on Linux: headless import
-and run, smoke test, a sync test with a host and 3 bot clients (passes), the
-same test with a deliberate 0.3-unit client drift (fails, as it should), two
-sync tests in parallel on separate ports, and a Windows export zipped with
-its download page. Not tested here: the .exe on real Windows PCs over
-Tailscale. The dry run should include one owner check that the zip runs.
+The round-2 scaffold was run end to end with Godot 4.7.1 on Linux: scaffold,
+headless import and run, smoke test, sync test with a host and 2 bot clients
+(stage synced across peers), Windows export and zip, text budget check, web
+preview export, and screenshots of the splash and all three example stages
+in headless Chromium. Round 1 also tested 3 clients, a deliberate drift
+(fails, as it should) and parallel tests on separate ports. Not tested here:
+the .exe on real Windows PCs over Tailscale.

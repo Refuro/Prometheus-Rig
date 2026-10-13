@@ -1,0 +1,5 @@
+{"_about": "Achievement definitions. Names and descriptions are string ids in data/text/achievements.json (checked by check_text.py). Owned by design-systems.",
+ "achievements": [
+  {"id": "ACH_EXAMPLE", "name": "ach.example.name", "desc": "ach.example.desc", "kind": "clever", "hidden": false,
+   "rule": "Clear any level without touching the middle plank.", "stat": null}
+ ]}

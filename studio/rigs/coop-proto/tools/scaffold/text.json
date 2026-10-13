@@ -1,0 +1,19 @@
+{"strings": [
+  {"id": "splash.title", "context": "splash_title", "text": "[TODO] Game Title"},
+  {"id": "splash.goal", "context": "splash_goal", "text": "[TODO] One sentence: what the group is trying to do."},
+  {"id": "splash.start", "context": "button", "text": "Press any key"},
+  {"id": "help.controls", "context": "help", "text": "WASD: move\nR: restart (host)\nH: close this"},
+  {"id": "menu.host", "context": "label", "text": "Host"},
+  {"id": "menu.join", "context": "label", "text": "Join"},
+  {"id": "menu.address", "context": "hint", "text": "Host's Tailscale address"},
+  {"id": "stage.1.name", "context": "stage_name", "text": "Stage 1"},
+  {"id": "stage.1.goal", "context": "goal", "text": "Everyone into the green ring"},
+  {"id": "stage.2.name", "context": "stage_name", "text": "Stage 2"},
+  {"id": "stage.2.goal", "context": "goal", "text": "Everyone to the far ring"},
+  {"id": "stage.3.name", "context": "stage_name", "text": "Stage 3"},
+  {"id": "stage.3.goal", "context": "goal", "text": "All the way across, together"},
+  {"id": "hint.move", "context": "hint", "text": "The ring only counts when everyone's inside."},
+  {"id": "cleared", "context": "banner", "text": "Cleared!"},
+  {"id": "failed", "context": "banner", "text": "Again"},
+  {"id": "end", "context": "banner", "text": "That's the prototype"}
+]}

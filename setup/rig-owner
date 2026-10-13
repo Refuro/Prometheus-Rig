@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Installed root-owned at /usr/local/lib/rig-console/rig-owner by install-console-user.sh.
+# The console (user rigconsole) may run exactly this, as the agents' user, through one sudo rule.
+# It allows only "rig send" and "rig ps", so the console can tell a lead about your decision and look
+# up who's in a team, and nothing else (R-005 step 3, option A).
+set -euo pipefail
+sender="owner@rig-console"
+case "${1:-}" in
+  send|ps) ;;
+  receipt) shift; set -- send "$@"; sender="console@rig-console" ;;   # automatic receipts (PL-017)
+  approval-item)   # one queue item to the operator about an approval wait (R-020): fixed destination, body on stdin
+    [ "$#" -eq 3 ] || { echo "rig-owner: approval-item <id> <summary>" >&2; exit 2; }
+    set -- queue create --source console@rig-console --destination operator-agent@kernel --id "$2" --summary "$3" --body -
+    sender="console@rig-console" ;;
+  *) echo "rig-owner: only 'send', 'receipt' and 'ps' are allowed" >&2; exit 2 ;;
+esac
+# The console never answers an agent's prompt: no keystroke mode, whatever the console asks for.
+# (Its "Send anyway" for seats OpenRig misreads as at-a-prompt is off under option A unless the owner
+# decides otherwise: gate pl-016-send-anyway.)
+for a in "$@"; do
+  case "$a" in
+    --dangerously-interact|--raw) echo "rig-owner: keystroke modes are not allowed" >&2; exit 2 ;;
+  esac
+done
+# sudo drops the console's environment, so name the sender here (OpenRig shows it as "From:").
+export OPENRIG_SESSION_NAME="$sender"
+export NVM_DIR="$HOME/.nvm"
+# shellcheck disable=SC1091
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh" >/dev/null
+exec rig "$@"

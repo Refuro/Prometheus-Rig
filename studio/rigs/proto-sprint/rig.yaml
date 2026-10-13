@@ -1,11 +1,11 @@
 version: "0.2"
-name: proto-1
+name: proto-3
 summary: >
-  Studio stage 2, prototype sprint. A Claude lead hands one-page prototype
-  specs to three Codex builders in waves; a Codex depth critic reviews each
-  prototype's code for exploits; the lead reviews each against its spec
-  (title card, hints, three beats) and ends with a Rig Console gate where
-  the owner plays the web builds and picks. Brief: brief.md.
+  Studio stage 2, round 3 ("feels like a game"). A Claude lead respecs each
+  pick around a teaching sequence and readable presentation; three Codex
+  builders build web prototypes that screenshot themselves; a Claude
+  player-eyes seat reviews the screenshots as a first-time player and a Codex
+  critic hunts exploits; the sprint ends with a Rig Console gate. Brief: brief.md.
 
 culture_file: CULTURE.md
 
@@ -20,6 +20,17 @@ pods:
       - id: lead
         label: "Prototype lead (Claude)"
         agent_ref: "local:agents/proto-lead"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+    edges: []
+
+  - id: player
+    label: Player-eyes reviewer
+    members:
+      - id: eyes
+        label: "Player-eyes (Claude)"
+        agent_ref: "local:agents/player-eyes"
         runtime: claude-code
         profile: default
         cwd: "."
@@ -94,3 +105,6 @@ edges:
   - kind: delegates_to
     from: proto.lead
     to: depth.critic
+  - kind: delegates_to
+    from: proto.lead
+    to: player.eyes

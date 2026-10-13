@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
-# Run in Ubuntu once:  bash /mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig/setup/install-dashboard-service.sh
+# FIRST-TIME SETUP ONLY. Once the console runs as its own user (R-005 step 3), use
+# setup/install-console-user.sh and setup/deploy-console.sh instead: re-running this script would put the
+# console back under your user, running code from this folder, where agents can reach both.
+# Run in Ubuntu once:  bash setup/install-dashboard-service.sh
 # Makes Rig Console start with Ubuntu and restart itself if it crashes.
 set -euo pipefail
-DASH="/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig/dashboard"
+if [ -f /etc/rig-console/env ]; then
+  echo "The console already runs as its own user (/etc/rig-console/env exists). Use setup/deploy-console.sh."; exit 1
+fi
+DASH="$(cd "$(dirname "$0")/../dashboard" && pwd)"
 export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 NODE_BIN="$(dirname "$(command -v rig)")"
 ENVFILE="$HOME/.config/rig-console.env"

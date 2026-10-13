@@ -17,12 +17,17 @@ Environment=HOME=$HOME
 ExecStart=/bin/bash $SCRIPT
 Restart=always
 RestartSec=10
+# Copies fill the page cache, and systemd counts it against the service (3.6 GB on 2026-10-12).
+# Past MemoryHigh the kernel reclaims that cache first; MemoryMax is a backstop (Restart=always recovers).
+MemoryHigh=256M
+MemoryMax=1G
 
 [Install]
 WantedBy=multi-user.target
 UNIT
 sudo systemctl daemon-reload
-sudo systemctl enable --now rig-snapshots.service
+sudo systemctl enable rig-snapshots.service
+sudo systemctl restart rig-snapshots.service   # picks up a changed unit or script
 sleep 3
 systemctl --no-pager --lines=0 status rig-snapshots.service | head -3
 echo "Done. Check: systemctl status rig-snapshots"

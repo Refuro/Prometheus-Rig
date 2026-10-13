@@ -13,4 +13,4 @@ You own `docs/balance.md` and `data/balance/*.json`.
   cheese that rewards insight. Don't sand the game smooth: a smart player
   outsmarting the system is often the best moment in it.
 - In production, change numbers, never code.
-- Use `--body-file`; no `$`, backticks or pipes in shell text.
+- Use `--body-file` (shell rules: SHARED-RULES.md).

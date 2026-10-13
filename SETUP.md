@@ -103,14 +103,17 @@ implementer, local-model researcher.
   agents' tmux sessions) alive when no terminal is open.
 
 ## Rig Console (dashboard)
-- Auto-start: `bash setup/install-dashboard-service.sh` (once). Restart after changes:
-  `sudo systemctl restart rig-dashboard`. Settings: `~/.config/rig-console.env`.
-- Laptop/phone access (not set up yet):
-  1. Install Tailscale on this PC (Windows) and on the laptop/phone; sign in to the same account.
-  2. In `~/.config/rig-console.env` set `HOST=0.0.0.0` and `RIG_CONSOLE_TOKEN=<long random string>`
-     (generate one with `openssl rand -hex 24`), then restart rig-dashboard.
-  3. Allow port 8800 into WSL (PowerShell as admin):
-     `New-NetFirewallHyperVRule -Name RigConsole -DisplayName "Rig Console" -Direction Inbound -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -Protocol TCP -LocalPorts 8800`
-  4. On the laptop/phone open `http://<PC's Tailscale name>:8800/?token=<token>` once; a cookie remembers it.
-- Phone push: set `NTFY_TOPIC=<hard-to-guess name>` in the env file, install the ntfy app, subscribe to that
-  topic. Alert text is sent through ntfy.sh, so keep it to non-sensitive projects.
+- **Install:** `bash setup/install-dashboard-service.sh` (once). Settings live in `~/.config/rig-console.env`.
+- **After code changes:** deploy with `bash setup/deploy-console.sh`. It lists what differs from the live copy
+  and asks before copying. This applies once security option A is installed (PL-011/PL-013); before that,
+  `sudo systemctl restart rig-dashboard`.
+- **Phone and laptop access** (Tailscale, set up 2026-10-11):
+  1. Tailscale is on the PC and phone, on the same account, with two-factor login.
+  2. `RIG_CONSOLE_TOKEN` is in the env file. The console stays on `127.0.0.1`.
+  3. In PowerShell, once:
+     - `tailscale serve --bg 8800` (the console);
+     - `tailscale serve --bg --https=8443 http://localhost:8801` (playable builds, R-006).
+  4. Open `https://<pc>.<tailnet>.ts.net/?token=<token>` once per device; a cookie remembers it.
+- **Phone push:** `NTFY_TOPIC` (hard to guess) and `NTFY_CLICK=https://<pc>.<tailnet>.ts.net` in the env
+  file; subscribe to the topic in the ntfy app (F-Droid build on GrapheneOS). Android allows only one VPN at
+  a time, so Tailscale replaces any DNS-filter VPN app.

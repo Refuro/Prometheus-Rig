@@ -10,6 +10,10 @@ Owner of this folder: the Model Architect (ROLES.md; AD-012). Status: **revised 
 | `roles/*.md` | Assessments of the Rig, Studio and Platform Architects and the Operator (ROLES.md) |
 | `BRIEFS.md` | Briefs graded by their observed effect |
 | `LOG.md` | This role's own log (MA-nnn) and its notes to the other roles |
+| `HARVEST.md` | Format leads use for end-of-run model notes in their job folder, and how they're harvested |
+| `tools/harvest.py` | Imports those notes into the ledger and metrics (safe to re-run) |
+| `tools/verify_evidence.py` | Checks harvested lines' evidence against the live job folders (read-only) |
+| `tools/review.py` | Applies review decisions from a JSON file to ledger lines (`reviews/MA-0nn-ledger-updates.json`) |
 | `HANDOFF.md` | What changed, for the Codex reviewer and the other architects |
 | `claude.md`, `codex.md`, `gemma4-12b.md` | Traits that hold across roles and briefs only |
 | `ROUTING.md` | Recommended model per studio role, plus the compensating rules |
@@ -17,7 +21,8 @@ Owner of this folder: the Model Architect (ROLES.md; AD-012). Status: **revised 
 | `REVIEW-REQUEST.md` | What the Codex reviewer was asked to check |
 | `REVIEW-codex.md` | The Codex review (2026-10-12); answered in `LOG.md` MA-004 |
 | `PROPOSALS.md` | Dashboard page code, retro wording, gitignore (not applied) |
-| `preview/` | `models.html` (the proposed page) and `models-preview.html` (with data inlined) |
+| `preview/` | Superseded by the live console page (`dashboard/models.html`, PL-003); kept as the original proposal |
+| `reviews/` | Reviews the Model Architect was asked to do for other roles |
 
 ## Ledger line format
 ```

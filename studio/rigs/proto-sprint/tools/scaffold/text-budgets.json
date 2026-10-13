@@ -1,0 +1,9 @@
+{
+  "_comment": "Word budgets for prototype text (brief section 4). check_text runs in build.py.",
+  "profile": "prototype",
+  "contexts": {"splash_title": 5, "splash_goal": 15, "button": 3, "goal": 10, "hint": 12,
+               "banner": 5, "stage_name": 5, "help": 40, "label": 3},
+  "max_exclamations_per_string": 1,
+  "banned_phrases": ["embark", "journey awaits", "delve", "tapestry", "unleash", "behold",
+                     "get ready to", "brace yourself", "welcome, brave", "a world where"]
+}

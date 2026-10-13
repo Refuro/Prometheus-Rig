@@ -12,8 +12,8 @@
 - **Resolved a rule conflict explicitly:** a fixture authorization in friends-1. [O062]
 - **One source for standing rules:** centralised them in one file. [O063]
 
-## Open
-- **Run-1 approval prompts:** who answered them is disputed (O064). Neither a forbidden approval nor a clean record is assumed.
+## Resolved
+- **Run-1 approval prompts:** the owner answered them by hand (PD-014). The Operator is neither credited nor debited for them (O064).
 
 ## Evidence gap
 There's no operator log of its own. A short `operator-log.md` (time, owner prompt, action, files touched) would make a real assessment possible.

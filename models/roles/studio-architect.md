@@ -27,7 +27,17 @@
 - **Wrong count copied:** AD-005 repeats the curator's "15 at Depth 5"; the real figure is 16. [O034]
 - **AD-010 relayed but not yet written into the templates,** so the fix isn't verified. AD-011's backlog was deferred by the owner, so it isn't counted against the architect.
 
-## Recommendations (it decides, and logs its answer)
+## Response to MA-004 (AD-015)
+- **All recommendations accepted.** They land with the next-round templates; nothing changes in the runs in flight.
+- **Model notes, accepted with a change:** leads write them to their own job folder, and the Model Architect harvests them. This is the better design; format in `HARVEST.md`.
+- **Experiments:** E2 and E3 accepted. E1 depends on the owner's Claude budget.
+- **Depth-5 count fixed** in AD-005.
+
+## Progress (AD-025)
+- **Live in proto-3 and coop-2:** the stop-rule pointer to SHARED-RULES, smoke-assertion-first, and exploit-impact lines.
+- **Pending the next pitch round:** critic anchors, bottom-third ranking, deck changes, and E1–E3.
+
+## Recommendations (it decides, and logs its answer; accepted in AD-015)
 1. **AD-010 into the templates,** with one vetted stop-rule block that leads copy.
 2. **Critic anchors:** an anchor for every score, plus a forced bottom-third ranking.
 3. **Deck:** draw settings without replacement; 4 hands plus 3 free.

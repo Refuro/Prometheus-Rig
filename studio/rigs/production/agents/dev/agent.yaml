@@ -1,0 +1,29 @@
+name: dev
+version: "1.0"
+description: "Developer: builds one task at a time with its tests, in its own worktree"
+
+resources:
+  guidance:
+    - id: role
+      path: guidance/role.md
+  plugins:
+    - id: openrig-core
+      source:
+        kind: local
+        path: "openrig-home:plugins/openrig-core"
+
+profiles:
+  default:
+    uses:
+      skills: []
+      guidance: []
+      subagents: []
+      plugins: [openrig-core]
+      runtime_resources: []
+
+startup:
+  files:
+    - path: guidance/role.md
+      delivery_hint: send_text
+      required: true
+  actions: []

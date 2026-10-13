@@ -1,5 +1,10 @@
 # Depth room brief (Track A), run 1
 
+Shared rules first: every seat follows `~/openrig/briefs/SHARED-RULES.md`
+(decisions and gates, when to stop, provider-capacity retries, shell
+commands, the outside world, run start and end, end-of-run model notes).
+This brief adds studio rules on top; where it is stricter, it wins.
+
 ## 0. Owner settings (binding)
 
 - **Platform:** PC (Steam). Web builds for prototypes.
@@ -139,7 +144,7 @@ curator judge from `blind/` only. **Nobody opens `.blind-key.json` until
    {
      "title": "Pick depth pitches to prototype",
      "question": "Which should become three-beat prototypes?",
-     "kind": "choose", "min": 2, "max": 5,
+     "kind": "choose", "min": 2, "max": 5, "max_soft": true,
      "lead": "room-lead",
      "context": "board.md",
      "options": [
@@ -175,7 +180,7 @@ after the decision, and `retro.md`.
 - Before dispatch the operator pre-approves for every seat: `rig queue`
   commands and `python3 tools/*.py` inside the job folder.
 - File prefixes: `lead-`, `scout-`, `depth/`, pitch files by seat letter.
-- No `$`, backticks or pipes in shell text. Use `--body-file`.
+- Shell text: SHARED-RULES.md (use `--body-file`).
 - Optional progress events in `events.jsonl`.
 - The operator acts only when messaged.
 
@@ -183,5 +188,5 @@ after the decision, and `retro.md`.
 
 - Never spend money, create accounts, post, contact anyone, or download and
   run games.
-- Stop at the gate. If usage warnings appear: stop, save, report.
+- Stop at the gate. Other stops and retries: SHARED-RULES.md.
 - Two-exchange disagreement rule: write both positions into `board.md`.

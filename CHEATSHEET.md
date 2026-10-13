@@ -36,6 +36,7 @@ operator to bring other teams back.
 - rig-snapshots service: mirrors agent screens + logs activity to snapshots/.
       systemctl status rig-snapshots        # is it running?
       sudo systemctl restart rig-snapshots  # restart it
+      bash setup/deploy-console.sh          # ship console code changes (after option A; it asks first)
 - Windows task "WSL keep-alive (OpenRig)" keeps Ubuntu running after sign-in,
   even with every terminal closed.
 

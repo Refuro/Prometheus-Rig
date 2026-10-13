@@ -1,5 +1,10 @@
 # Pitch room brief, run 1
 
+Shared rules first: every seat follows `~/openrig/briefs/SHARED-RULES.md`
+(decisions and gates, when to stop, provider-capacity retries, shell
+commands, the outside world, run start and end, end-of-run model notes).
+This brief adds studio rules on top; where it is stricter, it wins.
+
 ## 0. Owner settings (binding)
 
 - **Platform:** PC (Steam). Web builds for prototypes are welcome.
@@ -147,7 +152,7 @@ hook: One sentence, max 20 words.
    {
      "title": "Pick pitches to prototype",
      "question": "Which pitches should become one-day prototypes?",
-     "kind": "choose", "min": 3, "max": 6,
+     "kind": "choose", "min": 3, "max": 6, "max_soft": true,
      "lead": "room-lead",
      "context": "board.md",
      "options": [
@@ -193,7 +198,7 @@ All in the job folder (this folder):
   commands, and `python3 tools/draw_hands.py` / `python3
   tools/check_pitches.py` inside the rig root. Lifecycle commands still ask.
 - File prefixes: `lead-`, `scout-`, and pitch files named by seat letter.
-- No `$`, backticks or pipes in shell text. Use `--body-file` for free text.
+- Shell text: SHARED-RULES.md (use `--body-file` for free text).
 - The lead parks its goal row on the rows it dispatches.
 - The operator does not monitor the run; it acts only when messaged.
 
@@ -202,6 +207,6 @@ All in the job folder (this folder):
 - Never: spend money, create accounts, sign up, post publicly, contact
   anyone, or download/run game builds from the web.
 - Stop and wait at the gate. Never write a decision file yourself.
-- If usage-limit warnings appear: stop, save progress, report.
+- Other stops and retries: SHARED-RULES.md.
 - If two seats disagree and can't settle it in two exchanges: write both
   positions into `board.md` and let me decide.

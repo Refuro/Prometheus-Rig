@@ -61,53 +61,67 @@ What makes it work:
 
 ## Stage 2: Prototype sprints (both tracks specced)
 
-Template: `studio/rigs/proto-sprint/` (copy to `~/openrig/jobs/proto-N/`).
+Template: `studio/rigs/proto-sprint/` (v3, "feels like a game"; copy to
+`~/openrig/jobs/proto-N/`).
 
 | Seat | Runtime | Job |
 |---|---|---|
-| `proto-lead` | Claude | Dispatches specs in waves of three, reviews each against its spec, writes the gate |
-| `depth-critic` | Codex | Reads each prototype's code for exploits before the lead's review |
-| `build-a..c` | Codex | One prototype at a time: three beats, title card, hints, web export |
+| `proto-lead` | Claude | Respecs each pick around a teaching sequence, dispatches, reviews code, writes the gate |
+| `player-eyes` | Claude | Reviews screenshots, text and ABOUT as a first-time player |
+| `depth-critic` | Codex | Reviews code for exploits and shortcuts |
+| `build-a..c` | Codex | One prototype at a time: stages that teach one idea each, readable SVG art, web export |
 
-Every prototype: a title card from `ABOUT.txt` (what the game is, win/lose,
-what every object does), contextual hints for every new object, three beats
-on keys 1/2/3 (early, middle, late), the spec's exploit closed. One command
-(`tools/build.py`) scaffolds, checks, smoke-tests and web-exports; builds
-appear on the Play builds page as they land.
+Presentation rules: one new idea at a time, the goal always visible, things
+look like what they are, text as the last resort, a clean screen, feedback
+for every action, and the 30-second test. The build checks text budgets and
+screenshots every stage, so reviewers see what the owner will see.
+Prototype art: builder-written SVG by default, up to 8 `$imagegen` images
+per prototype. Prototypes are throwaway; no code carries into production.
 
-**Prototypes are throwaway.** They answer "is it fun, and does it deepen?"
-and nothing else. No prototype code is carried into production.
+**Prerequisites:** Godot (`studio/setup/install-godot-wsl.sh`, done) and
+screenshot support (`studio/setup/install-shots-wsl.sh`).
 
-**Track B (co-op): `studio/rigs/coop-proto/`** (copy to
-`~/openrig/jobs/coop-N/`). Same seats and rules, plus: a scaffold that
-already hosts and joins over ENet (host-authoritative: clients send inputs,
-the host simulates and broadcasts state), an automated sync test
+**Track B (co-op): `studio/rigs/coop-proto/`** (v2 "readable together",
+copy to `~/openrig/jobs/coop-N/`; round 2 is coop-2). Same seats and
+presentation rules, plus three co-op rules: you know which player you are,
+the together moment is shown in the world, and every stage reads at 2 and
+at 4 players. The scaffold already hosts and joins over ENet
+(host-authoritative: clients send inputs, the host simulates and broadcasts
+state) with a networked stage framework, an automated sync test
 (`tools/net_test.py`: a headless host plus bot clients must end in the same
 state), Windows zips with a download page on the Play builds page, and
-friends joining over Tailscale. The gate comes after you play with friends.
-
-**Prerequisite (done):** Godot 4.7.1 + export templates in WSL
-(`studio/setup/install-godot-wsl.sh`).
+friends joining over Tailscale. Screenshots come from an offline web preview
+with bot players (`builds/<id>-preview/`). The gate comes after you play
+with friends.
 
 ## Stage 3: Vision (template ready: `studio/rigs/design-team/`)
 
-The design team turns the winning prototype into a signed-off design, then
-**stays on through production** (copy to `~/openrig/jobs/<game>-design/`).
+The design team designs the **polished 1.0 and its product**, written so
+production can build it without guessing, then **stays on through
+production** (copy to `~/openrig/jobs/<game>-design/`). One job per game;
+two can run at once. First up (AD-019, AD-020): `bridge-design` (A Bridge
+Goes Walking) and `sunrise-design` (Shovel the Sunrise), straight from
+proto-2. Inputs include the owner's notes, which outrank everything else,
+and the studio presentation rules.
 
 | Seat | Runtime | Owns |
 |---|---|---|
-| `creative-director` | Claude | Pillars, tone, final call below you; inbox; milestone vision checks |
-| `design-systems` | Claude | Core loop, progression map, variety engine, content plan |
+| `creative-director` | Claude | Pillars, product brief and scope, quality bar, handoff; final call below you; inbox; vision checks |
+| `design-systems` | Claude | Core loop, progression, variety, content plan; Steam achievements and features |
+| `design-feel` | Claude | Physics, controls, camera, response to every action: values, ranges, acceptance checks, owner checklist |
 | `design-balance` | Codex | Numbers in data, simulations, the cheese register |
-| `design-onboarding` | Claude | First ten minutes; every object explains itself |
+| `design-ux` | Claude | Onboarding, every screen, settings, save, controller and Deck, accessibility, localization |
 | `words-narrative` | Claude | Whether a story earns its place; structure and voice |
 | `words-editor` | Codex | Word budgets; cuts every player string; `check_text.py` green |
-| `art-director` | Codex (images) | 3-4 visual directions, then the art bible |
+| `art-director` | Codex (images) | Art and audio directions, then the art and audio bible |
 
 Only the director and systems designer work continuously; the rest wake on
-demand. Stage 3 ends with three gates: pillars (approve), art direction
-(choose 1), design (approve).
+demand. Gates: pillars and product (approve, before drafting), art and
+audio direction (choose 1), design (approve). The handoff names production
+milestone 1: a feel build you play.
 
+- **Buildable, not aspirational:** feel, numbers, text and achievements live
+  in `data/`; every behaviour has a check a test can run.
 - **Brevity is enforced twice:** a Codex editor cuts text written by Claude
   seats, and `tools/check_text.py` fails any string over its word budget or
   containing a banned AI-ism. Budgets come from the pillars' text profile.
@@ -147,6 +161,21 @@ changed, screenshots, build path, open exploits) to the creative director,
 who returns PASS or FAIL against the pillars. FAIL goes back to the tech
 lead; PASS milestones reach you as a gate, and you play every one.
 
+**Milestones (planned shape, AD-020):** builders loop on their own between
+gates (build, tests and playtest bots, design-team review, fix); you play a
+build at every gate.
+1. **Feel build:** the core physics and controls in a test space, built to
+   `feel.md`; design-feel checks the acceptance tests, then you play it with
+   the owner checklist.
+2. **Vertical slice:** 10-15 minutes of the game at the full quality bar
+   (final art style, audio, UI, onboarding, achievements working).
+3. **Content** in a few gated chunks.
+4. **Polish and beta:** bugs, performance, Steam Deck, settings and
+   accessibility, against the quality bar.
+5. **Release prep:** store assets, demo, achievements on a real Steam build.
+   Every outside-world step (Steamworks account, store submission, pricing)
+   is yours.
+
 ## Studio-wide rules (from your research-run retros)
 
 1. **Decisions live in files**, never only in messages: pitch cards, pillars,
@@ -180,14 +209,18 @@ and any hand-crafted writing. Scope decisions weigh those, not lines of
 code. Price floor is $2.99 with no ceiling, so bigger ideas can price
 higher instead of being cut down.
 
-## Asset pipeline research (run any time before stage 3)
+## Asset pipeline research (run now, alongside design; brief v2)
 
-Games need real assets, and Codex should make them. Brief:
+Games need real assets, and art direction makes or breaks them. Brief:
 `studio/briefs/asset-pipeline-research.md`, for a research team. It compares
-the routes (Codex image generation, Blender driven over MCP or Python
-scripting, text/image-to-3D models, local generation on the 4080, procedural
-generation in Godot) on quality, style consistency, cost, licensing and Steam
-disclosure, and ends with a gate recommending one pipeline per asset type.
+routes for art, models, animation, UI, **sound effects and music** (Codex
+image generation, Blender over MCP or Python, text/image-to-3D, local
+generation on the 4080, procedural, CC0, AI and tool-made audio, and a
+priced human-composer option) on quality, **consistency**, cost, licensing
+and Steam disclosure. The bake-off uses the two design jobs' art directions
+and a lineup test (13 assets per route side by side). It ends with a gate
+recommending one pipeline per asset type per game, a consistency kit, and an
+asset manifest format for provenance and the Steam disclosure.
 
 ## Planned for the next round (not in the current runs)
 
@@ -211,8 +244,12 @@ continue unchanged.
    prototype, "none" answers at gates, and post-build vs pre-build exploits
    across runs to check that the playbooks help. Start with a shared Godot
    snippet library for builders (networking, title card, beats, export).
-4. **From the Model Architect (AD-015):** one vetted stop-rule block per
-   template (leads copy it, never write their own); an anchor for every
+4. **Shared rules (AD-016):** every template points seats at
+   `~/openrig/briefs/SHARED-RULES.md` (stops, provider-capacity retries,
+   shell rule, end-of-run model notes) and keeps no copies; `studio/` keeps
+   only studio-specific rules (second send-back, known exploits first,
+   lead-judgment labels, blind judging, card and prototype formats).
+   **From the Model Architect (AD-015):** an anchor for every
    critic score plus a forced bottom-third ranking; builders assert the core
    rule in the smoke test before tuning and add an "exploit impact" line to
    tuning changes; leads write `model-notes.jsonl` and `model-metrics.csv` in

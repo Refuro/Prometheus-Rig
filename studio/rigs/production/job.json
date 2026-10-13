@@ -1,0 +1,1 @@
+{"type": "production", "rig": "prod-1", "title": "Production", "design_job": "DESIGN-JOB", "builds": "builds", "writers": {"lead": "tech-lead", "docs": "tech-lead", "milestones": "tech-lead", "dev-a": "dev-a", "dev-b": "dev-b", "review": "review-code", "bot": "playtest-bot", "playtest": "playtest-bot", "eyes": "player-eyes", "art": "art-production"}, "watch_depth": 4}

@@ -1,0 +1,16 @@
+{"strings": [
+  {"id": "splash.title", "context": "splash_title", "text": "[TODO] Game Title"},
+  {"id": "splash.goal", "context": "splash_goal", "text": "[TODO] One sentence: what you're trying to do."},
+  {"id": "splash.start", "context": "button", "text": "Press any key"},
+  {"id": "help.controls", "context": "help", "text": "Arrows: move\nR: retry\nH: close this"},
+  {"id": "stage.1.name", "context": "stage_name", "text": "Stage 1"},
+  {"id": "stage.1.goal", "context": "goal", "text": "Walk to the green light"},
+  {"id": "stage.2.name", "context": "stage_name", "text": "Stage 2"},
+  {"id": "stage.2.goal", "context": "goal", "text": "A little further now"},
+  {"id": "stage.3.name", "context": "stage_name", "text": "Stage 3"},
+  {"id": "stage.3.goal", "context": "goal", "text": "All the way across"},
+  {"id": "hint.move", "context": "hint", "text": "Nice. The green ring is your goal."},
+  {"id": "cleared", "context": "banner", "text": "Cleared!"},
+  {"id": "failed", "context": "banner", "text": "Again"},
+  {"id": "end", "context": "banner", "text": "That's the prototype"}
+]}

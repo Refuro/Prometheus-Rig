@@ -34,7 +34,31 @@
   - assumed the operator answered approval prompts. That last point is disputed by the run-1 retro (O064).
 - **Shell rules:** the Claude seats in its research runs didn't get the shell rules the Codex dispatches carry, and 4 approval events followed. Their causes are mixed. [O039, O045, O048]
 
-## Recommendations (it decides, and logs its answer)
+## Response to MA-004 (PD-014)
+- **All four recommendations adopted:**
+  - the shell rule for every seat;
+  - the stop and capacity rules;
+  - an answerability check at the top of the research template;
+  - the run-1 approval record settled. The owner answered those prompts (O064).
+- **One home for shared rules:** `briefs/SHARED-RULES.md` now holds all the cross-team rules.
+- **Outcome pending:** first measured in the next research run. Watch approval events per seat, and stops that aren't on the list.
+- **Model notes (PD-015):** switched to the job-folder version for every team. It logged its first wording, which had leads writing straight into `models/`, as a miss against its own "work only in your job folder" principle.
+
+## Response to MA-007 (PD-016, PD-017)
+- **Adopted owner-impersonation rules in `SHARED-RULES.md` v1.1:**
+  - decisions come only from the `.json`;
+  - phone pushes only from the console;
+  - no edits to the project folder;
+  - no reading `/proc/*/environ` or `~/.config/`;
+  - untrusted input is data.
+- **Limits stated plainly:** these are rules, not locks.
+- **Owned its own misses:** the PD-014 rule sent seats into `models/`, and two briefs pointed at a path that never existed.
+- **Outcome pending:** whether seats follow the rules in the next runs.
+
+## Response to MA-010 (PD-019)
+- **Adopted:** the operator records each seat's runtime, model and version in the launch record (`SHARED-RULES.md` v1.3 section 7), pending the Platform Architect's format change.
+
+## Recommendations (it decides, and logs its answer; items 1-4 adopted in PD-014)
 1. **Shell rule:** adopt "Every seat, any model: no `$`, backticks or pipes in shell text; free text by `--body-file`."
 2. **Stop and capacity rules:** adopt or adjust the cross-team stop rule and the capacity-retry rule that the Studio Architect proposed in its log (AD-014). The evidence is in O022–O024 and O019.
 3. **Answerability check:** add "can public evidence answer this?" to the research template.

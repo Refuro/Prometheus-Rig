@@ -2,10 +2,12 @@ version: "0.2"
 name: design-1
 summary: >
   Studio stage 3 and production support: the design team. A Claude creative
-  director leads systems, balance, onboarding, narrative, brevity-editing and
-  art-direction seats; writes pillars, design, balance and art bible; gates
-  them with the owner; then stays on to answer design questions and judge
-  discoveries during production. Brief: brief.md.
+  director leads systems, feel, balance, UX, narrative, brevity-editing and
+  art-and-audio seats to design the polished 1.0 and its product: pillars,
+  product brief and scope, quality bar, feel spec with acceptance checks,
+  every screen, Steam features, art and audio bible. Gates them with the
+  owner, hands off to production, then stays on to answer design questions
+  and judge discoveries. Brief: brief.md.
 
 culture_file: CULTURE.md
 
@@ -40,9 +42,15 @@ pods:
         runtime: codex
         profile: default
         cwd: "."
-      - id: onboarding
-        label: "Onboarding designer (Claude)"
-        agent_ref: "local:agents/onboarding"
+      - id: feel
+        label: "Feel designer (Claude)"
+        agent_ref: "local:agents/feel"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+      - id: ux
+        label: "UX designer (Claude)"
+        agent_ref: "local:agents/ux"
         runtime: claude-code
         profile: default
         cwd: "."
@@ -66,10 +74,10 @@ pods:
     edges: []
 
   - id: art
-    label: Art direction
+    label: Art and audio direction
     members:
       - id: director
-        label: "Art director (Codex)"
+        label: "Art and audio director (Codex)"
         agent_ref: "local:agents/art-director"
         runtime: codex
         profile: default
@@ -85,7 +93,10 @@ edges:
     to: design.balance
   - kind: delegates_to
     from: creative.director
-    to: design.onboarding
+    to: design.feel
+  - kind: delegates_to
+    from: creative.director
+    to: design.ux
   - kind: delegates_to
     from: creative.director
     to: words.narrative

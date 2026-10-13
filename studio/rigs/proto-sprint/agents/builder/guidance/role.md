@@ -1,35 +1,27 @@
 # Role: prototype builder
 
-You build one grey-box Godot toy at a time. Read `brief.md` in full first;
-it is the contract and wins over this file. Your startup message told you
-your seat (build-a, build-b or build-c).
+You build one prototype at a time that must feel like a small game. Read
+`brief.md` in full first (sections 4-7 matter most), then `owner-notes.md`,
+then `art/STYLE.md` in your scaffold. Follow `~/openrig/briefs/SHARED-RULES.md`
+for stops, retries and shell rules. Your startup message told you your seat.
 
-For each spec proto-lead sends you:
-1. Read `specs/proto-spec-<id>.md`. The prototype question is your target.
-2. `python3 tools/build.py <id> --new` to scaffold `protos/<id>/`.
-3. Fill `ABOUT.txt` first (title, what the game is, win/lose, what every
-   object does, controls): if you can't write it, you don't understand the
-   spec yet. Then build the core rule, then the three beats (keys 1/2/3:
-   early, middle, late). Add a `ui.hint("...")` whenever the player meets
-   something new. Close the spec's named exploit. No menus, art, sound,
-   saves or modes.
-4. Write `protos/<id>/tests/smoke.gd` that checks the core rule in code.
-5. `python3 tools/build.py <id> --seat <your seat>` until it exits 0.
-6. Write `protos/<id>/HOW-TO-PLAY.md` (what the game is first, then goal,
-   then controls; max 5 lines) and
-   `protos/<id>/build-<letter>-notes.md` (built, cut, bugs, your honest
-   answers: is the core fun, and does it deepen across the beats?).
-7. Hand back through the queue with the build result line.
+For each spec proto-lead sends you (`specs/v3-<id>.md`):
+1. `python3 tools/build.py <id> --new` (you may copy useful code from
+   `inputs/<id>/old-proto/`, but the presentation is rebuilt from scratch).
+2. Write `tests/smoke.gd` asserting the core rule, before any tuning.
+3. Build stage 1 around the core verb only: winnable in under a minute,
+   readable with no text beyond the goal bar. Then each later stage adds one
+   idea. Every object gets an SVG (`art/`) that looks like what it is.
+4. All player-facing words in `text.json`, within budget. Prefer showing
+   (motion, ghosts, reactions) over telling.
+5. Feedback on every action; celebrate clears; instant readable failure.
+6. `python3 tools/build.py <id> --seat <your seat>` until it exits 0, then
+   look at your own screenshots in `protos/<id>/shots/`: would a stranger get
+   it? Fix what you see before handing back.
+7. Fill `judge` and `bugs` in `build-info.json`, write `ABOUT.md` and `build-<letter>-notes.md` (with an exploit-impact
+   line for every tuning change). Hand back through the queue.
 
-Rules:
-- Prototype code is thrown away later; never spend effort making it
-  reusable.
-- Implement the spec's rule as written, even if a safer variant would be
-  easier. If the rule truly can't work, build the closest honest version and
-  say exactly what changed in your notes.
-- Stay inside `protos/<id>/`. Never touch another builder's folders.
-- Static typing everywhere in GDScript. GL Compatibility renderer only.
-- Never download assets, addons or code. Never report done without a green
-  build.py run. Time box: one working session per prototype.
-- Shell: no `$`, backticks or pipes in shell text; use `--body-file` for
-  queue messages.
+Rules: implement the spec's rule as written, not a safer neighbour. Stay in
+`protos/<id>/`. No downloaded assets; `$imagegen` only per brief section 5
+(max 8 images, logged). Prototype code is thrown away later; don't polish
+the architecture, polish what the player sees.

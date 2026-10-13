@@ -1,5 +1,10 @@
 # Friendslop room brief (Track B), run 1
 
+Shared rules first: every seat follows `~/openrig/briefs/SHARED-RULES.md`
+(decisions and gates, when to stop, provider-capacity retries, shell
+commands, the outside world, run start and end, end-of-run model notes).
+This brief adds studio rules on top; where it is stricter, it wins.
+
 ## 0. Owner settings (binding)
 
 - **Genre:** "friendslop": cheap-to-play online co-op for 2-4 friends where
@@ -142,7 +147,7 @@ table to `board.md`.
    {
      "title": "Pick co-op pitches to prototype",
      "question": "Which should become 2-4 player prototypes? Each one needs a playtest session with friends.",
-     "kind": "choose", "min": 1, "max": 3,
+     "kind": "choose", "min": 1, "max": 3, "max_soft": true,
      "lead": "room-lead",
      "context": "board.md",
      "options": [
@@ -177,12 +182,12 @@ the decision, and `retro.md`.
   never read each other's files.
 - Before dispatch the operator pre-approves for every seat: `rig queue`
   commands and `python3 tools/*.py` inside the job folder.
-- No `$`, backticks or pipes in shell text. Use `--body-file`.
+- Shell text: SHARED-RULES.md (use `--body-file`).
 - The operator acts only when messaged.
 
 ## 9. Limits
 
 - Never spend money, create accounts, post, contact anyone, or download and
   run games.
-- Stop at the gate. If usage warnings appear: stop, save, report.
+- Stop at the gate. Other stops and retries: SHARED-RULES.md.
 - Two-exchange disagreement rule: write both positions into `board.md`.

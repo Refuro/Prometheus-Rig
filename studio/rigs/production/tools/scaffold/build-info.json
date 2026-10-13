@@ -1,0 +1,6 @@
+{"_about": "For the console's Play builds page (build.json). title 'auto' = the project name. The tech lead fills the rest per milestone.",
+ "title": "auto",
+ "pitch": "[TODO] one sentence: what this game is",
+ "controls": "[TODO] mouse and controller, one line",
+ "judge": "[TODO] what the owner should judge in this milestone",
+ "bugs": "[TODO] known bugs, or none"}

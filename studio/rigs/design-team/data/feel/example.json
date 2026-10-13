@@ -1,0 +1,3 @@
+{"_about": "Feel values. One entry per value: value, the range production may tune within, and why. Owned by design-feel.",
+ "plank_sag_one_walker": {"value": 0.05, "range": [0.04, 0.07], "unit": "m", "why": "Visible give under a single walker without looking flimsy."},
+ "settle_time": {"value": 0.6, "range": [0.4, 0.8], "unit": "s", "why": "Long enough to read as weight, short enough not to delay the next move."}}

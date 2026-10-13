@@ -1,0 +1,4 @@
+{"_about": "Screenshots for player-eyes and the milestone packet. Each name is registered in game code with DevTools.register_shot(name, setup). wait_ms: time after SHOT_READY before the capture.",
+ "shots": [
+  {"name": "title", "wait_ms": 800}
+ ]}

@@ -145,16 +145,22 @@ Funnel:
    - the closest general-purpose substitute named, with its price;
    - no hard no.
 3. **Skeptic pass on the 8:** one line each, the strongest objection.
-4. **Checkpoint 1:** report to me and wait.
+4. **Checkpoint 1:** write the report, then open a gate (below) and wait.
 5. **Deep dive** the niches I choose. To reach the shortlist a niche needs at
    least 10 independent buyer posts (at least 5 recent), a buyer-count range,
    and to survive the skeptic.
 6. **Checkpoint 2:** report every deep-dived niche with its verdict
-   category and the shortlist (0 to 3), then wait.
+   category and the shortlist (0 to 3), then open a gate (below) and wait.
+
+**Checkpoints are gates** (`SHARED-RULES.md` section 1; format in `JOBS.md` section 4, installed with the briefs):
+- **Checkpoint 1:** `gates/checkpoint-1.json`, `kind: choose`, title "Pick niches for deep dives". One option per screened niche: `id` = niche id, `title` = name, `summary` = one line with score and verdict, `file` = its section or note. `min` 1, `max` 3. `context` = the checkpoint report (Markdown, decision table first).
+- **Checkpoint 2:** `gates/checkpoint-2.json`. Use `kind: choose` ("Pick the niche to validate", `min` 0, `max` 1, one option per shortlisted niche, `file` = `shortlist/<id>.md`) when there is a shortlist. Use `kind: approve` ("Close the run") when there isn't.
+- Then read `decisions/<gate>.json` and continue from it. The pick order is the deep-dive order.
 
 ## 7. Deliverables
 All in ~/openrig/research/run-2/:
-- `niches.json`: kept current per briefs/NICHES-SCHEMA.md, including the
+- `niches.json`: kept current per `NICHES-SCHEMA.md` (installed with the briefs; the source is the console's
+  `dashboard/NICHES-SCHEMA.md`), including the
   `funnel` field with the peak count each stage reached.
 - `longlist.md`: all 25 with weighted score, verdict and reason, and one link.
 - `shortlist/<id>.md`: per finalist: buyer, the problem in buyers' words

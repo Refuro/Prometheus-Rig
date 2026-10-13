@@ -1,0 +1,6 @@
+{"_about": "Shown on the console's Play builds page (build.py writes builds/<id>/build.json). 'auto' fills from text.json: title = splash.title, pitch = splash.goal, controls = help.controls.",
+ "title": "auto",
+ "pitch": "auto",
+ "controls": "auto",
+ "judge": "[TODO] One sentence: what the owner should look for while playing.",
+ "bugs": "[TODO] Known bugs, or 'none known'."}
