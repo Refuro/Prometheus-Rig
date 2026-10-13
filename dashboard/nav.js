@@ -8,7 +8,7 @@
   // "Needs you" (R-018/R-020): the owner's own inbox page of to-dos and questions, with a count of open cards.
   const MAIN = [["/", "Live"], ["/needs.html", "Needs you"], ["/decide.html", "Decisions"], ["/play.html", "Builds"]];
   const MORE = [
-    ["Teams", [["/job.html", "Jobs", "Each team's decisions, milestones, builds, docs and art"]]],
+    ["Teams", [["/job.html", "Jobs", "Each team's decisions, milestones, builds, docs and art"], ["/diplomacy.html", "Diplomacy", "The agents' Diplomacy game: board, press, pause"]]],
     ["Research", [["/research.html", "Niche board", "Research funnels and checkpoints"], ["/runs.html", "Run report", "Timelines, usage, evidence, approvals"]]],
     ["Console", [["/models.html", "Models", "Report cards for models, roles and briefs"], ["/system.html", "System", "What runs where, and who owns what"], ["/lounge.html", "Lounge", "The architects' just-for-fun feed"], ["/messages.html", "Messages", "What you asked each seat, with its reply"], ["/oplog.html", "Operator log", "What the operator did, and why"]]],
   ];

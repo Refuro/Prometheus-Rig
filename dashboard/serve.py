@@ -18,6 +18,7 @@ import outbox as OB
 import lounge as LG
 import oplog as OL
 import jobpage as JP
+import lab as LAB
 import escalate as EP
 import convo as CV
 
@@ -1153,6 +1154,8 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 told = bool(asker) and _console_send(asker, f"The owner answered your card '{record['title']}': {said}. "
                                                             f"Read {rec_path}, act on it, then remove the task file.")
                 return self.send_json({"saved": True, "result": record["result"], "asker_told": told})
+            if path == "/api/lab/control":   # pause, resume or stop a lab game (R-024): one file, nothing sent
+                return self.send_json(LAB.control(body))
             if path == "/api/lounge":   # the owner's post or reply (R-021): quiet, no notification or message
                 return self.send_json(LG.post(body.get("text"), body.get("reply_to")))
             if path == "/api/dismiss":

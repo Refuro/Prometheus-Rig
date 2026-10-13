@@ -119,6 +119,13 @@ def main():
         {"id": "m1", "title": "Feel build", "status": "building", "build": "builds/m1", "tests": {"passed": 12, "failed": -3},
          "quality_bar": {"pass": 3, "fail": 1, "not_yet": 2}, "vision_check": "<b>", "exploits_open": "lots"},
         {"id": "m2", "title": "Slice", "status": "planned", "build": "../../etc"}, "junk"]}, open(os.path.join(pj, "milestones.json"), "w"))
+    # Lab control (R-024): a game whose board folder is a planted link, pointing at a real control.json elsewhere.
+    lk = os.path.join(fx, "jobs", "lab-link")
+    os.makedirs(lk)
+    json.dump({"type": "lab"}, open(os.path.join(lk, "job.json"), "w"))
+    os.makedirs(os.path.join(tmp, "elsewhere"))
+    json.dump({"phase": "S1901M", "paused": False}, open(os.path.join(tmp, "elsewhere", "control.json"), "w"))
+    os.symlink(os.path.join(tmp, "elsewhere"), os.path.join(lk, "board"))
     oplog = os.path.join(tmp, "operator")   # the operator's log (R-022)
     os.makedirs(oplog)
     open(os.path.join(oplog, "log-2026-09.md"), "w").write("## 2026-09-30\n- 23:00Z · action · Old month. · ref: x\n")
@@ -403,9 +410,36 @@ def main():
         check("local sign-in page offered", st == 401 and b'action="/decide.html"' in raw and b'name="token"' in raw, st)
         st, r = c.post("/api/lounge", {"text": "posing as the owner"})
         check("Lounge posts need the sign-in cookie too (R-021)", st == 401 and r and r.get("signin"), (st, r))
+        st, r = c.post("/api/lab/control", {"job": "diplomacy-1", "paused": True})
+        check("pausing a lab game needs the sign-in cookie too (R-024)", st == 401 and r and r.get("signin"), (st, r))
         c.cookie = f"rc_token={TOKEN}"
         st, s = c.json("/api/session")
         check("cookie signs this browser in", s and s.get("signed_in"), s)
+
+        print("Diplomacy: the owner pauses, resumes and stops a lab game (R-024)")
+        ctl = os.path.join(fx, "jobs", "diplomacy-1", "board", "control.json")
+        before = json.load(open(ctl))
+        st, r = c.post("/api/lab/control", {"job": "diplomacy-1", "paused": True})
+        after = json.load(open(ctl))
+        check("pause sets paused and leaves the clerk's fields alone", r.get("ok") and after["paused"] is True
+              and {k: after[k] for k in ("phase", "state", "deadline")} == {k: before[k] for k in ("phase", "state", "deadline")}, (r, after))
+        c.post("/api/lab/control", {"job": "diplomacy-1", "paused": False})
+        st, r = c.post("/api/lab/control", {"job": "diplomacy-1", "stop": True})
+        after = json.load(open(ctl))
+        check("resume clears paused; stop sets stop", after["paused"] is False and after["stop"] is True and r.get("ok"), after)
+        bad = [c.post("/api/lab/control", b)[1] for b in ({"job": "diplomacy-1", "paused": "yes"}, {"job": "diplomacy-1", "paused": True, "stop": True},
+               {"job": "diplomacy-1", "stop": False}, {"job": "diplomacy-1"}, {"job": "nope", "paused": True}, {"job": "../etc", "paused": True})]
+        check("malformed requests and unknown jobs are refused", all("error" in x for x in bad), bad)
+        st, r = c.post("/api/lab/control", {"job": "prod-demo", "paused": True})
+        check("a game that hasn't started (no board/control.json) is refused", "hasn't started" in (r.get("error") or ""), r)
+        st, r = c.post("/api/lab/control", {"job": "lab-link", "paused": True})
+        check("a board folder that's a planted link is refused, and the file it points at is untouched",
+              "error" in r and json.load(open(os.path.join(tmp, "elsewhere", "control.json")))["paused"] is False, r)
+        st, _, raw = c.req("GET", "/diplomacy.html")
+        check("Diplomacy page served from the console: no ?base=, phase names checked, only power names in styles, in the nav",
+              st == 200 and b'q.get("base")' not in raw and b"PHASE_RE" in raw and b"power(from)" in raw and b"/diplomacy.html" in c.req("GET", "/nav.js")[2])
+        st, _, svg = c.req("GET", "/job/diplomacy-1/board/F1901M.svg")
+        check("the board image comes through the sandboxed job route", st == 200 and b"<svg" in svg)
 
         print("The owner posts in the Lounge (R-021)")
         ldir = os.path.join(fx, "jobs", "architects", "lounge")

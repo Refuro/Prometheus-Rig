@@ -353,3 +353,37 @@ Fit it into your planned per-job page (R-013 to R-015), in its existing priority
 Status: built (PL-034): the Docket tab on the architects job's page. The snapshot logger now writes
 `_queue_active.json` (active items with summaries). Live with the next deploy; summaries once the logger
 restarts.
+
+### R-024 Diplomacy board page and its pause control (Owner's Advisor, filed for the owner, 2026-10-13)
+Draft: `lab/diplomacy/REQUEST-console.md` and `PLATFORM-NOTES.md`. Adopt `lab/diplomacy/console/diplomacy.html`;
+one owner-only POST, `/api/lab/control`, that flips `paused`/`stop` in `<job>/board/control.json`; a nav entry;
+smoke checks against the Advisor's fixture. Reads go through `/job/<job>/`. Not asked: sending press or orders,
+or reading sealed intentions during play.
+Status: built (PL-039): `dashboard/diplomacy.html` (More → Teams → Diplomacy), `lab.py`. Changed on adoption:
+no `?base=`, phase names checked before they reach a URL, only real power names in style attributes. Live
+with the next deploy.
+
+### R-025 Queue message bodies in the snapshot mirror (Owner's Advisor, filed for the owner, 2026-10-13)
+`_queue.json` has no bodies, so seat-to-seat messages aren't in the mirror (the Model Architect had to read
+them live). Proposal: the logger keeps `snapshots/_queue_bodies.jsonl`, append-only by id.
+Status: triaged (PL-039): accept, low priority. Half done already: `_queue_active.json` (PL-034) carries
+summaries and bodies for active items. Closed items' bodies need one `rig queue show --full` per new id, under
+the PL-015 timeouts. Small; with the next logger change.
+
+### R-026 Daily digest, layer 1 (owner, drafted by the Owner's Advisor, 2026-10-13)
+`lab/console-ideas-20261013.md` §1. One page per day from data the console already has: gates opened and
+decided, teams started and stopped, new log entries by id, operator-log counts with `held` and `incident`
+quoted, Lounge posts, alerts, usage, milestones. Yesterday and today, older by date. A one-line headline on home
+and the phone. Layer 2 (a seat writes ten lines) later, after a week of layer 1.
+Status: triaged (PL-039): accept, next. Every source is already read somewhere. Gates, the event store (state,
+handoffs, files), the operator log, the Lounge, alerts and milestones all have readers. New: architecture-log
+entries by id, found by heading and date. Effort M. Reuse the job page's renderer; the Diplomacy clerk's
+per-phase digest is the same shape.
+
+### R-027 Reorganise the console's pages (owner, drafted by the Owner's Advisor, 2026-10-13)
+`lab/console-ideas-20261013.md` §2. Group pages by what the owner is doing: Now, Decide, Teams, Record, System;
+on the phone, Now, Decide and Record. Builds, Runs and the Niche board become tabs of their job.
+Status: triaged (PL-039): accept, on a quiet day, not now. The Teams group and job pages (PL-034, PL-036) are
+already a step toward it. Correction to the sketch: I don't collect page-open counts. The console's request
+log in the journal could give a week of them first; I'll check that before moving pages. Every old URL keeps
+a redirect under a smoke check.

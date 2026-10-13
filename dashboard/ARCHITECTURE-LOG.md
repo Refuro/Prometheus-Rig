@@ -1611,6 +1611,57 @@ identical copy, and the source's times were unchanged.
 - Not run as `nobody` itself: seats never use `sudo` (SHARED-RULES §1). The read-only, bare-environment run
   reproduces the failing condition.
 
+**Outcome: option A part A is live** (owner, card done 20:54Z). Verified read-only:
+- `rig-dashboard` runs as `rigconsole` from `/opt/rig-console`, started 13:48:39 PDT;
+- every file in `/opt/rig-console`, `/usr/local/sbin/rig-console-deploy` and the helper is root-owned;
+- the journal shows the helper doing its fixed calls (`receipt`, `approval-item`) through the sudo rule.
+So the console changes of PL-027 to PL-038 are live: job pages and the Report tab, Lounge posting, the
+operator log, card steps, and the MA-020 fix. The Health check, the new token and the topic are the owner's to
+confirm; seats don't call the console. Still to do: card B (WSL root access), and the logger restart it
+brings.
+
+---
+
+## PL-039 Owner's priorities: install reconciled, Diplomacy adopted, digest and navigation triaged (qitem-20261013210002, 2026-10-13)
+**1. Install (reconciled):** the owner deployed commit 96a68f8 after PL-038's fix. Its real staged smoke test
+as `nobody` passed 218/218. Part A is live (verified at 20:57Z, PL-038). Card B is still to run.
+
+**2. Diplomacy (R-024), adopted from the Owner's Advisor's draft:**
+- `dashboard/diplomacy.html` (More → Teams → Diplomacy).
+- `lab.py` plus `POST /api/lab/control`, behind the same sign-in, header and JSON checks as decisions. It reads
+  `board/control.json` and changes only `paused` (true or false) or `stop` (true only); the clerk's phase,
+  state and deadline are untouched. It replaces the file atomically. The board folder is opened with
+  `O_NOFOLLOW` (as in PL-029), so a planted link can't redirect the write.
+- The Advisor's fixture is now `tests/fixtures/jobs/diplomacy-1`, with two tiny board SVGs I drew myself:
+  the engine's are AGPL, so its art isn't vendored.
+- **What I changed in the page (my reply to the Advisor's "anything you would change"):**
+  - **Removed `?base=`.** It let a crafted link point the page at any URL and show a fake game under the
+    console's name.
+  - **Phase names are checked** (`[SFW]dddd[MRA]`) before they reach a URL. The board `<img src>` put the
+    clerk's phase name in unescaped, so a crafted name could break out of the attribute and run script.
+  - **Only the seven powers' names** reach a `style` attribute. The press tag's colour came from the
+    message's `from`, which agents write.
+  - The closed drawer is hidden, so its shadow no longer shows at the edge.
+- **Kept as the Advisor decided:** the board stays an `<img>`, never inline SVG; seven small `sent.jsonl`
+  reads every 20 s; no route to sealed intentions during play; the engine's power colours.
+
+**3. Requests filed and triaged:**
+- R-025 (queue bodies in the mirror): accept, low.
+- R-026 (daily digest, layer 1): accept, next.
+- R-027 (reorganise pages): accept, on a quiet day; page-use data from the journal first, since I don't
+  collect it today.
+
+**4.** The owner's earlier send.sh note: no action, as they said.
+
+**Checked:**
+- Smoke 226/226. New: sign-in required; pause, resume and stop leave the clerk's fields alone; malformed
+  bodies and unknown jobs refused; no `control.json` refused; a planted board-folder link refused and its
+  target untouched; the page has none of the three issues; the board SVG comes through the sandbox.
+- Browser: `diplomacy.html` at both widths, with the optional 404s taught to the checker. I looked at both
+  screenshots.
+
+**Live:** with the next `rig-console-deploy`.
+
 ---
 
 ## Notes for other roles
