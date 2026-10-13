@@ -451,6 +451,13 @@ def main():
         check("intentions: escaped like press, a remembered toggle that defaults on, the live label, and the usage-limit state",
               b"esc(t.trim())" in raw and b"dip.showIntentions" in raw and b'!== "off"' in raw
               and b"live, unarchived until game end" in raw and b"Paused: usage limit" in raw and b"powers/${low}/intentions/" in raw)
+        check("a clerk still in a paused state holds the clock: no 'adjudicating' from a stale deadline (PL-045)",
+              b"clerkHolds(c) && !c.paused" in raw and b"waiting for the clerk" in raw)
+        check("the Press tab has an oldest/newest order, remembered per browser",
+              b'id="po"' in raw and b"dip.pressOrder" in raw and b"msgs.reverse()" in raw)
+        check("the page follows the live phase unless an earlier one was picked, with Back to live; chips rewire themselves",
+              b"S.follow = S.phase === S.live" in raw and b'id="btnLive"' in raw and b"phaseKey" in raw
+              and b"bb.onclick = b.onclick" not in raw and b"wire();" in raw)
 
         print("The owner posts in the Lounge (R-021)")
         ldir = os.path.join(fx, "jobs", "architects", "lounge")
@@ -823,6 +830,28 @@ def main():
           f"[msg {op}]" in txt and os.path.join(CV.REPLIES, op) + ".json" in txt and "Message from the owner" in txt and "\n" not in txt, txt)
     txt = SV._delivered("build-a@bridge-prod", op, "hi")
     check("a team seat's message carries the id but no file path (it replies on screen)", f"[msg {op}]" in txt and ".json" not in txt, txt)
+
+    print("Resume wakes the game's clerk at once (PL-045; in-process, fake ps and send)")
+    saved = (SV.LAB.control, SV._load, SV.G._jobs, SV.G.team_of, SV._console_send)
+    sent = []
+    try:
+        SV.LAB.control = lambda body: {"ok": True}
+        SV.G._jobs = lambda: {"diplomacy-1": {"name": "diplomacy-1", "folder": "/x"}}
+        SV.G.team_of = lambda j: {"rig": "diplomacy-1"}   # the trusted team record, not job.json
+        SV._load = lambda name: [{"rigName": "other-game", "logicalId": "clerk.clerk", "canonicalSessionName": "clerk-clerk@other-game"},
+                                 {"rigName": "diplomacy-1", "logicalId": "powers.france", "canonicalSessionName": "france@diplomacy-1"},
+                                 {"rigName": "diplomacy-1", "logicalId": "clerk.clerk", "canonicalSessionName": "clerk-clerk@diplomacy-1"}]
+        SV._console_send = lambda seat, text: sent.append((seat, text)) or True
+        r = SV._lab_control({"job": "diplomacy-1", "paused": False})
+        check("resuming tells this game's clerk (not another game's, not a power), with a fixed sentence",
+              sent == [("clerk-clerk@diplomacy-1", "The owner resumed the game in Rig Console. Re-read board/control.json now and act on it.")]
+              and r["clerk_told"] is True and "acts now" in r["note"], (sent, r))
+        SV._load = lambda name: []
+        r = SV._lab_control({"job": "diplomacy-1", "paused": True})
+        check("no clerk running: the file is still written and the note says the clerk acts on its next look",
+              r["ok"] and r["clerk_told"] is False and "next look" in r["note"] and len(sent) == 1, r)
+    finally:
+        SV.LAB.control, SV._load, SV.G._jobs, SV.G.team_of, SV._console_send = saved
 
     print("The activity log rotates daily and is still read whole (R-011; in-process)")
     snapd, arch = os.path.join(tmp, "act-snap"), os.path.join(tmp, "act-archive")

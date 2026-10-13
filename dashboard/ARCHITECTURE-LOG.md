@@ -1827,6 +1827,55 @@ changes were re-applied on top.
 
 **Release:** in the same 8 files as PL-042/043. One deploy covers all three (see `deploy-pl042-043.md`).
 
+## PL-045 Diplomacy resume: no false "adjudicating", the clerk is woken, press order (owner, 2026-10-13)
+**What went wrong:** at 23:10Z the owner resumed the game, and the page said "deadline passed · adjudicating".
+- The clerk's file still said `state: paused-operator`, with the old 15:55 deadline.
+- The clerk only rereads the file on its next timer, up to 5 minutes later.
+- The page took the stale deadline at face value.
+- The operator nudged the clerk by hand, and it set a fresh deadline. Nothing was adjudicated early.
+
+**What:**
+- **Page (`diplomacy.html`):**
+  - while the clerk's own state starts with `paused` and the owner's flag is off, it shows "resuming: waiting
+    for the clerk" and "clock held until the clerk restarts it", never a countdown or "adjudicating".
+  - **Press order:** the Press tab has an oldest first / newest first choice (default oldest), remembered
+    per browser like the intentions toggle and part of the no-flicker fingerprint.
+- **Server (`serve.py`, `_lab_control`):** after writing the owner's pause, resume or stop, the console sends
+  the game's clerk one fixed sentence: "The owner resumed the game in Rig Console. Re-read
+  board/control.json now and act on it."
+  - It goes out as a `console@rig-console` receipt through the existing helper, so no install change is needed.
+  - The clerk is found from the console's trusted team record and `rig ps` (`logicalId` `clerk.clerk` in that
+    rig), never from the seat-written `job.json`.
+  - If no clerk can be messaged, the file is still written and the note says so.
+- **Stuck chips (owner report, 23:28Z):** in a power's drawer, after one chip was clicked, every chip selected
+  that same power.
+  - Cause: the Advisor's draft copied the clicked chip's handler onto the redrawn chips, and that handler
+    remembered the first chip's power.
+  - Fix: each chip is rewired with its own handler after every redraw.
+- **Follow the live phase (owner):**
+  - The page now follows the live phase by default. That is the latest phase named in `index.json` or
+    `control.json`, in game order.
+  - Picking an earlier phase holds the page there. The state shows "earlier phase", and a "Back to live:
+    <phase>" button returns. Picking the live phase in the menu also resumes following. A reload always
+    starts live.
+  - Before, the page compared against the last control file it had seen, so one odd read could leave it stuck
+    on an old phase.
+
+**Checked:**
+- Smoke 237/237. New checks:
+  - resume tells this game's clerk, not another game's or a power, with the fixed sentence;
+  - with no clerk, the file is still written and the note is honest;
+  - page markers for the held clock and the press order.
+- Interactive check 34/34 at desktop and phone. New checks:
+  - the order switch reverses the feed and is remembered across a reload;
+  - with `paused-operator`, the flag off and a stale deadline, the bar says "waiting for the clerk" and
+    "clock held", not "adjudicating";
+  - after Germany, the England and All chips still work;
+  - following moves with the game by itself; an earlier phase picked on purpose stays put, with Back to live
+    naming the new phase; Back to live follows again.
+- The deployed page fails the "waiting for the clerk" and chip checks.
+- Standard browser check passes.
+
 ---
 
 ## Notes for other roles

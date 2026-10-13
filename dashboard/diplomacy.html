@@ -139,6 +139,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     <span class="clock" id="clock"></span>
     <span class="grow"></span>
     <label style="font-size:13px;color:var(--muted)">Phase <select id="phaseSel"></select></label>
+    <button id="btnLive" hidden title="Follow the phase being played">Back to live</button>
     <label style="font-size:13px;color:var(--muted);display:flex;gap:5px;align-items:center" title="Each power's sealed intention, written before press. Turn off to avoid spoilers.">
       <input type="checkbox" id="intToggle"> Show intentions</label>
     <button id="btnPause" class="primary" title="The clerk stops the clock and tells every power">Pause</button>
@@ -185,6 +186,9 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   // Sealed intentions are shown live during the game (owner, 2026-10-13, R-028), behind a per-browser toggle.
   const INT_KEY = "dip.showIntentions";
   S.showInt = (() => { try { return localStorage.getItem(INT_KEY) !== "off"; } catch { return true; } })();
+  // The Press tab's order (owner, 2026-10-13): oldest first by default, remembered per browser.
+  const ORDER_KEY = "dip.pressOrder";
+  S.pressOrder = (() => { try { return localStorage.getItem(ORDER_KEY) === "newest" ? "newest" : "oldest"; } catch { return "oldest"; } })();
   // Where a power's intention and orders for a phase live: their own folder while the game runs; intentions move
   // to archive/intentions/ at game end, orders to archive/<phase>/ at each adjudication. p is a checked phase,
   // low one of the seven powers, so no agent text reaches these paths.
@@ -192,6 +196,10 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   async function ordersFor(low, p) {
     return (await text(`archive/${p}/orders/${low}.txt`)) ?? (await text(`powers/${low}/orders/${p}.txt`));
   }
+  // Game order of checked phase names: year, then Spring < Fall < Winter, then movement < retreats < builds.
+  const phaseKey = p => { const m = PHASE_RE.exec(p) && /^([SFW])(\d{4})([MRA])$/.exec(p); return m ? +m[2] * 100 + {S:0,F:10,W:20}[m[1]] + {M:0,R:1,A:2}[m[3]] : -1; };
+  S.follow = true;   // follow the live phase; off only while the owner deliberately looks at an earlier one
+  const clerkHolds = c => /^paused/.test(String(c.state || ""));   // paused-operator, paused-usage: the clerk's clock is stopped
   const sealLabel = () => S.final ? "Sealed intention, written before press" : "Sealed intention, written before press · live, unarchived until game end";
 
   async function text(path) {
@@ -219,7 +227,11 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     if (S.index && !PHASE_RE.test(S.index.current || "")) S.index.current = null;
     if (S.index) S.index.phases = phases;   // every later use of the phase list sees checked names only
     if (S.control?.phase && !phases.includes(S.control.phase)) phases.push(S.control.phase);
-    if (!S.phase) S.phase = S.index?.current || S.control?.phase || phases[phases.length - 1] || null;
+    // The live phase is the latest the clerk has named anywhere (index or control file), so one stale or
+    // half-written file can't hold the page back. Following is on unless the owner picked an earlier phase.
+    S.live = [S.index?.current, S.control?.phase, phases[phases.length - 1]].filter(Boolean)
+      .reduce((a, b) => (a && phaseKey(a) >= phaseKey(b) ? a : b), null);
+    if (S.follow || !S.phase) S.phase = S.live;
     const sel = $("phaseSel"); const cur = sel.value;
     sel.innerHTML = phases.map(p => `<option value="${esc(p)}">${esc(phaseLabel(p))}</option>`).join("");
     sel.value = S.phase || cur;
@@ -264,13 +276,21 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     else if (c.paused) { st.textContent = "paused"; st.classList.add("paused"); }
     // The clerk pauses itself at a usage limit (Rig, 2026-10-13; clerk role "Usage limits").
     else if (c.state === "paused-usage") { st.textContent = "Paused: usage limit"; st.classList.add("paused"); }
+    // Resumed by the owner, but the clerk hasn't restarted the clock yet (it still says paused-operator). PL-045.
+    else if (clerkHolds(c)) { st.textContent = "resuming: waiting for the clerk"; }
     else st.textContent = c.state || "waiting for clerk";
     $("btnPause").hidden = !!c.paused || S.final; $("btnResume").hidden = !c.paused || S.final;
     $("btnStop").disabled = S.final || !!c.stop;
+    const history = !!S.live && S.phase !== S.live;   // looking at an earlier phase: say so, and offer the way back
+    $("btnLive").hidden = !history;
+    if (history) $("btnLive").textContent = `Back to live: ${phaseLabel(S.live)}`;
+    if (history) { st.textContent = "earlier phase"; st.className = "state"; }
     tick();
   }
   function tick() {
     const c = S.control || {}; const el = $("clock"); el.className = "clock";
+    // While the clerk's own state is a pause, its deadline is stale: the clock is held, nothing is adjudicating.
+    if (clerkHolds(c) && !c.paused) { el.textContent = "clock held until the clerk restarts it"; return; }
     if (!c.deadline || c.paused || S.final || S.phase !== c.phase) { el.textContent = c.paused ? "clock stopped" : ""; return; }
     const ms = new Date(c.deadline) - Date.now();
     if (isNaN(ms)) { el.textContent = ""; return; }
@@ -319,11 +339,18 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     if (t === "press") {
       const f = S.pressFilter || "";
       const msgs = allPress().filter(m => !f || String(m.from).toUpperCase() === f || String(m.to).toUpperCase() === f);
+      if (S.pressOrder === "newest") msgs.reverse();
       const body = msgs.length ? msgs.map(msgHtml).join("") : `<div class="empty">No press yet this phase.</div>`;
       P.innerHTML = `<div class="filters">Show
         <select id="pf"><option value="">all powers</option>${POWERS.map(p => `<option value="${p}" ${f===p?"selected":""}>${nice(p)}</option>`).join("")}</select>
+        <select id="po" aria-label="Order"><option value="oldest" ${S.pressOrder!=="newest"?"selected":""}>oldest first</option><option value="newest" ${S.pressOrder==="newest"?"selected":""}>newest first</option></select>
         <span>${msgs.length} message${msgs.length===1?"":"s"} in ${esc(phaseLabel(S.phase))} · conversations by pair are in each power's drawer</span></div>` + body;
       $("pf").onchange = e => { S.pressFilter = e.target.value; renderPanel(); };
+      $("po").onchange = e => {
+        S.pressOrder = e.target.value === "newest" ? "newest" : "oldest";
+        try { localStorage.setItem(ORDER_KEY, S.pressOrder); } catch { /* private window: this visit only */ }
+        renderPanel();
+      };
     } else if (t === "compare") {
       P.innerHTML = compareHtml();
     } else if (t === "digest") {
@@ -415,8 +442,11 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
         i != null ? sealed(i) : ""}${o != null ? `<div class="who" style="margin-top:8px">Orders</div><pre>${esc(o.trim() || "(no orders: holds)")}</pre>` : ""}</div>`).join("")
         || `<div class="empty">Nothing written yet${S.showInt ? "" : " (intentions are hidden: turn on Show intentions)"}.</div>`}`;
     $("closeD").onclick = () => { D.classList.remove("open"); D.setAttribute("aria-hidden", "true"); S.sel = null; renderPowers(); };
-    $("chips").querySelectorAll("button").forEach(b => b.onclick = () => { S.convo = b.dataset.c; $("chips").outerHTML = chipsHtml(); $("convo").innerHTML = convoHtml();
-      $("chips").querySelectorAll("button").forEach(bb => bb.onclick = b.onclick); });
+    // Each chip reads its own power when clicked. (The draft copied the first-clicked chip's handler onto the
+    // redrawn chips, so after one click every chip selected that same power: owner report, 23:28Z.)
+    const wire = () => $("chips").querySelectorAll("button").forEach(b => b.onclick = () => {
+      S.convo = b.dataset.c; $("chips").outerHTML = chipsHtml(); $("convo").innerHTML = convoHtml(); wire(); });
+    wire();
   }
 
   async function control(body) {
@@ -432,7 +462,9 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   $("btnPause").onclick = () => control({paused: true});
   $("btnResume").onclick = () => control({paused: false});
   $("btnStop").onclick = () => { if (confirm("End the game after the current phase? The clerk finishes adjudication, writes final standings and tells every power.")) control({stop: true}); };
-  $("phaseSel").onchange = async e => { S.phase = e.target.value; await loadPhase(); renderAll(true); };
+  // Picking the live phase (or Back to live) resumes following; picking an earlier one holds the page there.
+  $("phaseSel").onchange = async e => { S.phase = e.target.value; S.follow = S.phase === S.live; await loadPhase(); renderAll(true); };
+  $("btnLive").onclick = async () => { S.follow = true; S.phase = S.live; $("phaseSel").value = S.phase; await loadPhase(); renderAll(true); };
   $("tabs").querySelectorAll("button").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; renderAll(true); });
   $("intToggle").checked = S.showInt;
   $("intToggle").onchange = async e => {
@@ -442,7 +474,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   };
 
   function fingerprint() {
-    return JSON.stringify([S.phase, S.control, S.board, S.press.length, S.livePress.map(m => [m.from, m.to, m.n, m.phase]), S.results, S.digest, S.incidents, S.final, S.pending, S.intent, S.showInt, S.timeline.length, S.tab, S.pressFilter]);
+    return JSON.stringify([S.phase, S.control, S.board, S.press.length, S.livePress.map(m => [m.from, m.to, m.n, m.phase]), S.results, S.digest, S.incidents, S.final, S.pending, S.intent, S.showInt, S.timeline.length, S.tab, S.pressFilter, S.pressOrder]);
   }
   function renderAll(force) {
     const fp = fingerprint();
@@ -454,9 +486,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     window.scrollTo(0, y);                         // a re-render shouldn't move you
   }
   async function refresh() {
-    const live = !S.control || S.phase === S.control.phase;   // follow the clerk while looking at the current phase
-    await loadStatic();
-    if (live && S.control?.phase) { S.phase = S.control.phase; $("phaseSel").value = S.phase; }
+    await loadStatic();                              // moves S.phase to the live phase while following
+    $("phaseSel").value = S.phase;
     await loadPhase(); renderAll();
   }
   refresh();

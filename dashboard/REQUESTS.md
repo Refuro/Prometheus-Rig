@@ -374,6 +374,12 @@ the clerk's announcement. This reverses the Advisor's "no route to sealed intent
 Status: built (PL-043), with the side-by-side tab. The Advisor's four later additions (pending orders, pair
 threads, coloured feed, no-flicker refresh) were merged on top (PL-044). Live with the next deploy.
 
+### R-029 Diplomacy: honest resume state, wake the clerk, press order (owner, via the operator, 2026-10-13)
+After a resume the page said "adjudicating" from a stale deadline. The owner asked to fix the display,
+consider waking the clerk from the console, and add an oldest/newest order to the Press feed. Then: follow the
+live phase by default while keeping deliberate history browsing, and fix drawer chips that stuck on one power.
+Status: built (PL-045). Live with the next deploy.
+
 ### R-025 Queue message bodies in the snapshot mirror (Owner's Advisor, filed for the owner, 2026-10-13)
 `_queue.json` has no bodies, so seat-to-seat messages aren't in the mirror (the Model Architect had to read
 them live). Proposal: the logger keeps `snapshots/_queue_bodies.jsonl`, append-only by id.

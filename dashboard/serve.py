@@ -745,6 +745,34 @@ def _console_send(seat, text):
         return False
 
 
+SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}@[A-Za-z0-9._-]{1,64}$")   # seat@rig; within what setup/rig-owner accepts
+
+
+def _clerk_for(job):
+    """The running clerk seat of a lab game, from the trusted team record (not the seat-written job.json)."""
+    j = G._jobs().get(job)
+    rig = G.team_of(j).get("rig") if j else None
+    for r in _load("_ps.json") if rig else []:
+        if r.get("rigName") == rig and r.get("logicalId") == "clerk.clerk" and r.get("runtime") != "terminal":
+            name = str(r.get("canonicalSessionName") or "")
+            return name if SESSION_RE.match(name) else None
+    return None
+
+
+def _lab_control(body):
+    """Write the owner's pause/resume/stop, then wake the clerk so it acts now rather than on its next timer
+    (PL-045: after a resume the clerk slept up to 5 minutes and the page read the old deadline as "adjudicating").
+    The message is a fixed sentence: no owner or agent text goes into it."""
+    res = LAB.control(body)
+    clerk = _clerk_for(str(body.get("job") or ""))
+    what = "stopped" if body.get("stop") is True else ("paused" if body.get("paused") else "resumed")
+    told = bool(clerk) and _console_send(clerk, f"The owner {what} the game in Rig Console. Re-read board/control.json now and act on it.")
+    res["clerk_told"] = told
+    res["note"] = {"paused": "Paused.", "resumed": "Resumed.", "stopped": "Stop sent."}[what] + (
+        " The clerk was told and acts now." if told else " The clerk acts on its next look (it couldn't be messaged).")
+    return res
+
+
 NEEDS = {"count": None}   # open cards on the Needs you page, from the watcher's last round (the nav badge reads it)
 
 
@@ -1154,8 +1182,8 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 told = bool(asker) and _console_send(asker, f"The owner answered your card '{record['title']}': {said}. "
                                                             f"Read {rec_path}, act on it, then remove the task file.")
                 return self.send_json({"saved": True, "result": record["result"], "asker_told": told})
-            if path == "/api/lab/control":   # pause, resume or stop a lab game (R-024): one file, nothing sent
-                return self.send_json(LAB.control(body))
+            if path == "/api/lab/control":   # pause, resume or stop a lab game (R-024): one file, then wake the clerk (PL-045)
+                return self.send_json(_lab_control(body))
             if path == "/api/lounge":   # the owner's post or reply (R-021): quiet, no notification or message
                 return self.send_json(LG.post(body.get("text"), body.get("reply_to")))
             if path == "/api/dismiss":
