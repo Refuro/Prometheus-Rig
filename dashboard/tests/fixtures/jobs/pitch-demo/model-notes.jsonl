@@ -1,0 +1,2 @@
+{"date": "2026-10-12", "seat": "build-a", "model": "codex", "role": "builder", "brief": "lead-task.md", "brief_asked": "no", "what_happened": "build-a re-ran its smoke test before reporting, unasked", "evidence": "builds/p01/index.html", "kind": "strength", "n": 1}
+{"date": "2026-10-12", "seat": "pitch-a", "model": "claude", "role": "pitcher", "brief": "x", "brief_asked": "no", "what_happened": "Reported its own failed test honestly.", "evidence": "x", "kind": "strength"}

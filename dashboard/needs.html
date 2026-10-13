@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f17" media="(prefers-color-scheme: dark)">
+<title>Needs you · Rig Console</title>
+<link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<script src="/notify.js"></script>
+<script src="/health.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Needs you (R-018, owner correction 2026-10-13 08:10Z): the owner's inbox of small jobs ("To do") and
+     questions only they can answer. Decisions (gates), approval waits and alerts have their own routes and
+     stay off this page. Card text is architect-written: always escaped. -->
+<style>
+:root{
+  --paper:#eef1f4; --surface:#f7f9fb; --raised:#fff; --ink:#152033; --muted:#5d687a; --faint:#8a94a4;
+  --line:#d7dde5; --signal:#c98200; --signal-soft:#fbf0d9; --cut:#c2412b; --ok:#2e9d62; --ok-soft:#e3f4ea;
+  --font:"Schibsted Grotesk",ui-sans-serif,system-ui,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0a0f17; --surface:#0f1621; --raised:#141d2a; --ink:#e3e8ef; --muted:#8e9aac; --faint:#5d6a7e;
+  --line:#212c3c; --signal:#f0b23c; --signal-soft:#2f2511; --cut:#f0765c; --ok:#3cb371; --ok-soft:#12261b;
+}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:14.5px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+main{max-width:720px;margin:0 auto;padding:20px 16px 60px}
+h1{margin:0 0 2px;font-size:22px;font-weight:800;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+.sub a{color:inherit}
+h2{margin:22px 0 8px;font-size:12.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.card{background:var(--raised);border:1px solid var(--line);border-left:4px solid var(--signal);border-radius:14px;padding:13px 15px;margin-bottom:12px}
+.card.urgent{border-left-color:var(--cut)}
+.card.done{border-left-color:var(--ok)}
+.top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.status{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--signal-soft);color:var(--signal)}
+.card.done .status{background:var(--ok-soft);color:var(--ok)}
+.card.urgent .status{color:var(--cut)}
+.dup{font-size:12px;color:var(--cut)}
+.title{display:block;font-size:16px;font-weight:750;margin-top:6px}
+.what{margin-top:2px}
+dl{margin:8px 0 0;display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:13.5px}
+dt{color:var(--muted);font-weight:600}
+dd{margin:0}
+.meta{margin-top:8px;font-size:12.5px;color:var(--faint)}
+.meta a{color:inherit}
+textarea{display:block;width:100%;min-height:70px;margin-top:10px;padding:9px 11px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:14px/1.45 var(--font);resize:vertical}
+.row{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+button{all:unset;cursor:pointer;font-weight:700;font-size:14px;padding:8px 16px;border-radius:10px;border:1px solid var(--line);background:var(--raised);color:var(--ink)}
+button.primary{background:var(--signal);border-color:var(--signal);color:#111}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,textarea:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.note{font-size:13px;color:var(--cut)}
+.answer{margin-top:8px;padding:8px 11px;border-radius:10px;background:var(--surface);border:1px solid var(--line);white-space:pre-wrap;overflow-wrap:anywhere}
+.empty{color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+details.resolved summary{cursor:pointer;color:var(--muted);font-weight:600;padding:6px 0}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<main>
+  <h1>Needs you</h1>
+  <div class="sub">Small jobs and questions only you can do. Choices between options are on the <a href="/decide.html">Decisions</a> page.</div>
+  <div id="list"><div class="empty">Loading…</div></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const who = s => { const n = String(s || "").split("@")[0]; return n.startsWith("arch-") ? n.slice(5).replace(/^./, c => c.toUpperCase()) + " Architect" : n; };
+const when = iso => { try { return new Date(iso).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}); } catch { return iso || ""; } };
+const RESULT = {done: "Done", wont: "Won't do", answered: "Answered", skipped: "Skipped"};
+const drafts = {}, notes = {};
+
+function fields(t){
+  const rows = [["Why you", t.why], ["Waiting on it", t.blocks], ["We suggest", t.recommend]].filter(r => r[1]);
+  return rows.length ? `<dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : "";
+}
+function openCard(t){
+  const ask = t.kind === "ask";
+  return `<div class="card ${t.urgent ? "urgent" : ""}" data-id="${esc(t.id)}">
+    <div class="top"><span class="status">${t.urgent ? "Open · urgent" : "Open"}</span>${t.duplicate ? `<span class="dup">Possible duplicate: another open card has this title</span>` : ""}</div>
+    <b class="title">${esc(t.title)}</b><div class="what">${esc(t.action)}</div>${fields(t)}
+    <div class="meta">Asked by ${esc(who(t.asked_by))}${t.created ? " · " + esc(when(new Date(t.created * 1000).toISOString())) : ""}${t.details_url ? ` · <a href="${esc(t.details_url)}" target="_blank" rel="noopener">Details</a>` : t.details ? ` · Details: ${esc(t.details)}` : ""}</div>
+    <textarea data-draft="${esc(t.id)}" placeholder="${ask ? "Your answer" : "Note for the architect (optional)"}">${esc(drafts[t.id] || "")}</textarea>
+    <div class="row">${ask
+      ? `<button class="primary" data-act="answered" type="button">Send answer</button><button data-act="skipped" type="button">Skip</button>`
+      : `<button class="primary" data-act="done" type="button">Done</button><button data-act="wont" type="button">Won't do</button>`}
+      <span class="note">${esc(notes[t.id] || "")}</span></div></div>`;
+}
+function doneCard(r){
+  return `<div class="card done"><div class="top"><span class="status">Resolved · ${esc(RESULT[r.result] || r.result)}</span><span class="meta" style="margin:0">${esc(when(r.decided_at))}</span></div>
+    <b class="title">${esc(r.title)}</b><div class="what">${esc(r.action)}</div>${fields(r)}
+    ${r.answer ? `<div class="answer">${esc(r.answer)}</div>` : ""}${r.note ? `<div class="answer">${esc(r.note)}</div>` : ""}
+    <div class="meta">Asked by ${esc(who(r.asked_by))}</div></div>`;
+}
+function busy(){   // don't redraw under the owner's fingers
+  const a = document.activeElement;
+  return a && a.tagName === "TEXTAREA";
+}
+async function load(force){
+  if (!force && busy()) return;
+  let d;
+  try { d = await (await fetch("/api/tasks", {cache: "no-store"})).json(); }
+  catch { $("list").innerHTML = `<div class="empty">Couldn't reach the console.</div>`; return; }
+  const open = d.open || [], todo = open.filter(t => t.kind !== "ask"), asks = open.filter(t => t.kind === "ask"), res = d.resolved || [];
+  document.title = (open.length ? `(${open.length}) ` : "") + "Needs you · Rig Console";
+  $("list").innerHTML =
+    (open.length ? "" : `<div class="empty">Nothing needs you right now. Cards appear here when an architect needs you to do or answer something.</div>`)
+    + (todo.length ? `<h2>To do</h2>${todo.map(openCard).join("")}` : "")
+    + (asks.length ? `<h2>Questions</h2>${asks.map(openCard).join("")}` : "")
+    + (res.length ? `<h2>Done recently</h2><details class="resolved"><summary>${res.length} answered in the last 14 days</summary>${res.map(doneCard).join("")}</details>` : "")
+    + ((d.unreadable || []).length ? `<div class="empty" style="margin-top:14px">${d.unreadable.length} card file${d.unreadable.length === 1 ? "" : "s"} couldn't be read; the architect who wrote it will fix it.</div>` : "");
+  document.querySelectorAll("textarea[data-draft]").forEach(el => el.oninput = () => drafts[el.dataset.draft] = el.value);
+  document.querySelectorAll(".card[data-id] button[data-act]").forEach(b => b.onclick = () => answer(b.closest(".card").dataset.id, b.dataset.act, b));
+}
+async function answer(id, result, btn){
+  const text = (drafts[id] || "").trim();
+  if (result === "answered" && !text){ notes[id] = "Write your answer first, or Skip."; return load(true); }
+  btn.disabled = true;
+  const body = {id, result, ...(result === "answered" ? {answer: text} : {note: text})};
+  try {
+    const r = await (await fetch("/api/task", {method: "POST", headers: {"Content-Type": "application/json", "X-Rig-Console": "1"}, body: JSON.stringify(body)})).json();
+    if (r.error) notes[id] = r.signin ? "Sign in first (the button at the top), then answer." : r.error;
+    else { delete drafts[id]; delete notes[id]; }
+  } catch { notes[id] = "Couldn't reach the console."; }
+  load(true);
+}
+load(true); setInterval(() => load(false), 30000);
+</script>
+</body>
+</html>

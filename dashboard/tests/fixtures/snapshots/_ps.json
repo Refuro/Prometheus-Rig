@@ -31,6 +31,17 @@
   }
  },
  {
+  "canonicalSessionName": "demo-builder@demo-team",
+  "rigName": "demo-team",
+  "runtime": "codex",
+  "sessionStatus": "running",
+  "lifecycleState": "run",
+  "agentActivity": {
+   "state": "needs_input",
+   "reason": "selection_prompt"
+  }
+ },
+ {
   "canonicalSessionName": "demo-skeptic@demo-team",
   "rigName": "demo-team",
   "runtime": "claude-code",

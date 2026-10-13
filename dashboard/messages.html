@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f17" media="(prefers-color-scheme: dark)">
+<title>Messages · Rig Console</title>
+<link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Messages (PL-024): each message you sent a seat from the console, kept with its reply, newest first.
+     Replies are files the seat wrote naming the message id (PL-025); screen text is shown apart, labelled.
+     Both are agent text: always escaped, shown as plain text. -->
+<style>
+:root{
+  --paper:#eef1f4; --surface:#f7f9fb; --raised:#fff; --ink:#152033; --muted:#5d687a; --faint:#8a94a4;
+  --line:#d7dde5; --signal:#c98200; --signal-soft:#fbf0d9;
+  --font:"Schibsted Grotesk",ui-sans-serif,system-ui,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0a0f17; --surface:#0f1621; --raised:#141d2a; --ink:#e3e8ef; --muted:#8e9aac; --faint:#5d6a7e;
+  --line:#212c3c; --signal:#f0b23c; --signal-soft:#2f2511;
+}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:14.5px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+main{max-width:760px;margin:0 auto;padding:20px 16px 60px}
+h1{margin:0 0 2px;font-size:22px;font-weight:800;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13.5px;margin-bottom:14px}
+.sub a{color:inherit}
+.seats{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.seats a{font-size:13px;font-weight:600;color:var(--muted);text-decoration:none;padding:4px 11px;border-radius:999px;border:1px solid var(--line);background:var(--raised)}
+.seats a[aria-current="page"]{color:var(--ink);border-color:var(--signal)}
+.pair{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:12px}
+.who{display:flex;gap:8px;align-items:baseline;font-size:12.5px;color:var(--faint)}
+.who b{color:var(--ink);font-size:13.5px}
+.q,.r{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:3px}
+.q{font-weight:600}
+.reply{margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--line)}
+.reply .r{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;line-height:1.5;max-height:420px;overflow:auto}
+.reply.screen{border-style:dashed;background:transparent}
+.reply.screen .who b{color:var(--muted);font-weight:600}
+.mid{margin-left:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px}
+.wait{color:var(--signal);font-size:13px;margin-top:8px}
+.missed{color:var(--muted);font-size:13px;margin-top:8px}
+.empty{color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<main>
+  <h1>Messages</h1>
+  <div class="sub">What you asked each seat from the console, with its reply. Send a new message from an agent's panel on the <a href="/">Live</a> page.</div>
+  <nav class="seats" id="seats" aria-label="Filter by seat"></nav>
+  <div id="list"><div class="empty">Loading…</div></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const when = iso => { try { return new Date(iso).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}); } catch { return iso || ""; } };
+const name = s => String(s || "").split("@")[0];
+const SEAT = new URLSearchParams(location.search).get("seat") || "";
+async function load(){
+  let all = [];
+  try { all = await (await fetch("/api/messages", {cache: "no-store"})).json(); }
+  catch { $("list").innerHTML = `<div class="empty">Couldn't reach the console.</div>`; return; }
+  // A console started before PL-025 still sends {reply, reply_at}: that text came off the screen, so show it as such.
+  all = all.map(e => "screen_reply" in e ? e : {...e, replies: [], screen_reply: e.reply, screen_reply_at: e.reply_at,
+                                                 status: e.status === "replied" ? "screen" : e.status});
+  const seats = [...new Set(all.map(e => e.seat))];
+  $("seats").innerHTML = seats.length > 1 ? `<a href="/messages.html"${SEAT ? "" : ' aria-current="page"'}>All</a>`
+    + seats.map(s => `<a href="/messages.html?seat=${encodeURIComponent(s)}"${s === SEAT ? ' aria-current="page"' : ""}>${esc(name(s))}</a>`).join("") : "";
+  const list = SEAT ? all.filter(e => e.seat === SEAT) : all;
+  // Confirmed replies are files the seat wrote naming this message's id (PL-025). Screen text is only a hint.
+  const confirmed = e => (e.replies || []).map((r, i) => `<div class="reply"><div class="who"><b>${esc(name(e.seat))}${i ? " · follow-up" : ""}</b><span>${esc(when(r.at))}</span></div><div class="r">${esc(r.text)}</div></div>`).join("");
+  const screen = e => e.screen_reply && !(e.replies || []).length ? `<div class="reply screen"><div class="who"><b>From the screen (not a confirmed reply)</b><span>${esc(when(e.screen_reply_at))}</span></div><div class="r">${esc(e.screen_reply)}</div></div>` : "";
+  $("list").innerHTML = list.length ? list.map(e => `<div class="pair">
+      <div class="who"><b>You → ${esc(name(e.seat))}</b><span>${esc(when(e.asked_at))}</span>${e.id ? `<span class="mid">${esc(e.id)}</span>` : ""}</div>
+      <div class="q">${esc(e.question)}</div>
+      ${confirmed(e)}${screen(e)}
+      ${e.status === "missed" ? `<div class="missed">No reply yet, and none could be read off its screen. See its terminal.</div>`
+        : e.status === "waiting" ? `<div class="wait">Waiting for its reply…</div>` : ""}</div>`).join("")
+    : `<div class="empty">${SEAT ? "No messages to this seat yet." : "No messages yet. Messages you send from the console will appear here with their replies."}</div>`;
+}
+load(); setInterval(load, 30000);
+</script>
+</body>
+</html>

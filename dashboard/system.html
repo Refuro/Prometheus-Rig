@@ -474,7 +474,7 @@ async function load(){
     if (!h.daemon.ok) P.push({id: "daemon", t: "OpenRig isn't running", s: "Agents can't work until it's back."});
   }
   if (h.logger) {
-    const secs = Number((h.logger.detail || "").match(/(\d+)s/)?.[1]), when = Number.isFinite(secs) ? ago(secs) : "";
+    const secs = Number.isFinite(h.logger.age_s) ? h.logger.age_s : Number((h.logger.detail || "").match(/(\d+)s/)?.[1]), when = Number.isFinite(secs) ? ago(secs) : "";
     L.logger = h.logger.ok ? {cls: "ok", line: `Copied ${when}`} : {cls: "bad", line: when ? `Stopped ${when}` : "Stopped"};
     L["e:logger>watcher"] = h.logger.ok ? "live" : "bad";
     L["e:daemon>logger"] = h.logger.ok ? "live" : "bad";

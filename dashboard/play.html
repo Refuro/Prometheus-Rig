@@ -12,46 +12,270 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--paper:#eef1f4;--surface:#f7f9fb;--raised:#fff;--ink:#152033;--muted:#5d687a;--faint:#8a94a4;--line:#d7dde5;--signal:#c98200;--font:"Schibsted Grotesk",ui-sans-serif,system-ui,"Segoe UI",sans-serif}
-@media (prefers-color-scheme:dark){:root{--paper:#0a0f17;--surface:#0f1621;--raised:#141d2a;--ink:#e3e8ef;--muted:#8e9aac;--faint:#5d6a7e;--line:#212c3c;--signal:#f0b23c}}
+/* Same tokens as the live graph, the System page and the Models page. */
+:root{
+  --paper:#eef1f4; --surface:#f7f9fb; --raised:#fff; --ink:#152033; --muted:#5d687a; --faint:#8a94a4;
+  --line:#d7dde5; --grid:#dfe4ea; --signal:#c98200; --signal-soft:#fbf0d9; --cut:#c2412b; --cut-soft:#fbe5e0;
+  --team:#e6ebf0; --idle:#c7cfd8; --ok:#2e9d62;
+  --cv-l1:82%; --cv-l2:70%; --cv-ink:rgba(21,32,51,.16); --cv-s:42%;
+  --font:"Schibsted Grotesk",ui-sans-serif,system-ui,"Segoe UI",sans-serif; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0a0f17; --surface:#0f1621; --raised:#141d2a; --ink:#e3e8ef; --muted:#8e9aac; --faint:#5d6a7e;
+  --line:#212c3c; --grid:#121a26; --signal:#f0b23c; --signal-soft:#2f2511; --cut:#f0765c; --cut-soft:#311a16;
+  --team:#0e1520; --idle:#344257; --ok:#3cb371;
+  --cv-l1:20%; --cv-l2:31%; --cv-ink:rgba(255,255,255,.10); --cv-s:38%;
+}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0}
-body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+body{background:var(--paper);color:var(--ink);font:14px/1.45 var(--font);-webkit-font-smoothing:antialiased}
 :focus-visible{outline:2px solid var(--signal);outline-offset:2px;border-radius:8px}
-header{position:sticky;top:0;display:flex;align-items:center;gap:12px;padding:calc(12px + env(safe-area-inset-top)) 16px 12px;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-header h1{margin:0;font-size:17px;font-weight:800;flex:1}
-header a{font-size:14px;font-weight:600;color:var(--muted);text-decoration:none}
-main{max-width:900px;margin:0 auto;padding:16px 14px 40px}
-h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin:20px 2px 8px}
-.b{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px}
-.b .t{flex:1;min-width:0}
-.b b{display:block;font-size:15.5px}
-.b span{display:block;font-size:13px;color:var(--muted)}
-.b.fresh{border-color:color-mix(in srgb,var(--signal) 55%,var(--line))}
-.play{all:unset;cursor:pointer;font-weight:800;font-size:14.5px;color:#111;background:var(--signal);padding:10px 16px;border-radius:12px;white-space:nowrap}
-.empty{color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
-.empty code{font:13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--ink)}
+code{font:12px var(--mono)}
+
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 360px;min-height:calc(100vh - var(--rcnav, 0px))}
+.stage{display:flex;flex-direction:column;min-width:0}
+.bar{display:flex;align-items:center;gap:8px 10px;padding:12px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.bar h1{margin:0 6px 0 0;font-size:15px;font-weight:700;color:var(--muted)}
+.fchips{display:flex;gap:6px;flex-wrap:wrap}
+.spacer{flex:1}
+.fchip{all:unset;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--muted);padding:4px 11px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+.fchip:hover{color:var(--ink)}
+.fchip[aria-pressed="true"]{color:var(--ink);background:var(--raised);border-color:var(--faint)}
+.fchip:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);padding:3px 10px;border-radius:999px;border:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--signal)}
+
+.canvas{flex:1;padding:22px 24px 60px;background-image:radial-gradient(var(--grid) 1px,transparent 1px);background-size:22px 22px}
+.inner{max-width:1120px;margin:0 auto}
+.empty{color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;max-width:640px}
+.empty code{color:var(--ink)}
+
+/* A sprint: a group box, like a team box on the live graph */
+.job{background:var(--team);border:1px solid var(--line);border-radius:18px;padding:14px 14px 16px;margin-bottom:18px}
+.job > header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:0 4px 12px}
+.job > header b{font-size:15px;font-weight:800;letter-spacing:-.01em}
+.job > header span{font-size:12.5px;color:var(--faint)}
+.shelf{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+
+/* A game card */
+.card{position:relative;display:flex;flex-direction:column;background:var(--raised);border:1px solid var(--line);border-radius:14px;overflow:hidden;transition:border-color .15s,transform .15s,box-shadow .15s}
+.card:hover{border-color:var(--faint);transform:translateY(-2px);box-shadow:0 10px 26px color-mix(in srgb,#000 18%,transparent)}
+.card.sel{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.card .open{all:unset;cursor:pointer;display:flex;flex-direction:column;flex:1}
+.card .open:focus-visible{outline:2px solid var(--signal);outline-offset:-2px;border-radius:14px}
+.cover{position:relative;display:block;aspect-ratio:16/9;overflow:hidden;background:hsl(var(--h) var(--cv-s) var(--cv-l1))}
+.cover svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.cover .id{position:absolute;left:10px;top:9px;font:600 11.5px var(--mono);color:var(--ink);background:color-mix(in srgb,var(--raised) 78%,transparent);padding:2px 7px;border-radius:6px;backdrop-filter:blur(4px)}
+.badge{position:absolute;right:10px;top:9px;font-size:10.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#111;background:var(--signal);padding:2px 8px;border-radius:999px}
+.badge.played{color:var(--muted);background:color-mix(in srgb,var(--raised) 78%,transparent);backdrop-filter:blur(4px)}
+.card .body{padding:12px 12px 12px;display:flex;flex-direction:column;gap:4px;flex:1}
+.card .t{font-size:15px;font-weight:750;letter-spacing:-.01em;line-height:1.25;padding-right:44px}
+.card .p{font-size:12.5px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.card .m{margin-top:auto;padding-top:6px;font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+.play{all:unset;box-sizing:border-box;cursor:pointer;position:absolute;right:10px;top:0;width:44px;height:44px;border-radius:50%;background:var(--signal);color:#111;display:grid;place-items:center;
+  transform:translateY(-50%);box-shadow:0 6px 16px color-mix(in srgb,#000 30%,transparent);transition:transform .15s}
+.play:hover{transform:translateY(-50%) scale(1.07)}
+.play:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.play svg{width:16px;height:16px;margin-left:2px}
+
+/* Side panel, as on the System and Models pages */
+aside{background:var(--surface);border-left:1px solid var(--line);padding:18px 18px 28px;position:sticky;top:var(--rcnav, 0px);height:calc(100vh - var(--rcnav, 0px));overflow:auto}
+aside h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.02em}
+aside .sub{color:var(--muted);font-size:13px;margin:3px 0 14px}
+.back-x{all:unset;cursor:pointer;font-size:12.5px;font-weight:650;color:var(--muted);margin-bottom:12px;display:inline-block}
+.back-x:hover{color:var(--ink)}
+.pcover{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;margin-bottom:14px;background:hsl(var(--h) var(--cv-s) var(--cv-l1))}
+.pcover svg,.pcover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.bigplay{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px;border-radius:12px;background:var(--signal);color:#111;font-weight:800;font-size:15px}
+.bigplay:hover{filter:brightness(1.06)}
+.bigplay svg{width:14px;height:14px}
+.hint{font-size:12px;color:var(--faint);margin:6px 2px 0;text-align:center}
+.q{font-size:14.5px;line-height:1.5;padding:11px 13px;border-radius:12px;background:var(--signal-soft);border:1px solid color-mix(in srgb,var(--signal) 40%,transparent);margin:16px 0 0}
+.q small{display:block;font-size:11px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:var(--signal);margin-bottom:3px}
+.sec{margin-top:16px}
+.sec h3{font-size:13px;font-weight:700;color:var(--muted);margin:0 0 5px}
+.sec p{margin:0;font-size:13.5px;line-height:1.6}
+.sec.warn p{color:var(--cut)}
+.kbd{font:600 11.5px var(--mono);padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;background:var(--raised);color:var(--ink);white-space:nowrap}
+.links{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.links a{font-size:13px;font-weight:650;color:var(--ink);text-decoration:none;padding:6px 11px;border:1px solid var(--line);border-radius:9px;background:var(--raised)}
+.links a:hover{border-color:var(--faint)}
+.facts{margin:16px 0 0;padding:0;list-style:none;font-size:12.5px}
+.facts li{display:grid;grid-template-columns:60px 1fr;gap:8px;padding:7px 0;border-top:1px solid var(--line)}
+.facts li span{color:var(--faint);font-weight:600}
+.newest{all:unset;box-sizing:border-box;cursor:pointer;display:flex;gap:12px;align-items:center;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--raised);width:100%}
+.newest:hover{border-color:var(--faint)}
+.newest .mini{flex:none;width:76px;aspect-ratio:16/9;border-radius:8px;overflow:hidden;position:relative;background:hsl(var(--h) var(--cv-s) var(--cv-l1))}
+.newest .mini svg,.newest .mini img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.newest b{display:block;font-size:14px}
+.newest span{font-size:12px;color:var(--faint)}
+.tips{margin:6px 0 0;padding:0 0 0 18px;font-size:13px;color:var(--muted);line-height:1.55}
+.tips li{margin:4px 0}
+
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr}
+  .canvas{padding:14px 12px 30px}
+  .bar{padding:10px 12px}
+  .fchips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;width:100%;order:3}
+  .fchips::-webkit-scrollbar{display:none}
+  .shelf{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .card .p{display:none}
+  .card .t{font-size:14px;padding-right:34px}
+  .card .body{padding:10px}
+  .play{width:38px;height:38px;right:8px}
+  .job{padding:12px 10px 12px}
+  aside{position:static;height:auto;border-left:0;border-top:1px solid var(--line)}
+  /* A chosen game opens as a sheet over the shelf. */
+  .wrap.open aside{position:fixed;inset:auto 0 0 0;z-index:40;max-height:86vh;border-radius:18px 18px 0 0;padding-bottom:calc(20px + env(safe-area-inset-bottom));
+    box-shadow:0 -14px 40px color-mix(in srgb,#000 40%,transparent)}
+  .scrim{position:fixed;inset:0;z-index:39;background:color-mix(in srgb,#000 45%,transparent)}
+}
+@media (min-width:861px){ .scrim{display:none} }
 </style>
 </head>
 <body>
 <script src="/nav.js"></script>
-<main id="main"><div class="empty">Loading…</div></main>
+<div class="wrap" id="wrap">
+  <div class="stage">
+    <div class="bar">
+      <h1>Play builds</h1>
+      <div class="fchips" id="jobs" role="group" aria-label="Sprint"></div>
+      <span class="spacer"></span>
+      <span class="chip" id="cNew" hidden><i></i><span></span></span>
+      <span class="chip" id="cCount">…</span>
+    </div>
+    <div class="canvas"><div class="inner" id="main"><div class="empty">Loading…</div></div></div>
+  </div>
+  <div class="scrim" id="scrim" hidden></div>
+  <aside id="panel" aria-live="polite"></aside>
+</div>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const ago = t => { const s = Date.now()/1000 - t; return s < 60 ? "just now" : s < 3600 ? `${Math.round(s/60)} min ago` : s < 86400 ? `${Math.round(s/3600)} h ago` : new Date(t*1000).toLocaleDateString(); };
-async function load(){
-  let bs = [];
-  try { bs = await (await fetch("/api/builds", {cache: "no-store"})).json(); } catch { $("main").innerHTML = `<div class="empty">Couldn't reach the dashboard.</div>`; return; }
-  if (!bs.length){
-    $("main").innerHTML = `<div class="empty">No playable builds yet. Builders put each Godot web export in <code>&lt;job&gt;/builds/&lt;name&gt;/</code> (with its <code>index.html</code>), and it shows up here.</div>`; return;
-  }
-  const groups = {}; bs.forEach(b => (groups[b.job] ||= []).push(b));
-  $("main").innerHTML = Object.entries(groups).map(([job, list]) => `<h2>${esc(job)}</h2>` + list.map(b => `
-    <div class="b ${Date.now()/1000 - b.updated < 3600 ? "fresh" : ""}"><div class="t"><b>${esc(b.name)}</b><span>Built ${esc(ago(b.updated))} · ${b.size_mb} MB</span></div>
-    <a class="play" href="${esc(b.url)}" target="_blank" rel="noopener">▶ Play</a></div>`).join("")).join("");
+const ago = t => { const s = Date.now() / 1000 - t; return s < 60 ? "just now" : s < 3600 ? `${Math.round(s / 60)} min ago` : s < 86400 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`; };
+const PLAY = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.8v12.4c0 .6.7 1 1.2.7l10-6.2c.5-.3.5-1.1 0-1.4l-10-6.2C3.7.8 3 1.2 3 1.8z" fill="currentColor"/></svg>`;
+const phone = () => matchMedia("(max-width: 860px)").matches;
+
+// Which builds this browser has opened, so new ones stand out. Per device only; nothing is sent anywhere.
+let played = {};
+try { played = JSON.parse(localStorage.getItem("rcPlayed") || "{}") || {}; } catch {}
+const isNew = b => !(played[b.url] >= b.updated);
+function markPlayed(b){ played[b.url] = Date.now() / 1000; try { localStorage.setItem("rcPlayed", JSON.stringify(played)); } catch {} }
+
+// ---------- Covers: a small abstract picture per build, generated from its name, so each game is recognisable at a glance.
+function hash(s){ let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function rng(seed){ let x = seed || 1; return () => { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; return (x >>> 0) / 4294967296; }; }
+function cover(b){
+  const h = hash(b.job + "/" + b.name), r = rng(h), hue = h % 360, kind = (h >>> 9) % 4, hb = (hue + 30 + Math.floor(r() * 60)) % 360;
+  const L2 = `hsl(${hb} var(--cv-s) var(--cv-l2))`, INK = "var(--cv-ink)";
+  let s = "";
+  if (kind === 0) for (let i = 0; i < 5; i++) s += `<circle cx="${10 + r() * 140}" cy="${5 + r() * 80}" r="${10 + r() * 32}" fill="${i % 2 ? L2 : INK}"/>`;
+  else if (kind === 1) { const a = -35 + r() * 70; for (let i = 0; i < 8; i++) s += `<rect x="${-50 + i * 32}" y="-40" width="${7 + r() * 15}" height="180" fill="${i % 3 ? INK : L2}" transform="rotate(${a.toFixed(1)} 80 45)"/>`; }
+  else if (kind === 2) { const cx = 30 + r() * 100, cy = 15 + r() * 60; for (let i = 7; i > 0; i--) s += `<circle cx="${cx}" cy="${cy}" r="${i * 12}" fill="none" stroke="${i % 2 ? L2 : INK}" stroke-width="${4 + r() * 4}"/>`; }
+  else for (let y = 0; y < 5; y++) for (let x = 0; x < 9; x++) if (r() > .42) s += `<rect x="${x * 18 + 3}" y="${y * 18 + 1}" width="14" height="14" rx="3" fill="${r() > .5 ? L2 : INK}"/>`;
+  return `<svg viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="160" height="90" fill="hsl(${hue} var(--cv-s) var(--cv-l1))"/>${s}</svg>`;
 }
-load(); setInterval(() => { if (!document.hidden) load(); }, 15000);
+const art = b => b.info && b.info.image ? `<img src="${esc(b.info.image)}" alt="" loading="lazy">` : cover(b);
+const hueOf = b => hash(b.job + "/" + b.name) % 360;
+const titleOf = b => (b.info && b.info.title) || (b.name === "latest" ? b.title : b.name);
+
+// Controls: show single keys like Z, R or Space as keys.
+const keys = s => esc(s).replace(/\b(Space|Shift|Enter|Esc|Tab|[A-Z])\b(?=[ ,.)]|$)/g, '<span class="kbd">$1</span>');
+
+let B = [], raw = "", filter = "", sel = null;
+try { filter = sessionStorage.getItem("rcPlayJob") || ""; } catch {}
+
+function render(){
+  const by = {}; B.forEach(b => (by[b.job] ||= []).push(b));
+  const jobs = Object.keys(by).sort((a, b) => Math.max(...by[b].map(x => x.updated)) - Math.max(...by[a].map(x => x.updated)));
+  if (filter && !by[filter]) filter = "";
+  $("jobs").innerHTML = jobs.length > 1 ? [["", "All"], ...jobs.map(j => [j, by[j][0].title || j])]
+    .map(([v, l]) => `<button class="fchip" data-j="${esc(v)}" aria-pressed="${filter === v}" type="button">${esc(l)}</button>`).join("") : "";
+  $("jobs").querySelectorAll(".fchip").forEach(c => c.onclick = () => { filter = c.dataset.j; try { sessionStorage.setItem("rcPlayJob", filter); } catch {} render(); });
+  const fresh = B.filter(isNew).length;
+  $("cCount").textContent = `${B.length} ${B.length === 1 ? "build" : "builds"}`;
+  $("cNew").hidden = !fresh; $("cNew").querySelector("span").textContent = `${fresh} not played yet`;
+  if (!B.length) {
+    $("main").innerHTML = `<div class="empty">No playable builds yet. A builder's web export lands in <code>&lt;job&gt;/builds/&lt;name&gt;/index.html</code> and shows up here on its own.</div>`;
+    return panel();
+  }
+  $("main").innerHTML = jobs.filter(j => !filter || j === filter).map(j => {
+    const list = by[j].sort((a, b) => b.updated - a.updated);
+    return `<section class="job"><header><b>${esc(list[0].title || j)}</b><span>${esc(j)} · ${list.length} ${list.length === 1 ? "build" : "builds"} · newest ${esc(ago(list[0].updated))}</span></header>
+      <div class="shelf">${list.map(b => { const i = B.indexOf(b), n = isNew(b);
+        return `<article class="card ${sel === i ? "sel" : ""}" style="--h:${hueOf(b)}">
+          <button class="open" data-i="${i}" type="button" aria-label="About ${esc(titleOf(b))}">
+            <span class="cover">${art(b)}<span class="id">${esc(b.name)}</span>${n ? `<span class="badge">New</span>` : `<span class="badge played">Played</span>`}</span>
+            <span class="body"><span class="t">${esc(titleOf(b))}</span>${b.info && b.info.pitch ? `<span class="p">${esc(b.info.pitch)}</span>` : ""}
+              <span class="m">Built ${esc(ago(b.updated))} · ${b.size_mb} MB</span></span></button>
+          <a class="play" href="${esc(b.url)}" target="_blank" rel="noopener" data-p="${i}" aria-label="Play ${esc(titleOf(b))}" title="Play in a new tab">${PLAY}</a></article>`; }).join("")}</div></section>`;
+  }).join("");
+  seat();
+  $("main").querySelectorAll(".open").forEach(o => o.onclick = () => select(+o.dataset.i));
+  $("main").querySelectorAll("[data-p]").forEach(a => a.onclick = () => { markPlayed(B[+a.dataset.p]); setTimeout(render, 300); });
+  panel();
+}
+// Put each round Play button on the seam between the cover and the text.
+function seat(){ $("main").querySelectorAll(".card").forEach(c => { c.querySelector(".play").style.top = c.querySelector(".cover").offsetHeight + "px"; }); }
+
+function select(i){
+  sel = sel === i ? null : i;
+  $("wrap").classList.toggle("open", sel !== null);
+  $("scrim").hidden = sel === null || !phone();
+  render();
+  if (sel !== null) $("panel").scrollTop = 0;
+}
+$("scrim").onclick = () => select(sel);
+
+function panel(){
+  const P = $("panel"), b = sel !== null ? B[sel] : null;
+  if (b) {
+    const f = b.info || {};
+    P.innerHTML = `<button class="back-x" id="px" type="button">${phone() ? "✕ Close" : "← All builds"}</button>
+      <div class="pcover" style="--h:${hueOf(b)}">${art(b)}</div>
+      <h2>${esc(titleOf(b))}</h2><div class="sub">${esc(b.title || b.job)} · <code>${esc(b.name)}</code> · built ${esc(ago(b.updated))}</div>
+      <a class="bigplay" href="${esc(b.url)}" target="_blank" rel="noopener" id="pPlay">${PLAY} Play</a>
+      <div class="hint">Opens in a new tab · ${b.size_mb} MB${b.size_mb > 30 ? ", so give it a moment on a phone" : ""}</div>
+      ${f.question ? `<div class="q"><small>What it's testing</small>${esc(f.question)}</div>` : f.pitch ? `<div class="q"><small>What it is</small>${esc(f.pitch)}</div>` : ""}
+      ${f.question && f.pitch ? `<div class="sec"><h3>What it is</h3><p>${esc(f.pitch)}</p></div>` : ""}
+      ${f.judge ? `<div class="sec"><h3>Judge this while you play</h3><p>${esc(f.judge)}</p></div>` : ""}
+      ${f.controls ? `<div class="sec"><h3>Controls</h3><p>${keys(f.controls)}</p></div>` : ""}
+      ${f.watch ? `<div class="sec warn"><h3>Watch out</h3><p>${esc(f.watch)}</p></div>` : ""}
+      ${f.bugs ? `<div class="sec"><h3>Known bugs</h3><p>${esc(f.bugs)}</p></div>` : ""}
+      ${f.verdict ? `<ul class="facts"><li><span>Lead</span><div>${esc(f.verdict)}</div></li></ul>` : ""}
+      ${(f.links || []).length ? `<div class="links">${f.links.map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)} ↗</a>`).join("")}</div>` : ""}
+      ${!f.title && !f.pitch ? `<p class="sub" style="margin-top:16px">No description yet. A <code>build.json</code> next to the build gives it a name, a pitch and controls (see JOBS.md).</p>` : ""}`;
+    $("px").onclick = () => select(sel);
+    $("pPlay").onclick = () => { markPlayed(b); setTimeout(render, 300); };
+    return;
+  }
+  const newest = [...B].sort((a, c) => c.updated - a.updated)[0];
+  P.innerHTML = `<h2>Play builds</h2><div class="sub">Playable prototypes from the studio's sprints. You judge them by playing, not by reading.</div>
+    ${newest ? `<div class="sec"><h3>Newest</h3><button class="newest" id="pNewest" type="button" style="--h:${hueOf(newest)}"><span class="mini">${art(newest)}</span>
+      <span><b>${esc(titleOf(newest))}</b><span>${esc(newest.title || newest.job)} · ${esc(ago(newest.updated))}</span></span></button></div>` : ""}
+    <div class="sec"><h3>Tips</h3><ul class="tips">
+      <li>Tap a card to see what the build is testing, what to judge and the controls, before you play.</li>
+      <li><b>New</b> means you haven't opened it on this device since it was last built.</li>
+      <li>Builds open in their own tab. Your PC must be on with the dashboard running.</li></ul></div>`;
+  const nb = $("pNewest"); if (nb) nb.onclick = () => select(B.indexOf(newest));
+}
+
+async function load(){
+  let txt;
+  try { txt = await (await fetch("/api/builds", {cache: "no-store"})).text(); }
+  catch { if (!B.length) $("main").innerHTML = `<div class="empty">Couldn't reach the dashboard.</div>`; return; }
+  if (txt === raw) return;            // nothing new: don't redraw under the reader
+  raw = txt;
+  try { B = JSON.parse(txt); } catch { B = []; }
+  if (!Array.isArray(B)) B = [];
+  if (sel !== null && sel >= B.length) { sel = null; $("wrap").classList.remove("open"); $("scrim").hidden = true; }
+  render();
+}
+addEventListener("resize", seat);
+addEventListener("keydown", e => { if (e.key === "Escape" && sel !== null) select(sel); });
+load(); setInterval(() => { if (!document.hidden) load(); }, 20000);
 </script>
 </body>
 </html>

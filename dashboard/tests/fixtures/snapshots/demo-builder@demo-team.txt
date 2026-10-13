@@ -1,0 +1,10 @@
+== demo-builder@demo-team ==
+• Working (2m 10s • esc to interrupt)
+
+  Giving this request a little extra thought
+
+› 1. Retry with a faster model
+  2. Dismiss and keep waiting
+  3. Learn more
+
+  No action is required; Codex will keep waiting.

@@ -223,7 +223,8 @@ def health():
             f.seek(max(0, os.path.getsize(ACTIVITY) - 400))
             last = f.read().decode("utf-8", "replace").strip().splitlines()[-1].split(",")[0]
         age = (_now() - _parse_local(last)).total_seconds()
-        out["logger"] = {"ok": age < 60, "detail": f"last write {int(age)}s ago"}
+        when = f"{int(age)} s" if age < 120 else f"{int(age // 60)} min" if age < 7200 else f"{int(age // 3600)} h"
+        out["logger"] = {"ok": age < 60, "detail": f"last write {when} ago", "age_s": int(age)}
     except Exception:
         out["logger"] = {"ok": False, "detail": "no activity log"}
     try:
@@ -233,9 +234,9 @@ def health():
         out["daemon"] = {"ok": False, "detail": "unknown"}
     try:
         with urllib.request.urlopen("http://127.0.0.1:11434", timeout=1.5) as r:
-            out["ollama"] = {"ok": r.status == 200, "detail": "reachable"}
+            out["ollama"] = {"ok": r.status == 200, "detail": "reachable", "level": "optional"}
     except Exception:
-        out["ollama"] = {"ok": False, "detail": "not reachable"}
+        out["ollama"] = {"ok": False, "detail": "off (only the local model tests use it)", "level": "optional"}
     try:
         du = shutil.disk_usage(os.path.expanduser("~"))
         free = du.free / 2**30
@@ -243,7 +244,8 @@ def health():
     except Exception:
         out["disk"] = {"ok": True, "detail": "unknown"}
     ka = keepalive_running()
-    out["keepalive"] = {"ok": ka, "detail": "Windows keep-alive is holding Ubuntu open" if ka else "not running: closing every terminal may stop Ubuntu and the agents"}
+    out["keepalive"] = {"ok": ka, "level": "advisory",
+                        "detail": "Windows keep-alive is holding Ubuntu open" if ka else "not running: closing every terminal may stop Ubuntu and the agents"}
     try:
         up = float(open("/proc/uptime").read().split()[0])
         out["ubuntu"] = {"ok": True, "detail": f"up {int(up // 3600)} h {int(up % 3600 // 60)} min"}
@@ -391,12 +393,16 @@ def keepalive_running():
 
 # ---------- Optional phone push via ntfy (set NTFY_TOPIC to enable; sends alert text to ntfy.sh)
 _pushed = {}     # alert key -> when we last pushed it
+PUSH = {"last_ok": None, "error": None, "error_at": None}   # last push outcome, for /api/health
 _pending = {}    # alert key -> when we first saw it (not pushed yet)
 PUSH_AFTER_S = 25          # must persist across two checks: ignores one-tick blips
 REPUSH_AFTER_S = 6 * 3600  # an alert that flaps off and on again is only re-sent after 6 hours
 
 
 def push_alerts(alerts):
+    """Phone pushes for alerts the console marked `notify` (serve.NOTIFY). Each alert is pushed once while it
+    lasts, and not again if it clears and comes back within 6 hours. Several due in one round go as one
+    summary push."""
     topic = os.environ.get("NTFY_TOPIC")
     if not topic:
         return
@@ -405,25 +411,48 @@ def push_alerts(alerts):
     for k in list(_pending):
         if k not in live:
             del _pending[k]
+    due = []
     for a in alerts:
         k = a["key"]
-        if a.get("dismissed"):
+        if k in _pushed and k in live:
+            _pushed[k] = now   # still there: never repeat it
+        # nopush: the operator's outbox pushes its own notes (outbox.py)
+        if a.get("dismissed") or a.get("nopush") or not a.get("notify") or k in _pushed:
             continue
-        first = _pending.setdefault(k, now)
-        if now - first < PUSH_AFTER_S or now - _pushed.get(k, 0) < REPUSH_AFTER_S:
+        if now - _pending.setdefault(k, now) < PUSH_AFTER_S:
             continue
         _pushed[k] = now
-        try:
-            headers = {"Title": "Rig Console", "Priority": "high" if a.get("severity") != "warn" else "default"}
-            base = os.environ.get("NTFY_CLICK", "").rstrip("/")
-            if base:   # tapping the notification opens the console (or the decision page for gates)
-                headers["Click"] = base + (a.get("url") or "/m.html")
-            req = urllib.request.Request(f"https://ntfy.sh/{topic}", data=a["text"].encode(), method="POST", headers=headers)
-            urllib.request.urlopen(req, timeout=5).close()
-        except Exception:
-            pass
+        due.append(a)
+    if len(due) == 1:
+        a = due[0]
+        push_now(a["text"], a["notify"], "high" if a.get("severity") != "warn" else "default", a.get("url"))
+    elif due:
+        push_now("\n".join(f"- {a['notify']}: {a['text']}" for a in due[:8]) + (f"\n…and {len(due) - 8} more" if len(due) > 8 else ""),
+                 f"{len(due)} things need you", "high" if any(a.get("severity") != "warn" for a in due) else "default", "/m.html")
     for k in [k for k, t in _pushed.items() if now - t > REPUSH_AFTER_S]:
         del _pushed[k]
+
+
+def push_now(text, title="Rig Console", priority="high", url=None):
+    """One ntfy push. Returns (ok, detail); the detail never includes the topic."""
+    topic = os.environ.get("NTFY_TOPIC")
+    if not topic:
+        return False, "phone push isn't set up on the console (NTFY_TOPIC)"
+    now = time.time()
+    try:
+        headers = {"Title": title.encode("ascii", "replace").decode(), "Priority": priority}
+        base = os.environ.get("NTFY_CLICK", "").rstrip("/")
+        if base:   # tapping the notification opens the console (or the decision page for gates)
+            headers["Click"] = base + (url or "/m.html")
+        req = urllib.request.Request(f"https://ntfy.sh/{topic}", data=text.encode(), method="POST", headers=headers)
+        urllib.request.urlopen(req, timeout=5).close()
+        PUSH["last_ok"], PUSH["error"] = now, None
+        return True, "sent"
+    except Exception as e:
+        # Remember the failure so /api/health can show it; a silent push failure means a silent phone.
+        PUSH["error"], PUSH["error_at"] = f"{type(e).__name__}: {e}"[:200], now
+        print("ntfy push failed:", PUSH["error"], flush=True)
+        return False, f"the push service refused or didn't answer ({type(e).__name__})"
 
 
 # ---------- Funnel peaks: how many niches each stage ever held (cuts later don't shrink it)

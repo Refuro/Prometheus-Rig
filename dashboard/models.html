@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f17" media="(prefers-color-scheme: dark)">
+<title>Models · Rig Console</title>
+<link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<script src="/notify.js"></script>
+<script src="/health.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Same tokens as the live graph and the System page. */
+:root{
+  --paper:#eef1f4; --surface:#f7f9fb; --raised:#fff; --ink:#152033; --muted:#5d687a; --faint:#8a94a4;
+  --line:#d7dde5; --grid:#dfe4ea; --signal:#c98200; --signal-soft:#fbf0d9; --cut:#c2412b; --cut-soft:#fbe5e0;
+  --edge:#b9c2cd; --team:#e6ebf0; --idle:#c7cfd8; --ok:#2e9d62; --ok-soft:#e1f2e8;
+  --font:"Schibsted Grotesk",ui-sans-serif,system-ui,"Segoe UI",sans-serif; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0a0f17; --surface:#0f1621; --raised:#141d2a; --ink:#e3e8ef; --muted:#8e9aac; --faint:#5d6a7e;
+  --line:#212c3c; --grid:#121a26; --signal:#f0b23c; --signal-soft:#2f2511; --cut:#f0765c; --cut-soft:#311a16;
+  --edge:#2c394c; --team:#0e1520; --idle:#344257; --ok:#3cb371; --ok-soft:#12291e;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:14px/1.45 var(--font);-webkit-font-smoothing:antialiased}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px;border-radius:8px}
+code{font:12px var(--mono);background:var(--raised);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) 360px;min-height:calc(100vh - var(--rcnav, 0px))}
+.stage{display:flex;flex-direction:column;min-width:0}
+.bar{display:flex;align-items:center;gap:8px 12px;padding:12px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.bar h1{margin:0;font-size:15px;font-weight:700;color:var(--muted)}
+.spacer{flex:1}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);padding:3px 10px;border-radius:999px;border:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+.chip.draft{color:var(--signal);border-color:color-mix(in srgb,var(--signal) 45%,transparent);background:var(--signal-soft);font-weight:650}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;padding:2px;gap:2px}
+.btn{all:unset;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);padding:5px 11px;border:1px solid transparent;border-radius:7px;white-space:nowrap}
+.btn:hover{color:var(--ink)}
+.btn[aria-pressed="true"]{color:var(--ink);background:var(--raised);border-color:var(--line)}
+.btn:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+
+.canvas{flex:1;padding:24px 26px 60px;background-image:radial-gradient(var(--grid) 1px,transparent 1px);background-size:22px 22px}
+.inner{max-width:1040px;margin:0 auto}
+.empty{color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+
+/* Seats view: role rows x model columns */
+.matrix{--cols:2;display:flex;flex-direction:column;gap:14px}
+.mhead,.mrow{display:grid;grid-template-columns:150px repeat(var(--cols),minmax(0,1fr));gap:10px;align-items:stretch}
+.mhead{position:sticky;top:var(--rcnav, 0px);z-index:4;padding:8px 12px;margin:0 -12px;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:blur(8px)}
+.mhead b{display:block;font-size:14px;font-weight:800;text-transform:capitalize}
+.mhead span{font-size:12px;color:var(--faint)}
+.grp{background:var(--team);border:1px solid var(--line);border-radius:16px;padding:10px 12px 12px;display:flex;flex-direction:column;gap:8px}
+.grp > header{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:2px 2px 0}
+.rl{display:flex;flex-direction:column;justify-content:center;padding:0 4px}
+.rl b{font-size:14px;text-transform:capitalize}
+.cell{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:6px;background:var(--raised);border:1px solid var(--line);border-radius:11px;padding:9px 11px;min-height:62px;transition:border-color .15s}
+.cell:hover{border-color:var(--faint)}
+.cell:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.cell.inseat{box-shadow:inset 3px 0 0 var(--signal)}
+.cell.sel{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.cell.none{cursor:default;background:none;border:1px dashed var(--line);color:var(--faint);font-size:12.5px;justify-content:center;align-items:center}
+.cell .r1,.cell .r2{display:flex;align-items:center;gap:8px}
+.cell .seen{font-size:13.5px;font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tag{font-size:10.5px;font-weight:750;letter-spacing:.04em;text-transform:uppercase;color:var(--signal)}
+.meter{display:inline-flex;gap:2px}
+.meter i{width:12px;height:5px;border-radius:2px;background:var(--line)}
+.meter.l1 i:nth-child(-n+1),.meter.l2 i:nth-child(-n+2),.meter.l3 i:nth-child(-n+3){background:var(--ink)}
+.conf{font-size:12px;color:var(--muted);flex:1}
+.pm{font-size:12.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pm .p{color:var(--ok)} .pm .m{color:var(--cut);margin-left:6px}
+
+/* Evidence view: a feed, like the live graph's activity feed */
+.filters{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:14px}
+.fchip{all:unset;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--muted);padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);text-transform:capitalize}
+.fchip[aria-pressed="true"]{color:var(--ink);background:var(--raised);border-color:var(--faint)}
+.fchip:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.search{flex:1;min-width:160px;font:inherit;font-size:13px;color:var(--ink);background:var(--raised);border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+.feed{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.feed li{border-top:1px solid var(--line)}
+.feed li:first-child{border-top:0}
+.feed button{all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:12px 1fr;gap:4px 10px;width:100%;padding:10px 14px}
+.feed button:hover{background:var(--raised)}
+.feed button.sel{background:var(--raised);box-shadow:inset 3px 0 0 var(--signal)}
+.feed .k{width:9px;height:9px;border-radius:50%;margin-top:5px;background:var(--idle)}
+.k.strength{background:var(--ok)} .k.failure{background:var(--cut)} .k.quirk{background:var(--signal)} .k.cost{background:var(--faint)} .k.reliability{background:var(--edge)}
+.feed .tx{font-size:13.5px}
+.feed .mt{grid-column:2;font-size:12px;color:var(--faint)}
+.feed .mt b{color:var(--muted);font-weight:650}
+.st{font-weight:650;color:var(--muted)} .st.unrev{color:var(--signal)}
+.sect{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);margin:22px 2px 8px}
+.sect:first-child{margin-top:0}
+
+/* Architects view */
+.acards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.acard{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:6px;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:12px 13px}
+.acard:hover{border-color:var(--faint)}
+.acard.sel{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.acard b{font-size:14.5px;text-transform:capitalize}
+.acard p{margin:0;font-size:13px;color:var(--muted)}
+.acard .r2{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:4px}
+.pill{font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill.worked{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,transparent);background:var(--ok-soft)}
+.pill.mixed{color:var(--signal);border-color:color-mix(in srgb,var(--signal) 45%,transparent);background:var(--signal-soft)}
+.pill.miss{color:var(--cut);border-color:color-mix(in srgb,var(--cut) 45%,transparent);background:var(--cut-soft)}
+.brow{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:start}
+.brow .pill{justify-self:start;margin-top:2px}
+.brow .bt b{display:block;font-size:13.5px}
+.brow .bt span{font-size:12px;color:var(--faint)}
+
+/* Side panel, as on the System page */
+aside{background:var(--surface);border-left:1px solid var(--line);padding:18px 18px 28px;position:sticky;top:var(--rcnav, 0px);height:calc(100vh - var(--rcnav, 0px));overflow:auto}
+aside h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.02em;text-transform:none}
+aside h2 span{text-transform:capitalize}
+aside .sub{color:var(--muted);font-size:13px;margin:3px 0 12px}
+.back-x{all:unset;cursor:pointer;font-size:12.5px;font-weight:650;color:var(--muted);margin-bottom:12px;display:inline-block}
+.back-x:hover{color:var(--ink)}
+.note{font-size:13.5px;line-height:1.5;padding:10px 12px;border-radius:10px;background:var(--signal-soft);border:1px solid color-mix(in srgb,var(--signal) 40%,transparent);margin:0 0 16px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.ps h3{font-size:13px;font-weight:700;color:var(--muted);margin:18px 0 6px}
+.ps ul.pm-list{list-style:none;margin:0;padding:0}
+.pm-list li{position:relative;padding:5px 0 5px 20px;font-size:13.5px;line-height:1.5}
+.pm-list li::before{position:absolute;left:2px;top:4px;font-weight:800}
+.pm-list.plus li::before{content:"+";color:var(--ok)}
+.pm-list.minus li::before{content:"−";color:var(--cut)}
+.ps details{border-top:1px solid var(--line);padding:8px 0}
+.ps details summary{cursor:pointer;font-size:13px;font-weight:650;color:var(--muted)}
+.ps details summary:hover{color:var(--ink)}
+.md{font-size:13.5px;line-height:1.55}
+.md p{margin:6px 0} .md ul{margin:6px 0;padding-left:18px} .md li{margin:3px 0}
+.md h4{margin:12px 0 4px;font-size:13.5px}
+.md table{width:100%;border-collapse:collapse;font-size:12.5px;margin:6px 0}
+.md td,.md th{border-top:1px solid var(--line);padding:5px 4px;text-align:left;vertical-align:top}
+.md th{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+a.ref{all:unset;cursor:pointer;font:11.5px var(--mono);color:var(--signal);font-weight:600}
+a.ref:hover{text-decoration:underline}
+.ev{list-style:none;margin:0;padding:0}
+.ev li{border-top:1px solid var(--line);padding:8px 0;font-size:13px}
+.ev li.hl{background:var(--signal-soft);margin:0 -8px;padding:8px}
+.ev .h{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--faint)}
+.ev .h .k{width:8px;height:8px;border-radius:50%;flex:none}
+.ev p{margin:3px 0 0}
+.facts{margin:6px 0 0;padding:0;list-style:none;font-size:12.5px}
+.facts li{display:grid;grid-template-columns:86px 1fr;gap:8px;padding:6px 0;border-top:1px solid var(--line)}
+.facts li span{color:var(--faint);font-weight:600}
+.facts a{color:var(--signal);word-break:break-all}
+.facts div{word-break:break-word}
+.runs{list-style:none;margin:0;padding:0;font-size:12.5px}
+.runs li{display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;padding:6px 0;border-top:1px solid var(--line)}
+.runs li b{font-weight:650}
+.runs .flag{font-size:11px;font-weight:700;color:var(--cut)}
+.runs span{color:var(--muted)}
+.legend{display:grid;gap:7px;font-size:12.5px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:8px}
+.msum{border-top:1px solid var(--line);padding:10px 0}
+.msum b{text-transform:capitalize;font-size:14px}
+.msum p{margin:3px 0 0;font-size:13px;color:var(--muted)}
+
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr}
+  aside{position:static;height:auto;border-left:0;border-top:1px solid var(--line)}
+  .canvas{padding:16px 12px 30px}
+  .bar{padding:10px 14px}
+  .mhead,.mrow{grid-template-columns:repeat(var(--cols),minmax(0,1fr));gap:8px}
+  .mhead .rl,.mhead > :first-child{display:none}
+  .mrow .rl{grid-column:1/-1;padding:2px 2px 0}
+  .cell{min-height:0;padding:8px 9px}
+  .cell .seen{font-size:12.5px}
+  .conf{display:none}
+  .cell .tag{font-size:0;width:8px;height:8px;border-radius:50%;background:var(--signal);flex:none}
+  .brow{grid-template-columns:1fr;gap:4px}
+}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<div class="wrap">
+  <div class="stage">
+    <div class="bar">
+      <h1>Models</h1>
+      <div class="seg" role="group" aria-label="View">
+        <button class="btn" data-v="seats" aria-pressed="true" type="button">Seats</button>
+        <button class="btn" data-v="evidence" aria-pressed="false" type="button">Evidence</button>
+        <button class="btn" data-v="architects" aria-pressed="false" type="button">Architects</button>
+      </div>
+      <span class="spacer"></span>
+      <span class="chip draft" title="The Model Architect's draft. The owning architect decides routing.">Draft · not routing policy</span>
+      <span class="chip" id="cCount">…</span>
+    </div>
+    <div class="canvas"><div class="inner" id="main"><div class="empty">Loading…</div></div></div>
+  </div>
+  <aside id="panel" aria-live="polite"></aside>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+// ---------- Markdown: escape first, then a small subset (bold, code, lists, tables, ledger refs).
+const inline = s => esc(s)
+  .replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")
+  .replace(/`([^`]+)`/g, "<code>$1</code>")
+  .replace(/\[((?:O\d{3}[,; ]*)+)\]/g, (m, ids) => ids.split(/[,; ]+/).filter(Boolean).map(id => `<a class="ref" data-ref="${id}" href="#${id}">${id}</a>`).join(" "));
+function md(src){
+  const out = []; let list = false, tbl = null;
+  const flush = () => {
+    if (list) { out.push("</ul>"); list = false; }
+    if (tbl) { out.push("<table>" + tbl.map((r, i) => "<tr>" + r.map(c => i ? `<td>${inline(c)}</td>` : `<th>${inline(c)}</th>`).join("") + "</tr>").join("") + "</table>"); tbl = null; }
+  };
+  for (const raw of String(src || "").split("\n")) {
+    const l = raw.trimEnd();
+    if (/^\|/.test(l)) { const cells = l.split("|").slice(1, -1).map(s => s.trim()); if (cells.every(c => /^:?-+:?$/.test(c))) continue; (tbl ||= []).push(cells); continue; }
+    if (/^\s*- /.test(l)) { if (tbl) flush(); if (!list) { out.push("<ul>"); list = true; } out.push("<li>" + inline(l.replace(/^\s*- /, "")) + "</li>"); continue; }
+    flush();
+    if (/^#{1,4} /.test(l)) out.push("<h4>" + inline(l.replace(/^#+ /, "")) + "</h4>");
+    else if (l) out.push("<p>" + inline(l) + "</p>");
+  }
+  flush(); return out.join("");
+}
+// Split a card into its title, header lines and "## " sections.
+function parseCard(src){
+  const parts = String(src || "").split(/\n## /), head = parts.shift(), secs = {};
+  parts.forEach(p => { const [t, ...rest] = p.split("\n"); secs[t.trim()] = rest.join("\n").trim(); });
+  const field = k => ((head.match(new RegExp(`\\*\\*${k}[^*]*\\*\\*:?\\s*([^*\\n]*)`)) || [])[1] || "").trim().replace(/\.$/, "");
+  const bullets = s => (s || "").split("\n").filter(l => /^- /.test(l)).map(l => l.slice(2));
+  return {head, secs, field, bullets};
+}
+// "medium for proto-1, low for proto-2" -> judge by the first phrase.
+const confLevel = c => { const f = String(c || "").split(/[,;.]/)[0].trim().toLowerCase();
+  return /^very low/.test(f) ? 0 : /^low to medium/.test(f) ? 1.5 : /^low/.test(f) ? 1 : /^medium/.test(f) ? 2 : /^high/.test(f) ? 3 : 0; };
+// "**Seen:** 7 seat-runs (3 in proto-1, ...)." -> {once:false, short:"7 seat-runs", full:"7 seat-runs (3 in proto-1, ...)"}
+function seenOf(head){
+  const m = String(head || "").match(/\*\*Seen( once)?[.:]?\*\*:?[ \t]*([^*\n]*)/i);
+  if (!m) return {once: false, short: "", full: ""};
+  const full = m[2].trim().replace(/\.$/, ""), short = full.split(/[(,.]/)[0].trim();
+  return {once: !!m[1], short: m[1] ? "Once" : short, full: (m[1] ? "once" + (full ? ": " + full : "") : full)};
+}
+const cap = s => String(s || "").replace(/^./, c => c.toUpperCase());
+const meter = c => { const n = Math.round(confLevel(c)); return `<span class="meter l${n}" title="Confidence: ${esc(c || "unknown")}"><i></i><i></i><i></i></span>`; };
+
+// Evidence paths -> the console's sandboxed /job/ route (text files only).
+function evLink(s){
+  return esc(s).replace(/(?:jobs|research)-mirror\/([A-Za-z0-9._-]+)\/([A-Za-z0-9._\/-]+\.(?:md|json|jsonl|csv|txt))/g,
+    (m, job, rel) => `<a href="/job/${job}/${rel}" target="_blank" rel="noopener">${m}</a>`);
+}
+
+// Which team each seat role belongs to, for grouping the grid. Unknown roles land in "Other".
+const GROUPS = [["Studio", ["pitcher", "curator", "critic", "scout", "reviser", "builder", "prototype lead"]],
+                ["Research", ["research lead", "researcher", "skeptic"]]];
+const groupOf = r => (GROUPS.find(([, rs]) => rs.includes(r)) || ["Other"])[0];
+
+let D = null, view = "seats", sel = null, filt = {model: "", kind: "", q: ""};
+try { view = sessionStorage.getItem("rcModelsView") || "seats"; } catch {}
+
+// The routing guide's "Keep (incumbent)" column says which model holds each seat today.
+function incumbents(){
+  const out = {};
+  for (const m of (D.routing || "").matchAll(/^\|\s*\*\*(.+?)\*\*\s*\|\s*([^|]+)\|/gm)) {
+    const who = (m[2].match(/^\s*(claude|codex)\b/i) || [])[1];
+    if (who) out[m[1].toLowerCase()] = who.toLowerCase();
+  }
+  return out;
+}
+
+// ---------- Seats
+function seats(){
+  const models = [...new Set(D.cards.map(c => c.model))].sort((a, b) => D.cards.filter(c => c.model === b).length - D.cards.filter(c => c.model === a).length);
+  const roles = [...new Set(D.cards.map(c => c.role))];
+  const inc = incumbents();
+  const obsFor = (m, r) => D.observations.filter(o => o.model === m && (o.role || "").toLowerCase() === r);
+  const head = `<div class="mhead"><div></div>${models.map(m => {
+    const n = D.cards.filter(c => c.model === m).length, o = D.observations.filter(x => x.model === m).length;
+    return `<div><b>${esc(m)}</b><span>${n} ${n === 1 ? "seat" : "seats"} · ${o} notes</span></div>`; }).join("")}</div>`;
+  const groups = {};
+  roles.forEach(r => (groups[groupOf(r)] ||= []).push(r));
+  const order = [...GROUPS.map(g => g[0]), "Other"].filter(g => groups[g]);
+  $("main").innerHTML = `<div class="matrix" style="--cols:${models.length}">${head}${order.map(g => `<section class="grp"><header>${g}</header>${groups[g].map(r => `
+    <div class="mrow"><div class="rl"><b>${esc(r)}</b></div>${models.map(m => {
+      const c = D.cards.find(x => x.model === m && x.role === r);
+      if (!c) return `<div class="cell none">not run</div>`;
+      const p = parseCard(c.md), conf = p.field("Confidence"), seen = seenOf(p.head);
+      const os = obsFor(m, r), plus = os.filter(o => o.kind === "strength").length, minus = os.filter(o => o.kind === "failure").length;
+      const key = `${m}--${r}`;
+      return `<button class="cell ${inc[r] === m ? "inseat" : ""} ${sel === key ? "sel" : ""}" data-key="${esc(key)}" type="button">
+        <span class="r1"><span class="seen" title="Seen ${esc(seen.full)}">${esc(seen.short || "—")}</span>${inc[r] === m ? `<span class="tag">In seat</span>` : ""}</span>
+        <span class="r2">${meter(conf)}<span class="conf">${esc(conf.split(/[.;,]/)[0] || "")}</span><span class="pm"><span class="p">+${plus}</span><span class="m">−${minus}</span></span></span></button>`;
+    }).join("")}</div>`).join("")}</section>`).join("")}</div>`;
+  $("main").querySelectorAll(".cell[data-key]").forEach(b => b.onclick = () => select(sel === b.dataset.key ? null : b.dataset.key));
+}
+
+// ---------- Evidence
+function evidence(){
+  const models = [...new Set(D.observations.map(o => o.model))].filter(m => m && m !== "all");
+  const kinds = ["strength", "failure", "quirk", "cost", "reliability"];
+  const chips = (k, vals, label) => `<button class="fchip" data-f="${k}" data-v="" aria-pressed="${!filt[k]}" type="button">${label}</button>` +
+    vals.map(v => `<button class="fchip" data-f="${k}" data-v="${esc(v)}" aria-pressed="${filt[k] === v}" type="button">${k === "kind" ? `<i class="k ${esc(v)}" style="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px"></i>` : ""}${esc(v)}</button>`).join("");
+  const q = filt.q.toLowerCase();
+  const list = D.observations.filter(o => (!filt.model || o.model === filt.model) && (!filt.kind || o.kind === filt.kind) &&
+    (!q || JSON.stringify(o).toLowerCase().includes(q))).sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.id || "").localeCompare(a.id || ""));
+  const notes = D.notes || [];
+  $("main").innerHTML = `
+    ${notes.length ? `<div class="sect">From leads' end-of-run notes, not yet reviewed</div><ul class="feed">${notes.map((n, i) => `<li><button data-note="${i}" type="button"><i class="k"></i>
+      <span class="tx">${esc(n.what_happened)}</span><span class="mt"><b>${esc(n.model || "?")} · ${esc(n.role || n.seat || "")}</b> · ${esc(n.job || "")} · ${esc(n.seat || "")}</span></button></li>`).join("")}</ul>` : ""}
+    <div class="sect">Ledger · ${list.length} of ${D.observations.length}</div>
+    <div class="filters">${chips("model", models, "All models")}<span style="width:6px"></span>${chips("kind", kinds, "All kinds")}
+      <input class="search" id="q" type="search" placeholder="Search notes, seats, files…" value="${esc(filt.q)}"></div>
+    <ul class="feed">${list.map(o => `<li><button data-id="${esc(o.id)}" class="${sel === "obs:" + o.id ? "sel" : ""}" type="button"><i class="k ${esc(o.kind)}"></i>
+      <span class="tx">${esc(o.what_happened)}</span>
+      <span class="mt"><b>${esc(o.model)} · ${esc(o.role)}</b> · ${esc(o.rig)} · ${esc(o.id)}${o.n > 1 ? ` · seen ${o.n}×` : ""}${o.status ? ` · <span class="st ${/not yet reviewed|seat-written/i.test(o.status) ? "unrev" : ""}">${esc(statusShort(o.status))}</span>` : ""}</span></button></li>`).join("") || `<li class="empty" style="border:0">Nothing matches.</li>`}</ul>`;
+  $("main").querySelectorAll(".fchip").forEach(b => b.onclick = () => { filt[b.dataset.f] = b.dataset.v; evidence(); });
+  const qi = $("q"); qi.oninput = () => { filt.q = qi.value; const pos = qi.selectionStart; evidence(); const n = $("q"); n.focus(); n.setSelectionRange(pos, pos); };
+  $("main").querySelectorAll("[data-id]").forEach(b => b.onclick = () => select("obs:" + b.dataset.id));
+  $("main").querySelectorAll("[data-note]").forEach(b => b.onclick = () => select("note:" + b.dataset.note));
+}
+
+// ---------- Architects and briefs
+function briefRows(){
+  return [...(D.briefs || "").matchAll(/^\|\s*([^|]+?)\s*\|\s*(worked[^|]*|mixed[^|]*|miss[^|]*)\|\s*([^|]+?)\s*\|\s*([^|]*?)\s*\|$/gim)]
+    .map(m => ({name: m[1], result: m[2].trim(), what: m[3], ev: m[4]}));
+}
+const pillClass = r => /^worked/i.test(r) ? "worked" : /^mixed/i.test(r) ? "mixed" : /fixed/i.test(r) ? "mixed" : "miss";
+function architects(){
+  const bs = briefRows();
+  $("main").innerHTML = `<div class="sect">The roles in ROLES.md</div>
+    <div class="acards">${(D.roles || []).map((r, i) => { const p = parseCard(r.md), a = p.field("Assessment").split("**")[0].trim(), c = p.field("Confidence");
+      return `<button class="acard ${sel === "role:" + i ? "sel" : ""}" data-role="${i}" type="button"><b>${esc(r.role)}</b><p>${esc(cap(a.replace(/\s*Confidence.*$/, "")))}</p>
+        <span class="r2">${meter(c)}<span class="conf">${esc(c.split(/[.;,]/)[0])}</span></span></button>`; }).join("")}</div>
+    <div class="sect">Briefs, by what they produced</div>
+    <ul class="feed">${bs.map((b, i) => { const [name, owner] = [b.name.replace(/\s*\[[^\]]+\]\s*$/, ""), (b.name.match(/\[([^\]]+)\]/) || [])[1] || ""];
+      return `<li><button data-brief="${i}" class="${sel === "brief:" + i ? "sel" : ""}" type="button" style="grid-template-columns:1fr"><span class="brow"><span class="pill ${pillClass(b.result)}">${esc(b.result)}</span>
+        <span class="bt"><b>${esc(name)}</b><span>${esc(owner)}</span></span></span></button></li>`; }).join("") || `<li class="empty" style="border:0">No brief table found.</li>`}</ul>`;
+  $("main").querySelectorAll("[data-role]").forEach(b => b.onclick = () => select("role:" + b.dataset.role));
+  $("main").querySelectorAll("[data-brief]").forEach(b => b.onclick = () => select("brief:" + b.dataset.brief));
+}
+
+// ---------- Side panel
+// "addressed: AD-010 retry policy" -> "addressed"; long seat-written notes -> "not yet reviewed".
+const statusShort = s => /not yet reviewed/i.test(s) ? "not yet reviewed" : String(s).split(/[:(]/)[0].trim();
+function obsItem(o, hl){
+  return `<li id="ev-${esc(o.id)}" class="${hl ? "hl" : ""}"><div class="h"><i class="k ${esc(o.kind)}"></i><b>${esc(o.id)}</b> · ${esc(o.kind)} · ${esc(o.rig)}</div><p>${esc(o.what_happened)}</p></li>`;
+}
+function wireRefs(){
+  $("panel").querySelectorAll("a.ref").forEach(a => a.onclick = e => {
+    e.preventDefault();
+    const li = $("ev-" + a.dataset.ref);
+    if (li) { li.closest("details") && (li.closest("details").open = true); li.scrollIntoView({behavior: "smooth", block: "center"});
+      li.classList.add("hl"); setTimeout(() => li.classList.remove("hl"), 1600); }
+    else select("obs:" + a.dataset.ref);
+  });
+}
+function panel(){
+  const P = $("panel");
+  const back = `<button class="back-x" id="px" type="button">← Overview</button>`;
+  const done = () => { const x = $("px"); if (x) x.onclick = () => select(null); wireRefs(); };
+  if (!D) { P.innerHTML = ""; return; }
+  if (sel && sel.startsWith("obs:")) {
+    const o = D.observations.find(x => x.id === sel.slice(4));
+    if (o) {
+      P.innerHTML = `${back}<h2>${esc(o.id)}</h2><div class="sub"><span style="text-transform:capitalize">${esc(o.model)} · ${esc(o.role)}</span> · ${esc(o.rig)} · ${esc(o.date)}</div>
+        ${o.status && /not yet reviewed|seat-written/i.test(o.status) ? `<div class="note">Not reviewed yet: ${esc(o.status)}</div>` : ""}
+        <div class="tags"><span class="pill ${o.kind === "strength" ? "worked" : o.kind === "failure" ? "miss" : "mixed"}">${esc(o.kind)}</span><span class="chip">${esc(o.confidence)}</span>${o.n > 1 ? `<span class="chip">seen ${o.n}×</span>` : ""}${o.status ? `<span class="chip">${esc(o.status)}</span>` : ""}</div>
+        <p class="md" style="font-size:14.5px">${esc(o.what_happened)}</p>
+        <ul class="facts"><li><span>Caused by</span><div>${esc(o.attribution)}${o.attribution === "unclear" ? " (model or brief, can't tell yet)" : ""}</div></li>
+          <li><span>Brief asked</span><div>${esc(o.brief_asked)}</div></li><li><span>Brief</span><div>${evLink(o.brief)}</div></li>
+          <li><span>Evidence</span><div>${evLink(o.evidence)}</div></li><li><span>Seat</span><div>${esc(o.seat)} · ${esc(o.runtime)} · ${esc(o.version_if_known)}</div></li>
+          ${/unknown/i.test(o.version_if_known || "unknown") ? String(o.seat || "").split(/[,\s]+/).filter(Boolean).map(s => (D.launched?.[o.rig] || {})[s]).filter(x => x && x.model)
+            .map(x => `<li><span>Model</span><div>${esc(x.model)}${x.version ? " " + esc(x.version) : ""} <span style="color:var(--faint)">(from launch record)</span></div></li>`).slice(0, 1).join("") : ""}
+          ${o.revised ? `<li><span>Revised</span><div>${esc(o.revised)}</div></li>` : ""}
+          ${o.status ? `<li><span>Status</span><div>${esc(o.status)}</div></li>` : ""}${o.written_by ? `<li><span>Written by</span><div>${esc(o.written_by)}</div></li>` : ""}</ul>`;
+      return done();
+    }
+  }
+  if (sel && sel.startsWith("note:")) {
+    const n = (D.notes || [])[+sel.slice(5)];
+    if (n) {
+      P.innerHTML = `${back}<h2>Note on ${esc(n.seat || "a seat")}</h2><div class="sub">${esc(n.job)} · written by its lead · ${esc(new Date(n.ts * 1000).toLocaleDateString())}</div>
+        <div class="note">Not reviewed yet. The Model Architect harvests it into the ledger and decides what caused it.</div><p class="md" style="font-size:14.5px">${esc(n.what_happened)}</p>
+        <ul class="facts">${[["Model", n.model], ["Role", n.role], ["Kind", n.kind], ["Brief", n.brief], ["Brief asked", n.brief_asked], ["Evidence", n.evidence]]
+          .filter(([, v]) => v).map(([k, v]) => `<li><span>${k}</span><div>${esc(v)}</div></li>`).join("")}</ul>`;
+      return done();
+    }
+  }
+  if (sel && sel.startsWith("role:")) {
+    const r = (D.roles || [])[+sel.slice(5)];
+    if (r) { const p = parseCard(r.md);
+      P.innerHTML = `${back}<h2><span>${esc(r.role)}</span></h2><div class="sub">Assessed by the Model Architect · <code>models/${esc(r.file)}</code></div>
+        <div class="tags">${meter(p.field("Confidence"))}<span class="conf">Confidence: ${esc(p.field("Confidence").split(/[.;]/)[0])}</span></div>
+        <div class="md">${md(r.md.split("\n").slice(1).join("\n"))}</div><p class="sub" style="margin-top:14px">The owning role replies in its own log.</p>`;
+      return done(); }
+  }
+  if (sel && sel.startsWith("brief:")) {
+    const b = briefRows()[+sel.slice(6)];
+    if (b) {
+      P.innerHTML = `${back}<h2>${esc(b.name.replace(/\s*\[[^\]]+\]\s*$/, ""))}</h2><div class="sub">Owner: ${esc((b.name.match(/\[([^\]]+)\]/) || [])[1] || "unknown")}</div>
+        <div class="tags"><span class="pill ${pillClass(b.result)}">${esc(b.result)}</span></div><div class="md"><p>${inline(b.what)}</p></div>
+        <ul class="facts"><li><span>Evidence</span><div class="md">${inline(b.ev.split(/,\s*/).map(x => /^O\d{3}$/.test(x) ? `[${x}]` : x).join(", "))}</div></li></ul>
+        <p class="sub" style="margin-top:14px">“Miss” names a gap in the brief, not a seat's fault.</p>`;
+      return done();
+    }
+  }
+  if (sel && sel.includes("--")) {
+    const [m, r] = sel.split("--"), c = D.cards.find(x => x.model === m && x.role === r);
+    if (c) {
+      const p = parseCard(c.md), inc = incumbents()[r] === m, conf = p.field("Confidence");
+      const plus = p.bullets(p.secs["Did well"] || p.secs["What happened"]), minus = p.bullets(p.secs["Did badly"]);
+      const rest = Object.entries(p.secs).filter(([k]) => !["Did well", "What happened", "Did badly"].includes(k));
+      const os = D.observations.filter(o => o.model === m && (o.role || "").toLowerCase() === r);
+      const runs = (D.metrics || []).filter(x => x.model_id === m && (x.role || "").toLowerCase() === r);
+      const briefs = p.field("Briefs") || p.field("Brief");
+      P.innerHTML = `${back}<h2><span>${esc(m)}</span> · <span>${esc(r)}</span></h2>
+        <div class="sub">${seenOf(p.head).full ? "Seen " + esc(seenOf(p.head).full) + "." : ""}</div>
+        <div class="tags">${meter(conf)}<span class="conf">Confidence: ${esc(conf.split(/[.;]/)[0] || "unknown")}</span>${inc ? `<span class="tag" style="margin-left:auto">In seat now</span>` : ""}</div>
+        ${/untested/i.test(p.head) || inc ? `<div class="note">Only one model has run this seat, so this shows what it did here, not that it's better.</div>` : ""}
+        <div class="ps">
+          ${plus.length ? `<h3>Did well</h3><ul class="pm-list plus">${plus.map(x => `<li>${inline(x)}</li>`).join("")}</ul>` : ""}
+          ${minus.length ? `<h3>Did badly</h3><ul class="pm-list minus">${minus.map(x => `<li>${inline(x)}</li>`).join("")}</ul>` : ""}
+          <h3>More</h3>
+          ${rest.map(([k, v]) => `<details><summary>${esc(k)}</summary><div class="md">${md(v)}</div></details>`).join("")}
+          ${briefs ? `<details><summary>Briefs it ran under</summary><div class="md"><p>${inline(briefs)}</p></div></details>` : ""}
+          <details ${os.length ? "" : "hidden"}><summary>Evidence · ${os.length} ledger ${os.length === 1 ? "line" : "lines"}</summary><ul class="ev">${os.map(o => obsItem(o)).join("")}</ul></details>
+          <details ${runs.length ? "" : "hidden"}><summary>Seat-runs · ${runs.length}</summary><ul class="runs">${runs.map(x => {
+            const flags = [["send_backs", "send-back"], ["stops_real", "stop"], ["stops_spurious", "needless stop"], ["self_report_mismatches", "report mismatch"], ["capacity_errors", "capacity error"]]
+              .filter(([k]) => +x[k] > 0).map(([k, l]) => `<span class="flag">${x[k]} ${l}${+x[k] > 1 ? "s" : ""}</span>`).join("");
+            return `<li><b>${esc(x.rig)}</b><span>${esc(x.seat)} · ${esc(x.outputs)}${x.survived_judging ? " · " + esc(x.survived_judging) : ""}</span>${flags}</li>`; }).join("")}</ul></details>
+          <p class="sub" style="margin-top:12px"><code>models/${esc(c.file)}</code></p>
+        </div>`;
+      return done();
+    }
+  }
+  sel = null;
+  // Overview
+  const counts = `${D.observations.length} ledger lines · ${(D.metrics || []).length} seat-runs`;
+  const sums = Object.entries(D.summaries || {}).map(([m, s]) => {
+    const cov = ((s.match(/\*\*Coverage:\*\*\s*([^\n]+)/) || [])[1] || "").split(". ")[0];
+    const rep = parseCard(s).bullets(parseCard(s).secs["Repeated across roles"] || "").map(b => (b.match(/^\*\*(.+?)\*\*/) || [])[1]).filter(Boolean);
+    return `<div class="msum"><b>${esc(m)}</b><p>${inline(cov)}</p>${rep.length ? `<ul class="pm-list" style="margin-top:4px">${rep.map(x => `<li style="padding-left:12px">${esc(x.replace(/:$/, ""))}</li>`).join("")}</ul>` : ""}</div>`;
+  }).join("");
+  P.innerHTML = `<h2>Model report cards</h2><div class="sub">${counts}, kept by the Model Architect.</div>
+    <div class="note">Each seat has been run by one model only. A card shows what that model did in that seat, not that it's better there.</div>
+    ${view === "seats" ? `<div class="ps"><h3>Reading the grid</h3><div class="legend">
+      <span><span class="meter l2"><i></i><i></i><i></i></span>How sure the Model Architect is</span>
+      <span><span class="pm"><span class="p">+2</span><span class="m">−1</span></span>Strengths and failures in the ledger</span>
+      <span><span class="tag">In seat</span>The model that holds the seat today</span></div>
+      <h3>Across roles</h3>${sums}</div>` : view === "evidence" ? `<div class="ps"><h3>The ledger</h3><p class="md">One line per thing a seat was seen doing, with the file that shows it. Tap a line for the brief, the evidence and what probably caused it.</p>
+      <div class="legend">${["strength", "failure", "quirk", "cost", "reliability"].map(k => `<span><i class="k ${k}" style="width:9px;height:9px;border-radius:50%;display:inline-block"></i>${k}</span>`).join("")}</div>
+      ${D.skipped_lines ? `<p class="sub" style="margin-top:12px">${D.skipped_lines} unreadable ${D.skipped_lines === 1 ? "line was" : "lines were"} skipped.</p>` : ""}</div>`
+    : `<div class="ps"><h3>How roles are assessed</h3><p class="md">In words, with a confidence level. No letter grades until there's a rubric and enough evidence. Each role replies in its own log.</p></div>`}`;
+  wireRefs();
+}
+function select(key){
+  sel = key; render();
+  if (key && matchMedia("(max-width: 860px)").matches) $("panel").scrollIntoView({behavior: "smooth", block: "start"});
+}
+function render(){
+  document.querySelectorAll(".seg .btn").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === view));
+  if (!D) return;
+  if (D.missing) { $("main").innerHTML = `<div class="empty">No <code>models/</code> folder yet. The Model Architect's files appear here once it exists.</div>`; $("panel").innerHTML = ""; return; }
+  if (D.error) { $("main").innerHTML = `<div class="empty">Couldn't read the model files: ${esc(D.error)}</div>`; return; }
+  ({seats, evidence, architects})[view]();
+  panel();
+}
+document.querySelectorAll(".seg .btn").forEach(b => b.onclick = () => { view = b.dataset.v; sel = null; try { sessionStorage.setItem("rcModelsView", view); } catch {} render(); });
+async function load(){
+  try { D = await (await fetch("/api/models", {cache: "no-store"})).json(); }
+  catch { $("main").innerHTML = `<div class="empty">Couldn't reach the dashboard.</div>`; return; }
+  if (D && !D.missing && !D.error) {
+    const days = [...new Set(D.observations.map(o => o.date).filter(Boolean))].sort();
+    $("cCount").textContent = `${D.observations.length} notes${days.length ? ` · ${days[0].slice(5)} to ${days.at(-1).slice(5)}` : ""}`;
+  } else $("cCount").hidden = true;
+  render();
+}
+load();
+</script>
+</body>
+</html>

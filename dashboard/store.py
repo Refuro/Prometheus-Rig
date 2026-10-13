@@ -130,10 +130,20 @@ def discover_jobs():
                     meta = json.load(f) or {}
             except (OSError, ValueError):
                 pass
-            jobs.append({"name": meta.get("name") or name, "type": meta.get("type") or r.get("type") or "general",
+            # The name is always the folder name. job.json is written by seats, so it may not rename a job
+            # (it could otherwise pass its gates off as another team's): MA-007 finding 5c.
+            jobs.append({"name": name, "type": meta.get("type") or r.get("type") or "general",
                          "rig": meta.get("rig"), "title": meta.get("title") or name, "folder": folder,
                          "writers": meta.get("writers") or {}, "depth": int(meta.get("watch_depth") or 2)})
     return jobs
+
+
+def duplicate_jobs():
+    """Job names that appear under more than one watched root. Only the first is used."""
+    seen, dup = set(), set()
+    for j in discover_jobs():
+        (dup if j["name"] in seen else seen).add(j["name"])
+    return sorted(dup)
 
 
 def jobs_list():

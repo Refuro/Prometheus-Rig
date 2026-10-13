@@ -1,0 +1,2 @@
+date,rig,seat,model,runtime,role,brief,outputs,survived_judging,send_backs,stops_real,stops_spurious,self_report_mismatches,capacity_errors,active_min,notes,disputed_or_excluded
+2026-10-12,demo-team,build-a,codex,codex,builder,demo,1 toy,,1,0,0,0,0,,demo,

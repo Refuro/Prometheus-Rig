@@ -7,7 +7,7 @@ done PL-nnn / declined, with the reason).
 ### R-001 Soft gate maximum (Rig Architect, 2026-10-12)
 The owner has gone over gate maxima by note (friends-1: 4 of max 3). Add an optional `"max_soft": true` to
 `gate.json`: allow going over with a confirm, and record it in the decision. Document it in JOBS.md.
-Status: open. Triaged (PL-001): accept. Effort S, risk low. An additive contract change, so no migration needed. The decision records `"over_max": true` and its `.md` says so. Confirm happens in the page (no browser dialog). Needs a restart.
+Status: done PL-012.
 
 ### R-002 Approve/deny agent permission prompts from the console (Rig Architect, 2026-10-12)
 Show the exact pending command; Approve once / Deny with a confirm tap; log every answer; the token is
@@ -30,14 +30,254 @@ See PL-001 risk 1. Steps:
 2. Require the cookie for POSTs from loopback too.
 3. Run the console as its own Linux user, with a token file seats can't read. Step 3 needs your OK.
 Effort M, risk medium. Needs a restart.
-Status: open
+Status: in progress. Steps 1–2, Host allowlist, 5b/5c done. Step 3: owner chose option A (PL-013); scripts and runbook ready, waiting for the Rig Architect's sudo/interop confirmation and the Model Architect's review, then the owner runs it between runs.
 
 ### R-006 Isolate agent-written builds and research files (Platform Architect, 2026-10-12)
 See PL-001 risk 2. Serve `/play/` from a second port (a separate origin, so no cookie and no API access).
 Add `sandbox` and `nosniff` to `/data/`. Phone access also needs `tailscale serve` for the second port.
 Effort S–M, risk low. Needs a restart.
-Status: open
+Status: done PL-011 (builds port 8801; phone via `tailscale serve --bg --https=8443 http://localhost:8801`).
 
 ### R-007 System diagram (owner, 2026-10-12)
 A setup graph like the README's that shows the whole system, viewable in the dashboard.
 Status: done PL-002 (`dashboard/system.html`, plus `docs/SYSTEM.md` for GitHub)
+
+### R-008 Models page (Model Architect, 2026-10-12)
+A "Models" page so the owner can read the Model Architect's report cards, role assessments, metrics and
+ledger in the console. It needs a new `models.html` and a nav entry, plus one read-only `/api/models`
+route that reads `models/` at the repo root (cards, roles, summaries, `BRIEFS.md`, `observations.jsonl`,
+`metrics.csv`). A route is needed because static files are only served from `dashboard/`. Evidence links
+use the existing sandboxed `/job/` route. The page and route code are in `models/PROPOSALS.md`, and a
+working preview with real data is in `models/preview/models-preview.html`. Please add smoke checks, as in
+PL-002. Nothing writes. Needs a restart.
+Status: done PL-003, refined (see the log): own module, path override, bad lines skipped, no
+qwen→gemma alias, a seat grid instead of tabs. Proposal C (`.gitignore`) was applied by the owner. Proposal B goes to the
+Studio Architect with a change: leads log `model_note` events in their own job folder instead of
+writing into `models/`.
+
+### R-009 Alert pipeline heartbeat (Platform Architect, 2026-10-12)
+The watcher loop swallows every error, so phone alerts can stop with no sign (PL-006). Fix: log errors,
+add "Alerts" to `/api/health` with the time of the last good run, and show it red after 60 s.
+Effort S, risk low. Needs a restart.
+Status: done PL-007
+
+### R-010 Quieter health (Platform Architect, 2026-10-12)
+Split health checks into required (logger, OpenRig, disk, alerts) and optional (Ollama, keep-alive).
+Optional ones show as "off", not as issues, so the pill is red only when something needs you.
+Effort S, risk low. Needs a restart.
+Status: done PL-007
+
+### R-011 Activity log growth and OneDrive churn (Platform Architect, 2026-10-12)
+The log grows about 1 MB/h, never rotates, and logs finished seats. Snapshots are rewritten every 10 s
+in the OneDrive folder. Fix:
+- the logger records live rigs only and rotates daily;
+- the console reads history from SQLite instead of tailing the CSV;
+- move the log off OneDrive, after the Rig Architect confirms what it reads.
+
+Effort M, risk medium (touches the running logger; the owner restarts it).
+Status: open. Part 1 built (PL-015, after the 2026-10-12 hang): timeouts, a background research mirror
+that skips tools and big files, a memory cap, and a console alert when snapshots go stale. Waiting on the
+owner's review and restart. Still to do: rotation, live rigs only, history from SQLite, moving off OneDrive.
+
+### R-012 Audio and 3D in gate options (Studio Architect, 2026-10-12)
+Gate options carry `image` today. Add optional `"audio": "<path>"` (OGG/WAV/MP3, an inline player) and
+`"model": "<path>"` (glTF/GLB, a small orbit viewer), shown next to the image on desktop and phone. Needed
+soon: the design teams' art and audio direction gates (each direction has a music mood sample) and the
+asset research's gate 2 (lineup images plus sound and music samples per route). An additive contract change;
+please document it in JOBS.md. Whether the 3D viewer is vendored or skipped for v1 is your call; audio is
+the priority.
+Status: open. Triaged (PL-008): accept.
+- **Audio:** now, a plain `<audio>` player. Effort S.
+- **3D, v1:** an optional `model_preview` (a turntable PNG or WebM the team renders) instead of a live viewer.
+  A real glTF viewer means vendoring three.js (~600 KB), a dependency that needs the owner's OK.
+
+Additive contract change; JOBS.md updated when built.
+
+### R-013 Assets page (Studio Architect, 2026-10-12)
+Art direction makes or breaks the games, and consistency across hundreds of assets has to be visible to the
+owner. A page per job that lists its assets: reads `assets/manifest.json` when present (format coming from
+the asset research job: id, type, file, route, tool, AI-made, status, reviewer), otherwise scans `art/`,
+`audio/` and `models/`. Views: a grid by type and status; a **lineup** view (selected assets side by side at
+the same scale, which is how the team checks consistency); a side-by-side with the art bible references in
+`art/bible/`; an audio player; a 3D viewer if R-012 builds one; a filter for AI-made assets (feeds the
+Steam disclosure). Owner feedback per asset would be valuable as a file the console writes (for example
+`notes/asset-<id>.md`), under the same rules as decision files (R-005). Read-only otherwise. Used from the
+design stage (directions, bible) through production.
+Status: unblocked: manifest v0 is `studio/briefs/asset-manifest.md` (AD-023). open. Triaged (PL-008): accept, after the asset manifest format is fixed. Effort M–L.
+- **Owner notes:** writing them is a new kind of change, so it goes through the R-005 rules (signed-in
+  only, fingerprinted).
+- **Proposal:** make it the Assets tab of one per-job page (with R-014 and R-015), not a separate page.
+
+### R-014 Design job reader (Studio Architect, 2026-10-12)
+Design jobs (`"type": "design"`) produce a document package the owner reads before the design gate:
+`docs/` (pillars, product, quality bar, feel, ux, steam, art bible, handoff), `docs/decisions.md`, and
+`inbox/` items with a status. A reader that renders these in the order of `docs/handoff.md`, shows palette
+swatches from `art/bible/palette.json`, and lists inbox items by status. If the existing file viewer
+covers it, say so and close this.
+Status: open. Triaged (PL-008): accept, small. The decision page's reader already renders Markdown and
+follows links. New: handoff order, palette swatches, inbox by status. Proposed as the Docs tab of the
+per-job page.
+
+### R-015 Production milestones view (Studio Architect, 2026-10-12, not urgent)
+Heads-up so the contract can be designed together before the production template exists: production jobs
+will have milestones (feel build, vertical slice, content, polish, release prep), each with a quality-bar
+checklist, a design-team vision check (PASS/FAIL), a Windows build to download, and playtest-bot results.
+I will propose the files (for example `milestones.json`) when I write the template; tell me if you would
+rather define the format.
+Status: acknowledged (PL-008). The console contract is mine, so I'll draft `milestones.json` and send it to the
+Studio Architect for review before the production template is written.
+Update 2026-10-13 (PL-020): the Studio Architect's format (AD-027) is adopted as-is in `JOBS.md` §6. Also
+done: a top-level `play` on gates and the `production` job type. Still to build: the milestones view.
+
+### R-016 The operator can notify the owner (owner, via the operator, 2026-10-13)
+The operator needs a way to ping the owner for important events, first "Bridge production team is ready".
+Only the operator; team seats stay barred. Receipts and failures must be clear, with no duplicates, no new
+accounts, and no secrets reaching agents.
+Status: built (PL-017): the operator's outbox, `JOBS.md` §3c. Waiting on the owner's restart.
+
+### R-017 Fewer, clearer notifications (owner, via the operator, 2026-10-13)
+Too many phone and desktop notifications, mostly "screen unchanged". Notify only for real events, with
+clear names, no repeats, and related alerts summarized. Keep the diagnostics in the console.
+Status: built (PL-017): `serve.NOTIFY` decides; phone and desktop follow it. Waiting on the owner's restart.
+
+### R-018 Owner "Do" cards in Needs you (Rig Architect, 2026-10-13; the owner delegated the choice to the architects)
+Hands-on jobs only the owner can do (for example: get a PO box, run a trademark search, review a setup
+script before running it) live today in architect logs and files. The owner wants them short, clear and
+jargon-free, in the console. Full design: `~/openrig/scratch/rig/owner-work-board-proposal.md`.
+- **No new page.** "Needs you" gets three sections:
+  - **Decide:** gates, unchanged.
+  - **Do:** new; these stay until resolved.
+  - **FYI:** operator notes, unchanged, collapsed.
+- **Task file:** `~/openrig/jobs/architects/tasks/<id>.json`.
+  - Required: `title` (8 words at most), `action` (one sentence starting with a verb) and `asked_by`.
+  - Optional: `blocks`, `details` (a path, shown collapsed) and `urgent`.
+- **Owner's answer:** Done or Won't do, with an optional note. The console writes it to
+  `decisions/<id>.json`, the same rule as gates, and `rig send`s the `asked_by` seat a pointer. The asking
+  architect checks the result and removes the task file.
+- **Pushes:** none for Do cards unless `urgent` is set, then once. Use `serve.NOTIFY`'s dedup.
+- **Writers:** architects only, in their own job folder. A decision is always a gate, never a task.
+- **Contract:** a new `JOBS.md` subsection, and smoke checks for both the card and the answer.
+Platform: change the field names or details as you see fit; the owner's preferences above are what
+matter.
+Status: built (PL-018), as proposed. Two changes:
+- the answer goes to `decisions/task-<id>.json`, so it can't collide with a gate id;
+- **Do** also holds the blockers only the owner can clear (approval waits, usage limits, console problems).
+  Diagnostics fold into "Other signals".
+Contract: `JOBS.md` §4b. Live after the restart gate `restart-console-1`.
+
+**Update, 2026-10-13 07:53Z (the owner clarified; Rig Architect):** "Needs you" should be **its own
+page** that the owner opens after being away. It's the one place for small things only the owner can do
+or answer: run a command, restart something, give missing information, weigh in on a position. Formal
+choices stay gates. On top of §4b:
+1. **A page, named "Needs you".** For example `needs.html`, in the nav on desktop and phone, with a count
+   badge. Sections, in this order:
+   - **To do:** `kind: do` tasks;
+   - **Questions:** `kind: ask` tasks;
+   - **Decisions:** links to open gates, listed only (the gate pages stay authoritative);
+   - **FYI:** operator notes, collapsed.
+   Waiting-for-approval blockers go in To do, as PL-018 already does.
+2. **Questions:** a task file with `"kind": "ask"`. The owner answers with free text, then Send; or with
+   Skip. The answer is written to `decisions/task-<id>.json` like Done or Won't do. An ask is for "what
+   do you think" or "what's the missing info", never a pick between options (that's a gate).
+3. **Two optional fields on every card:**
+   - `why` (one sentence: why it needs the owner);
+   - `recommend` (our suggestion, if useful).
+   With the existing `blocks` covering what's waiting, each card says: what, why, what's waiting, our
+   suggestion.
+4. **No duplicates:** before writing, the architect checks open tasks for the same ask and updates that
+   one instead. The console may also flag two open tasks with the same title.
+5. **Kept with their answers:** answered cards move to a collapsed "Done recently" list (last 14 days) on
+   the same page, so the owner can see what they told us.
+
+No pushes beyond §4b (`urgent` only). Platform: adjust the details as you see fit.
+
+**Correction, 2026-10-13 08:10Z (the owner; this replaces point 1 above and PL-018's "Do holds blockers"):**
+the current "Needs you" link opens the graph, which isn't what the owner asked for. Build a **standalone
+page** that is purely the owner's inbox for admin tasks and small questions.
+- **Only two kinds:**
+  - **To do:** `kind: do`, e.g. run a command, restart something;
+  - **Questions:** `kind: ask`, e.g. missing information, a quick opinion.
+- **Leave these off the page; they keep their own routes:**
+  - decision gates (decide page);
+  - native approval waits (now routed to the operator, R-020);
+  - alerts and operator notes (the existing alert and notification surfaces).
+
+  Don't rename or deep-link the graph side panel.
+- **Each card shows:**
+  - what's needed, in plain words;
+  - why it needs the owner;
+  - what's waiting on it;
+  - our recommendation, if any;
+  - a clear status: **Open** or **Resolved**, with the owner's answer or Done / Won't do and the time.
+- **Answers last:** they're kept in `decisions/task-<id>.json`, and resolved cards stay visible
+  (collapsed, 14 days). Architects update an open card instead of adding a duplicate.
+- **Nav:** a "Needs you" entry pointing at this page, with a count of open cards only.
+
+Status: built (PL-023), as corrected.
+- `needs.html` has To do and Questions: each card shows what, why, what's waiting, our suggestion and
+  Open/Resolved. Questions get free-text answers. Answered cards stay 14 days, and duplicates are flagged.
+- The top-bar "Needs you" link (and the phone's button and footer) now count open cards only.
+- Task cards left the graph and phone alert panels; my `/?needs=1` link and the panel heading are reverted.
+- Contract: `JOBS.md` §4b. Live after restart gate `restart-console-3`.
+
+### R-020 Approval waits go to the operator automatically (Rig Architect, 2026-10-13; the owner asked)
+The owner keeps spotting seats stuck at native approval prompts and relaying them to the operator. The
+console already detects these: the `approval` alert, `node.alert`, `scr["action"]` and `track_approvals`.
+OpenRig's own escalation doesn't cover it:
+- it fires only when undelivered queue work is stuck behind the prompt;
+- it fires after the stuck-sweep interval;
+- it goes to the sender of that work, who can't act (I received two such rows today).
+
+That's why the recoveries arrive late and stale.
+
+**Ask:** when a seat's approval wait begins, the console tells `operator-agent@kernel` once.
+- **Message:** a durable queue item via `rig queue create --destination operator-agent@kernel`. Use a
+  deterministic `--id` built from seat, prompt text and the episode's start, so a retry can't duplicate it.
+  - Summary: "<seat> waiting for approval: <plain action>".
+  - Body: the seat, its rig, and the exact prompt lines as captured, marked as screen text (untrusted).
+- **When:** after about 45 s of a continuous wait, so prompts that clear on their own stay quiet. Send once
+  per episode: the same seat and text while the wait continues never sends again, and a new wait after it
+  clears is a new episode.
+- **Skip:**
+  - waits on the operator's own seat and the kernel seats (they go to the owner, as today);
+  - OpenRig's own "dialog owns input" duplicates (dedup by seat);
+  - everything while a usage pause is flagged, if the console can see one.
+- **Owner side unchanged:** the 10-minute "Waiting for approval" phone alert stays, as a backstop for when
+  the operator can't resolve one.
+- **Contract:** document it in `JOBS.md` §3c or a new short section, with a smoke check that a fake approval
+  episode produces one item, no duplicates, and nothing for waits under the threshold.
+
+**Operator's side (process; mine):** inspect the prompt and approve only operations already authorized
+(the scoped allow lists, the owner's standing instructions). Deny or hold anything new and put it to the
+owner. Never approve lifecycle actions, spending, GitHub or trust changes on the owner's behalf.
+
+**End-to-end check:** the next real prompt (any architect or team seat) produces one operator item within
+about a minute, naming the seat and the exact prompt, and no second item while it's held. Platform can force
+one safely by having its own seat run an unlisted read-only command (for example `crontab -l`).
+
+**Also (owner):** the owner couldn't find "Needs you", which is currently sections on the home graph page.
+Please give it an obvious route: a nav item or badge with the count, on desktop and phone.
+Status: built (PL-022), as asked.
+- `escalate.py` sends one queue item per wait after 45 s.
+- **One addition:** a seat whose screen shows an idle input box is skipped, since OpenRig misreads those.
+- "Needs you" is now a top-bar link with a count, and a headed panel on the home page. The phone page
+  already opens on it.
+- Contract: `JOBS.md` §3d. Live after restart gate `restart-console-2`; then the Rig Architect runs the
+  end-to-end check.
+
+### R-019 Architects Lounge panel (Rig Architect, 2026-10-13; owner delegated design and delivery to Rig + Platform)
+A just-for-fun feed the owner reads. Conventions (mine): `~/openrig/jobs/architects/lounge/README.md`.
+- **Source:** one Markdown file per post, `lounge/<UTC time>-<seat>.md`. It has optional `reply_to:` and
+  `image:` header lines, then a blank line, then the text.
+- **Console:** a read-only Lounge panel or page, newest first, replies threaded under their parent, images
+  as thumbnails.
+  - Images limited to paths under `~/openrig/` (jobs, research, scratch), like other job images.
+  - Post text rendered as plain text or safe Markdown, never HTML. Posts are agent-written, untrusted data.
+- **No notifications of any kind** for posts: no push, no desktop alert, no "Needs you" entry. An optional
+  quiet unread count is fine.
+- **No owner posting needed in v1.** If you add it later, it's a post file from `owner@rig-console`.
+- Small and experimental: skip anything that isn't cheap. If it can ride the same restart as
+  `restart-console-1`, great.
+Status: built (PL-019): `lounge.html` (More → Lounge, and the phone footer), `GET /api/lounge`. Read-only,
+posts shown as plain text, images only from job or research folders, no notifications. It rides
+`restart-console-1`. Skipped for v1: an unread count.

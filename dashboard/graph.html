@@ -6,7 +6,7 @@
 <script>try{var q=location.search;if(/desktop=1/.test(q))sessionStorage.setItem("rcDesktop","1");else if(matchMedia("(max-width: 700px)").matches&&!sessionStorage.getItem("rcDesktop"))location.replace("/m.html"+q.replace(/([?&])token=[^&]*&?/,"$1").replace(/[?&]$/,""))}catch(e){}</script>
 <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
 
-<title>Rig Graph</title>
+<title>Live · Rig Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -142,6 +142,10 @@ details.dismissed summary{cursor:pointer}
 .msgrow{display:flex;align-items:center;gap:10px;margin-top:6px}
 .msgrow .btn,.cmdrow .btn{flex:none;white-space:nowrap}
 .msgrow .msg{font-size:12.5px;color:var(--muted)}
+.msgrow{flex-wrap:wrap}
+.btn.warn{color:var(--cut);border-color:var(--cut)}
+pre.screen.small{max-height:180px}
+.reply{background:var(--raised);border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-size:13px;white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto}
 .cmdrow{display:flex;gap:6px;align-items:stretch}
 .cmdrow code.cmd{flex:1;min-width:0}
 .ctxbar{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
@@ -150,6 +154,13 @@ details.dismissed summary{cursor:pointer}
 aside *{overflow-wrap:anywhere}
 .alert.warn{background:var(--signal-soft);border-color:color-mix(in srgb,var(--signal) 45%,transparent)}
 .alert.warn b{color:var(--signal)}
+.hist{display:inline-block;margin-top:8px;font-size:12.5px;color:var(--muted)}
+.asec{margin:10px 0 5px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.asec:first-child{margin-top:0}
+.alert .lbl{display:block;font-style:normal;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:1px}
+.alert small{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+.alert small a{color:inherit}
+details.other .alerts{margin-top:6px}
 .now .el{margin-top:4px;font-size:12px;color:var(--muted)}
 pre.screen{margin:8px 0 0;max-height:340px;overflow:auto;background:#05080d;color:#c9d3e0;border:1px solid var(--line);border-radius:8px;padding:10px;font:11.5px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
 @media (max-width:900px){body{overflow:auto}.wrap{grid-template-columns:1fr;height:auto}.stage{height:70vh}aside{border-left:0;border-top:1px solid var(--line)}}
@@ -247,8 +258,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const PHASE = {longlist:"Gathering the longlist",screen:"Screening",checkpoint:"Waiting for you","deep-dive":"Deep dives",shortlist:"Shortlisting",done:"Finished"};
 const W = 230, H = 66, ROW = 140, COL = 256, TEAMGAP = 80;
-let data = null, selected = new URLSearchParams(location.search).get("seat"), auto = {}, pos = {}, teamOrder = [];
-let cam = null, drag = null, pan = null, showOld = false;
+let data = null, selected = new URLSearchParams(location.search).get("seat"), auto = {}, pos = {}, teamOrder = [];let cam = null, drag = null, pan = null, showOld = false;
 
 const store = { get(k,d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
                 set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
@@ -387,12 +397,17 @@ function side(){
     return;
   }
   if (document.activeElement && document.activeElement.id === "msgBox"){ renderAlertsOnly = true; }
-  const all = data.alerts || [], al = all.filter(a => !a.dismissed), dis = all.filter(a => a.dismissed);
-  $("alerts").innerHTML = (al.length
-    ? `<div class="alerts">${al.map(a => `<div class="alertwrap"><button class="alert ${a.severity === "warn" ? "warn" : ""}" data-node="${esc(a.node)}" data-url="${esc(a.url || "")}"><b>${esc(a.text)}</b>${a.detail ? `<span>${esc(a.detail)}</span>` : ""}</button><button class="dismiss" data-key="${esc(a.key)}" title="It's fine: hide this until it clears">Dismiss</button></div>`).join("")}</div>`
-    : `<div class="allclear"><i></i>All clear: nothing is waiting on you</div>`)
+  // Alerts in sections: Decide, Do, From the operator; diagnostics collapsed. The owner's task cards have
+  // their own page (needs.html), so section "inbox" isn't shown here.
+  const all = (data.alerts || []).filter(a => a.section !== "inbox"), al = all.filter(a => !a.dismissed), dis = all.filter(a => a.dismissed);
+  const card = a => `<div class="alertwrap"><button class="alert ${a.severity === "warn" ? "warn" : ""}" data-node="${esc(a.node)}" data-url="${esc(a.url || "")}">${a.label && a.section !== "fyi" ? `<em class="lbl">${esc(a.label)}</em>` : ""}<b>${esc(a.text)}</b>${a.detail ? `<span>${esc(a.detail)}</span>` : ""}</button><button class="dismiss" data-key="${esc(a.key)}" title="It's fine: hide this until it clears">Dismiss</button></div>`;
+  const sect = (id, title) => { const xs = al.filter(a => (a.section || (a.act ? "do" : "other")) === id); return xs.length ? `<h4 class="asec">${title}</h4><div class="alerts">${xs.map(card).join("")}</div>` : ""; };
+  const other = al.filter(a => (a.section || (a.act ? "do" : "other")) === "other");
+  const needs = sect("decide", "Decide") + sect("do", "Do") + sect("fyi", "From the operator");
+  $("alerts").innerHTML = (needs || `<div class="allclear"><i></i>All clear: nothing is waiting on you</div>`)
+    + (other.length ? `<details class="dismissed other"><summary>${other.length} other signal${other.length === 1 ? "" : "s"}: nothing to do</summary><div class="alerts">${other.map(card).join("")}</div></details>` : "")
     + (dis.length ? `<details class="dismissed"><summary>${dis.length} dismissed</summary>${dis.map(a => `<div class="drow"><span>${esc(a.text)}</span><button class="undo" data-key="${esc(a.key)}">Restore</button></div>`).join("")}</details>` : "");
-  $("alerts").querySelectorAll(".alert").forEach(b => b.onclick = () => b.dataset.url ? (location.href = b.dataset.url) : select(b.dataset.node));
+  $("alerts").querySelectorAll("button.alert").forEach(b => b.onclick = () => b.dataset.url ? (location.href = b.dataset.url) : select(b.dataset.node));
   const send = (key, undo) => fetch("/api/dismiss", {method:"POST", headers:{"Content-Type":"application/json","X-Rig-Console":"1"}, body: JSON.stringify({key, undo})}).then(refresh);
   $("alerts").querySelectorAll(".dismiss").forEach(b => b.onclick = () => send(b.dataset.key, false));
   $("alerts").querySelectorAll(".undo").forEach(b => b.onclick = () => send(b.dataset.key, true));
@@ -409,23 +424,33 @@ function side(){
     <div class="sec"><h3>Inbox</h3>${n.work.length ? `<ul class="inbox">${n.work.map(w => `<li><b>${esc(w.state)}</b> from ${esc((w.from||"").split("@")[0])} <span>${ago(w.age_s)}</span></li>`).join("")}</ul>` : `<div class="empty">No open work.</div>`}</div>
     <div class="sec"><h3>Screen</h3><div class="empty">${n.unchanged_s == null ? "No screen captured yet" : n.since_start ? `Unchanged since the dashboard started watching (${ago(n.watched_s).replace(" ago","")})` : `Last changed ${ago(n.unchanged_s)}`}</div>
       <details class="raw" id="screenBox" ${screenOpen ? "open" : ""}><summary>Show its screen</summary><pre class="screen" id="screenPre">${esc(screenCache[n.id] || "Loading…")}</pre></details></div>
+    <div class="sec"><h3>Latest reply</h3><div class="reply" id="replyBox" data-seat="${esc(n.id)}">${esc(replyCache[n.id] ?? "Loading…")}</div></div>
     <div class="sec"><h3>Message it</h3>
-      ${st === "blocked" ? `<div class="empty">Sending is off while it waits at an approval prompt: typed text could answer the prompt. Answer it in its terminal first.</div>`
-        : `<textarea id="msgBox" rows="3" placeholder="Write to ${esc(n.name)}. It arrives in its conversation, labeled as from you.">${esc(drafts[n.id] || "")}</textarea>
-           <div class="msgrow"><button class="btn" id="msgSend" type="button">Send</button><span class="msg" id="msgNote">${esc(sentNote[n.id] || "")}</span></div>`}</div>
+      ${st === "blocked" ? `<div class="empty">OpenRig says it's waiting at a prompt. Before sending, the console checks its screen, so a message can't answer the prompt by accident.</div>` : ""}
+      <textarea id="msgBox" rows="3" placeholder="Write to ${esc(n.name)}. It arrives in its conversation, labeled as from you.">${esc(drafts[n.id] || "")}</textarea>
+      <div class="msgrow"><button class="btn" id="msgSend" type="button">Send</button>${forceable[n.id] ? `<button class="btn warn" id="msgForce" type="button">Send anyway</button>` : ""}<span class="msg" id="msgNote">${esc(sentNote[n.id] || "")}</span></div>
+      ${refusedScreen[n.id] ? `<pre class="screen small">${esc(refusedScreen[n.id])}</pre>` : ""}
+      <a class="hist" href="/messages.html?seat=${encodeURIComponent(n.id)}">Your messages with it, and its replies →</a></div>
     <div class="sec"><h3>Talk to it in Ubuntu</h3><div class="cmdrow"><code class="cmd">tmux attach -t '${esc(n.id)}'</code><button class="btn copy" id="copyCmd" type="button">Copy</button></div></div>`;
   wireScreen(n.id);
   const box = $("msgBox"), sendBtn = $("msgSend");
   if (box){ box.oninput = e => drafts[n.id] = e.target.value; box.onkeydown = e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) sendBtn.click(); }; }
-  if (sendBtn) sendBtn.onclick = async () => {
+  const sendMsg = async (btn, force) => {
     const text = (drafts[n.id] || "").trim(); if (!text) return;
-    sendBtn.disabled = true; $("msgNote").textContent = "Sending…";
+    btn.disabled = true; $("msgNote").textContent = "Sending…";
     try {
-      const r = await (await fetch("/api/send", {method:"POST", headers:{"Content-Type":"application/json","X-Rig-Console":"1"}, body: JSON.stringify({seat: n.id, message: text})})).json();
-      if (r.error){ sentNote[n.id] = r.error; } else { sentNote[n.id] = "Sent " + new Date(r.at).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}); drafts[n.id] = ""; }
+      const r = await (await fetch("/api/send", {method:"POST", headers:{"Content-Type":"application/json","X-Rig-Console":"1"}, body: JSON.stringify({seat: n.id, message: text, force})})).json();
+      forceable[n.id] = !!r.can_force;
+      refusedScreen[n.id] = r.error && r.screen ? r.screen.join("\n") : "";
+      if (r.error){ sentNote[n.id] = r.error; }
+      else { sentNote[n.id] = (r.forced ? "Sent anyway " : "Sent ") + new Date(r.at).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"}) + ". Its reply shows above."; drafts[n.id] = ""; }
     } catch { sentNote[n.id] = "Couldn't reach the dashboard server"; }
     side();
   };
+  if (sendBtn) sendBtn.onclick = () => sendMsg(sendBtn, false);
+  const forceBtn = $("msgForce");
+  if (forceBtn) forceBtn.onclick = () => sendMsg(forceBtn, true);
+  loadReply(n.id);
   const cp = $("copyCmd");
   if (cp) cp.onclick = async () => {
     const text = `tmux attach -t '${n.id}'`;
@@ -434,7 +459,15 @@ function side(){
     cp.textContent = "Copied"; setTimeout(() => { if (cp.isConnected) cp.textContent = "Copy"; }, 1500);
   };
 }
-let screenOpen = false; const screenCache = {};
+let screenOpen = false; const screenCache = {}, replyCache = {}, forceable = {}, refusedScreen = {};
+async function loadReply(id){
+  try {
+    const r = await (await fetch(`/api/screen?seat=${encodeURIComponent(id)}`, {cache:"no-store"})).json();
+    replyCache[id] = r.error ? "No screen captured yet." : (r.reply || "Nothing to show yet: no answer on its screen.");
+  } catch { replyCache[id] = "Couldn't load its screen."; }
+  const box = $("replyBox");
+  if (box && box.dataset.seat === id) box.textContent = replyCache[id];
+}
 async function loadScreen(id){
   const pre = $("screenPre"); if (!pre || !screenOpen) return;
   try {
@@ -450,9 +483,9 @@ function wireScreen(id){
   if (screenOpen){ const pre = $("screenPre"); pre.scrollTop = pre.scrollHeight; loadScreen(id); }
 }
 function chips(){
-  const w = data.nodes.filter(n => stateOf(n) === "working").length, need = (data.alerts || []).filter(a => !a.dismissed).length;
+  const w = data.nodes.filter(n => stateOf(n) === "working").length, need = (data.alerts || []).filter(a => !a.dismissed && a.act).length;
   $("cWork").innerHTML = `<i></i>${w} working`;
-  $("cNeed").innerHTML = `<i></i>${need} need${need === 1 ? "s" : ""} you`;
+  $("cNeed").innerHTML = `<i></i>${need} alert${need === 1 ? "" : "s"}`;   // "Needs you" is its own page now
   $("cNeed").classList.toggle("zero", need === 0);
 }
 function select(id){ selected = id; history.replaceState(null, "", `?seat=${encodeURIComponent(id)}`); draw(); side(); }

@@ -1,12 +1,11 @@
 // Rig Console alerts: desktop notifications, an optional chime, and a count in
-// the tab title whenever an agent needs approval, gets stuck, or a run reaches
-// a checkpoint. Shared by the niche board and the live graph.
+// the tab title. Notifies for what the console marks worth it (decisions, the
+// operator's notes, real blockers). Shared by the niche board and the live graph.
 (() => {
   const KEY = "rigConsoleAlerts";
   const store = { get(){ try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } },
                   set(v){ try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {} } };
   let prefs = Object.assign({ on: false, sound: true }, store.get());
-  const seen = new Set();
   let first = true;
   const baseTitle = document.title;
 
@@ -33,25 +32,32 @@
     if (prefs.sound) chime();
   }
 
+  // Only alerts the console marks `notify` (decisions, the operator's notes, real blockers) pop up; the rest
+  // stay on the page. Each pops up once, and not again if it clears and returns within 6 hours (PL-017).
+  const REPEAT_MS = 6 * 3600 * 1000, fired = new Map();
   async function poll(){
     let graph = {}, runs = [];
     try { graph = await (await fetch("/api/graph", {cache:"no-store"})).json(); } catch {}
     try { runs = await (await fetch("/api/runs", {cache:"no-store"})).json(); } catch {}
-    const now = [];
-    (graph.alerts || []).filter(a => !a.dismissed).forEach(a => now.push({
-      key: `${a.kind}:${a.node}`, title: a.text, body: a.detail || "Open Rig Console to see it.",
+    const open = (graph.alerts || []).filter(a => !a.dismissed);
+    const now = open.filter(a => a.notify).map(a => ({
+      key: a.key || `${a.kind}:${a.node}`, title: `${a.notify}: ${a.text}`, body: a.detail || "Open Rig Console to see it.",
       href: a.url || `/graph.html?seat=${encodeURIComponent(a.node)}` }));
     (Array.isArray(runs) ? runs : []).filter(r => r.phase === "checkpoint").forEach(r => now.push({
-      key: `checkpoint:${r.run}`, title: `${r.run} is waiting for your decision`,
+      key: `checkpoint:${r.run}`, title: `Decision needed: ${r.run} is waiting for you`,
       body: "Pick which niches get a deep dive.", href: `/?run=${encodeURIComponent(r.run)}` }));
-    const keys = new Set(now.map(a => a.key));
-    if (!first) now.filter(a => !seen.has(a.key)).forEach(fire);
-    // forget resolved alerts so they notify again if they come back
-    [...seen].forEach(k => { if (!keys.has(k)) seen.delete(k); });
-    keys.forEach(k => seen.add(k));
+    const t = Date.now();
+    const fresh = now.filter(a => !fired.has(a.key));
+    now.forEach(a => fired.set(a.key, t));            // still there: keep it quiet
+    for (const [k, at] of fired) if (t - at > REPEAT_MS) fired.delete(k);
+    if (!first){
+      if (fresh.length === 1) fire(fresh[0]);
+      else if (fresh.length > 1) fire({key: "batch", title: `${fresh.length} things need you`, body: fresh.map(a => a.title).slice(0, 5).join("\n"), href: "/graph.html"});
+    }
     first = false;
-    document.title = now.length ? `(${now.length}) ${baseTitle}` : baseTitle;
-    render(now.length);
+    const need = open.filter(a => a.act).length;   // the count is what needs you, not diagnostics
+    document.title = need ? `(${need}) ${baseTitle}` : baseTitle;
+    render(need);
   }
 
   // Small control: "Turn on alerts" / alerts on, with a sound toggle.
@@ -64,11 +70,11 @@
     .alertctl button:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
     .alertctl .on{border-color:color-mix(in srgb,var(--advance) 60%,transparent)}
     .alertctl label{display:flex;align-items:center;gap:5px;cursor:pointer}
-  </style><button type="button" id="alertBtn"></button><label><input type="checkbox" id="alertSound"> Sound</label>`;
+  </style><button type="button" id="alertBtn"></button><label title="Play a sound with alerts"><input type="checkbox" id="alertSound"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M2 6h3l4-3v10l-4-3H2z" fill="currentColor"/><path d="M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.6a6 6 0 0 1 0 8.8" stroke="currentColor" fill="none" stroke-width="1.4" stroke-linecap="round"/></svg><span style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Sound</span></label>`;
   function render(){
     const b = box.querySelector("#alertBtn"), s = box.querySelector("#alertSound");
     const denied = "Notification" in window && Notification.permission === "denied";
-    b.textContent = prefs.on ? "Alerts on" : denied ? "Notifications blocked" : "Turn on alerts";
+    b.textContent = prefs.on ? "Alerts on" : denied ? "Alerts blocked" : "Turn on alerts";
     b.classList.toggle("on", prefs.on);
     b.title = denied ? "Allow notifications for localhost in your browser's site settings" : "";
     s.checked = prefs.sound; s.parentElement.style.display = prefs.on ? "" : "none";

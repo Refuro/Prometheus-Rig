@@ -7,17 +7,25 @@ Reads (never writes):
   ~/openrig/research/<run>/niches.json          one tracker per research run
   ../snapshots/activity-log.csv                 written by rig-snapshots.sh
 """
+import traceback
 import csv, glob, hmac, html, http.cookies, http.server, io, json, os, posixpath, re, shutil, subprocess, time, urllib.parse
 from datetime import datetime
 import features as F
 import store as S
 import gates as G
+import models as MD
+import outbox as OB
+import lounge as LG
+import escalate as EP
+import convo as CV
 
 DASH = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.expanduser(os.environ.get("RIG_RESEARCH_DIR", "~/openrig/research"))
 SNAP = os.path.expanduser(os.environ.get("RIG_SNAPSHOTS", os.path.join(DASH, "..", "snapshots")))
 ACTIVITY = os.environ.get("RIG_ACTIVITY_LOG", os.path.join(SNAP, "activity-log.csv"))
 PORT = int(os.environ.get("PORT", "8800"))
+SNAP_STALE_S = int(os.environ.get("RIG_SNAP_STALE_S", "60"))   # the logger writes every ~10 s
+BRIEFS = os.path.expanduser(os.environ.get("RIG_BRIEFS_DIR", "~/openrig/briefs"))
 
 
 def list_runs():
@@ -311,6 +319,86 @@ def _screen_tail(session, n):
         return []
 
 
+# What a seat's screen shows at the bottom: a choice it's waiting on ("menu"), an empty input box ("idle"),
+# or neither ("unknown"). OpenRig sometimes reports an idle Claude seat as "at a prompt" and then refuses
+# messages (2026-10-12); the screen settles it. Anything unclear counts as a prompt.
+MENU_RE = re.compile(r"^\s*[❯›>]\s*\d+\.\s|\b1\.\s+Yes\b|Do you want to|Would you like to|Esc to cancel|Press enter to confirm|\(y/n\)|\[y/N\]", re.I)
+INPUT_RE = re.compile(r"^\s*│?\s*[❯›>](\s.*)?$")
+REPLY_RE = re.compile(r"^(?:●|⏺|•)\s+(.*)")
+# Codex's slow-model notice: a menu, but nothing to approve ("No action is required; Codex will keep waiting").
+SLOW_RE = re.compile(r"No action is required|Dismiss and keep waiting|Giving this request a little extra thought", re.I)
+TOOL_RE = re.compile(r"^(?:●|⏺|•)\s+(?:[A-Z][A-Za-z]*\(|Ran |Read |Edited |Explored|Waiting|Working)")
+
+
+def screen_prompt(session, max_age_s=None):
+    """("menu" | "idle" | "unknown", age in seconds or None, the last 15 lines)."""
+    try:
+        p = os.path.join(SNAP, session + ".txt")
+        age = time.time() - os.path.getmtime(p)
+        with open(p, encoding="utf-8", errors="replace") as f:
+            tail = [l.rstrip() for l in f.read().splitlines()[-15:]]
+    except OSError:
+        return "unknown", None, []
+    if max_age_s is not None and age > max_age_s:
+        return "unknown", age, tail
+    if any(MENU_RE.search(l) for l in tail):
+        return "menu", age, tail
+    if any(INPUT_RE.match(l) for l in tail[-8:]):
+        return "idle", age, tail
+    return "unknown", age, tail
+
+
+def last_reply(lines, limit=1500):
+    """The seat's most recent answer on screen: its last text block that isn't a tool call."""
+    start = None
+    for i in range(len(lines) - 1, -1, -1):
+        if REPLY_RE.match(lines[i]) and not TOOL_RE.match(lines[i]):
+            start = i
+            break
+    if start is None:
+        return ""
+    out = [REPLY_RE.match(lines[start]).group(1)]
+    for l in lines[start + 1:]:
+        if REPLY_RE.match(l) or INPUT_RE.match(l) or l.lstrip().startswith(("─", "╭", "╰", "✻", "✶", "✳")):
+            break
+        out.append(l.strip())
+    return "\n".join(out).strip()[:limit]
+
+
+# Which alerts may notify the owner (phone push and desktop), and under what name (PL-017, owner request
+# 2026-10-13: too many notifications, mostly "screen unchanged"). Everything else stays in the console:
+# screen unchanged, busy for long, context, handoffs and duplicate folder names are diagnostics, not news.
+# kind -> (notification title, seconds the alert must last first)
+NOTIFY = {
+    "gate": ("Decision needed", 0),
+    "operator": ("From the operator", 0),
+    "limit": ("Stopped: usage limit", 0),
+    "snapshots": ("Console can't see the agents", 0),   # already 60 s stale before it exists
+    "decision": ("Check a decision", 0),
+    "jobrig": ("Team routing changed", 0),
+    "approval": ("Waiting for approval", 600),   # most clear within minutes; only a long wait is news
+    "task": ("To do", 0),                        # owner tasks (R-018) notify only when marked urgent
+}
+# "Needs you" sections (R-018): Decide (choices), Do (hands-on, stays until answered), FYI (operator notes).
+# Alerts not in NOTIFY go under "Other signals", collapsed: diagnostics, nothing to do.
+SECTION = {"gate": "decide", "decision": "decide", "operator": "fyi"}   # other NOTIFY kinds: "do"
+_alert_seen = {}   # alert key -> when this server first saw it, while it lasts
+
+
+def _label(al):
+    if al["kind"] not in NOTIFY:
+        return None
+    if al["node"] == "console" and al["kind"] != "snapshots":
+        return "Console problem"   # a broken check, not the event itself
+    return NOTIFY[al["kind"]][0]
+
+
+def _notify_title(al, age_s):
+    if al["kind"] not in NOTIFY or age_s < NOTIFY[al["kind"]][1] or (al["kind"] == "task" and not al.get("urgent")):
+        return None
+    return _label(al)
+
+
 def graph():
     ps = _load("_ps.json")
     queue = _load("_queue.json")
@@ -341,6 +429,11 @@ def graph():
             # OpenRig has no signal for this seat (common for idle Claude seats):
             # infer from whether its screen is still changing.
             st, inferred = ("working" if scr["unchanged_s"] < 45 else "idle"), True
+        slow = st.startswith("needs_input") and SLOW_RE.search("\n".join(_screen_tail(sess, 25)))
+        if slow:
+            # Codex's "Giving this request a little extra thought" menu: the model is slow and Codex keeps
+            # waiting by itself. OpenRig calls it a prompt, but it isn't an approval (operator, 17:44Z).
+            st, inferred = "working", True
         if st == "working" and not inferred and (scr["unchanged_s"] or 0) > 300:
             # OpenRig sometimes reports "running" for a seat that is sitting at its prompt (e.g. text typed
             # into the input box). A working agent shows a live spinner/timer that changes the screen; with no
@@ -352,7 +445,8 @@ def graph():
         node = {
             "id": sess, "rig": r.get("rigName"), "name": sess.split("@")[0],
             "runtime": r.get("runtime"), "model": r.get("model"), "state": st,
-            "lifecycle": r.get("lifecycleState"), "action": plain(scr["action"]), "raw": scr["action"],
+            "lifecycle": r.get("lifecycleState"), "raw": scr["action"],
+            "action": "Model is slow to answer; it keeps waiting (nothing to approve)" if slow else plain(scr["action"]),
             "elapsed": scr["elapsed"], "ctx": ctx.get(sess), "since_start": scr.get("since_start"), "watched_s": scr.get("watched_s"),
             "inferred": inferred, "history": hist.get(sess, []),
             "unchanged_s": scr["unchanged_s"], "work": [
@@ -386,6 +480,17 @@ def graph():
                            "text": f"{node['name']} has been busy for {streak}+ min straight",
                            "detail": "Fine for real work. If it's just monitoring or polling, it's spending usage for nothing."})
         nodes.append(node)
+    # Fill in each seat's model from the operator's launch record when OpenRig doesn't report one (MA-010).
+    try:
+        launched = G.launched_seats()
+        for n in nodes:
+            info = (launched.get(n["rig"]) or {}).get(n["name"])
+            if info and info.get("model"):
+                if not n.get("model"):
+                    n["model"] = info["model"] + (f" {info['version']}" if info.get("version") else "")
+                n["model_source"] = "launch record"
+    except Exception:
+        pass
     by_id = {q.get("qitemId"): q for q in queue}
     edges = {}
     for q in queue:
@@ -428,21 +533,91 @@ def graph():
             alerts.append({"kind": "context", "severity": "warn", "node": n["id"],
                            "text": f"{n['name']} is {c['percent']:.0f}% through its context window",
                            "detail": "Near the limit it starts dropping earlier details. Consider a handoff or fresh session."})
+    # Stale snapshots: everything above is built from them, so a stuck logger silently freezes every state
+    # and alert (2026-10-12, a hung copy). _status.txt is rewritten every round, even when `rig` fails.
+    try:
+        age = time.time() - os.path.getmtime(os.path.join(SNAP, "_status.txt"))
+    except OSError:
+        age = None
+    if age is None or age > SNAP_STALE_S:
+        when = "never" if age is None else f"{int(age)} s ago" if age < 120 else f"{int(age // 60)} min ago"
+        alerts.append({"kind": "snapshots", "node": "console",
+                       "text": f"Agent snapshots stopped updating (last {when}): states and alerts here are out of date",
+                       "detail": "The snapshot logger is stuck or stopped. Check it with: systemctl status rig-snapshots. "
+                                 "Restarting it (sudo systemctl restart rig-snapshots) is safe.",
+                       "url": "/system.html"})
+    # The operator's notes to you (outbox.py, JOBS.md §3c).
+    try:
+        alerts.extend(OB.alerts())
+    except Exception as e:
+        alerts.append({"kind": "outbox", "severity": "warn", "node": "console", "text": "Couldn't read the operator's notes",
+                       "detail": f"{type(e).__name__}: {e}"[:200]})
+    # Hands-on tasks the architects have asked of you (R-018).
+    try:
+        for t in G.list_tasks():
+            if t.get("error"):
+                alerts.append({"kind": "taskfile", "severity": "warn", "node": t["id"], "text": "A task card can't be read",
+                               "detail": t["error"]})
+                continue
+            alerts.append({"kind": "task", "severity": None if t["urgent"] else "warn", "node": t["id"],
+                           "text": t["title"], "detail": t["action"], "urgent": t["urgent"], "url": "/needs.html"})
+    except Exception as e:
+        alerts.append({"kind": "tasks", "severity": "warn", "node": "console", "text": "Couldn't read the task cards",
+                       "detail": f"{type(e).__name__}: {e}"[:200]})
     # Decision gates any job has opened for you.
     try:
         for gt in G.list_gates(0)["open"]:
             alerts.append({"kind": "gate", "severity": "warn", "node": f"{gt['job']}.{gt['id']}",
                            "text": f"{gt['job']}: {gt['title']}", "detail": gt["question"] or "A team is waiting for your decision.",
                            "url": f"/decide.html?job={gt['job']}&gate={gt['id']}"})
-    except Exception:
-        pass
+    except Exception as e:
+        # Don't hide this: a broken gates folder would otherwise silently drop every "decide this" alert.
+        alerts.append({"kind": "gates", "severity": "warn", "node": "console",
+                       "text": "Couldn't check for open decisions", "detail": f"{type(e).__name__}: {e}"[:200], "url": "/decide.html"})
+    for name in S.duplicate_jobs():
+        alerts.append({"kind": "jobname", "severity": "warn", "node": name,
+                       "text": f"Two job folders are both named {name}",
+                       "detail": "Only the first is shown. Rename one so gates and files can't be mixed up."})
+    try:
+        for m in G.team_mismatches():
+            alerts.append({"kind": "jobrig", "node": m["job"],
+                           "text": f"{m['job']} now says it belongs to team {m['claimed']}",
+                           "detail": f"The console keeps sending its decisions to {m['rig']} ({m['source']}). If the team really changed, ask the operator to update the launch record."})
+    except Exception as e:
+        alerts.append({"kind": "jobrig", "severity": "warn", "node": "console", "text": "Couldn't check which team owns each job", "detail": f"{type(e).__name__}: {e}"[:200]})
+    # Decision files the console didn't write (R-005 step 1).
+    try:
+        for u in G.unverified_decisions():
+            what = "changed after you decided it" if u["changed"] else "was written outside the console"
+            if u["closed"] and not u["changed"]:
+                alerts.append({"kind": "decision", "severity": "warn", "node": f"{u['job']}.{u['gate']}",
+                               "text": f"{u['job']}: gate “{u['gate']}” was closed outside the console",
+                               "detail": "Usually the operator closing a gate you decided in chat. If you didn't, check it.",
+                               "url": f"/decide.html?job={u['job']}&gate={u['gate']}"})
+            else:
+                alerts.append({"kind": "decision", "node": f"{u['job']}.{u['gate']}",
+                               "text": f"{u['job']}: the decision for “{u['gate']}” {what}",
+                               "detail": "You didn't make this in the console. Check it before the team acts on it. (This check catches mistakes; it can't prove a decision is genuine.)",
+                               "url": f"/decide.html?job={u['job']}&gate={u['gate']}"})
+    except Exception as e:
+        alerts.append({"kind": "decision", "severity": "warn", "node": "console",
+                       "text": "Couldn't check decision files", "detail": f"{type(e).__name__}: {e}"[:200]})
     # Dismissals last only as long as the condition: once an alert clears, its dismissal is forgotten.
     dis = _dismissed()
     keys = set()
+    now = time.time()
     for al in alerts:
         al["key"] = f"{al['kind']}:{al['node']}"
         keys.add(al["key"])
         al["dismissed"] = al["key"] in dis
+        al["notify"] = _notify_title(al, now - _alert_seen.setdefault(al["key"], now))
+        # Task cards live on their own page (needs.html, R-018 08:10Z correction). Their alert exists only so an
+        # urgent card can push once; the graph and phone panels leave section "inbox" out.
+        al["act"] = al["kind"] in NOTIFY and al["kind"] != "task"   # the panel's "must act" list; the rest are "Other signals"
+        al["label"] = _label(al)           # e.g. "Decision needed"; None for other signals
+        al["section"] = "inbox" if al["kind"] == "task" else SECTION.get(al["kind"], "do") if al["act"] else "other"
+    for k in [k for k in _alert_seen if k not in keys]:
+        del _alert_seen[k]
     if set(dis) - keys:
         _save_dismissed({k: v for k, v in dis.items() if k in keys})
     return {"generated": datetime.now().isoformat(timespec="seconds"),
@@ -529,7 +704,7 @@ def save_decision(run, body):
                f"{os.path.join(run_dir, 'decision.md')} (also decision.json). Read it, deep dive only "
                f"the selected niches in that order, apply the notes, and keep niches.json updated.")
         try:
-            r = subprocess.run([rig, "send", lead, msg], capture_output=True, text=True, timeout=30)
+            r = subprocess.run(G.rig_cmd(rig, "send", lead, msg), capture_output=True, text=True, timeout=30)
             sent = r.returncode == 0
         except Exception:
             sent = False
@@ -537,9 +712,88 @@ def save_decision(run, body):
 
 
 
+OWNER_SENDER = "owner@rig-console"   # the From line seats see; OpenRig takes it from OPENRIG_SESSION_NAME
+CONSOLE_SENDER = "console@rig-console"   # automatic messages (receipts): not the owner speaking
+FORCE_REASON = "Owner chose Send anyway in Rig Console: the seat's screen shows an empty input box, not a prompt"
+FORCE_MAX_AGE_S = 30
+
+
+def _rig_send(rig, seat, text, *extra):
+    env = {**os.environ, "OPENRIG_SESSION_NAME": OWNER_SENDER}
+    return subprocess.run(G.rig_cmd(rig, "send", seat, text, *extra), capture_output=True, text=True, timeout=30, env=env)
+
+
+def _console_send(seat, text):
+    """An automatic message from the console itself (receipts), labeled as the console, not the owner.
+    Under option A the rig-owner helper's "receipt" verb applies that label, since sudo drops the env."""
+    rig = _rig_bin()
+    if not rig:
+        return False
+    cmd = G.rig_cmd(rig)
+    via_helper = os.path.basename(cmd[-1]) == "rig-owner"
+    cmd += ["receipt" if via_helper else "send", seat, text]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30,
+                           env={**os.environ, "OPENRIG_SESSION_NAME": CONSOLE_SENDER})
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+NEEDS = {"count": None}   # open cards on the Needs you page, from the watcher's last round (the nav badge reads it)
+
+
+def _approval_item(qid, summary, text):
+    """One durable queue item for the operator about an approval wait (R-020). The body goes in on stdin.
+    Under option A the rig-owner helper's "approval-item" verb fixes the destination to the operator."""
+    rig = _rig_bin()
+    if not rig:
+        return False
+    cmd = G.rig_cmd(rig)
+    if os.path.basename(cmd[-1]) == "rig-owner":
+        cmd += ["approval-item", qid, summary]
+    else:
+        cmd += ["queue", "create", "--source", CONSOLE_SENDER, "--destination", EP.OPERATOR, "--id", qid,
+                "--summary", summary, "--body", "-"]
+    try:
+        r = subprocess.run(cmd, input=text, capture_output=True, text=True, timeout=30,
+                           env={**os.environ, "OPENRIG_SESSION_NAME": CONSOLE_SENDER})
+        if r.returncode != 0:
+            print("approval item failed:", (r.stderr or r.stdout or "").strip()[:200], flush=True)
+        return r.returncode == 0
+    except Exception as e:
+        print("approval item failed:", f"{type(e).__name__}: {e}"[:200], flush=True)
+        return False
+
+
+def _blocked_reply(seat, why):
+    """Refusal for a seat OpenRig says is at a prompt. Its screen decides whether to offer Send anyway."""
+    kind, age, tail = screen_prompt(seat)
+    if kind == "menu":
+        return {"error": "It's waiting at a prompt on its screen. Answer that in its terminal first: a message now could answer it by accident.",
+                "screen": tail}
+    if kind == "idle" and age is not None and age <= FORCE_MAX_AGE_S:
+        return {"error": f"{why}, but its screen ({int(age)} s ago) shows an empty input box. OpenRig sometimes misreads idle seats. "
+                         "Check the screen below; if it's idle, use Send anyway.",
+                "can_force": True, "screen": tail}
+    return {"error": f"{why}. Its screen doesn't show clearly, so sending stays off. Look at its terminal.", "screen": tail}
+
+
+def _delivered(seat, mid, msg):
+    """The text a seat gets: the message id, then the message, then how to answer (JOBS.md §3e, PL-025).
+    One line, so it also works with --dangerously-interact."""
+    head = f"Message from the owner [msg {mid}] (via Rig Console): {msg}"
+    folder = CV.reply_folder(seat, G.folder_of_rig(CV.ARCHITECTS_RIG))
+    if not folder:
+        return head + " -- Reply on your screen; the owner reads it there."
+    return (head + f' -- Reply by writing {os.path.join(folder, mid)}.json as {{"id": "{mid}", "text": "<your reply>", '
+            '"at": "<ISO time>"}; the owner reads it on the Messages page. Your screen text is not the record.')
+
+
 def send_message(body):
-    """Deliver a message from the user to one agent with `rig send`. Refuses when the
-    agent is sitting at an approval prompt, where typed text could answer the prompt."""
+    """Deliver a message from the owner to one agent with `rig send`. Refuses when the agent is at a prompt,
+    where typed text could answer it. When OpenRig says "prompt" but the screen shows an empty input box,
+    the owner may choose Send anyway, which re-checks the screen first."""
     seat = str(body.get("seat") or "")
     msg = str(body.get("message") or "").strip()
     if not msg or len(msg) > 4000:
@@ -547,19 +801,56 @@ def send_message(body):
     node = next((r for r in _load("_ps.json") if r.get("canonicalSessionName") == seat and r.get("runtime") != "terminal"), None)
     if not node:
         raise ValueError("Unknown agent")
-    if ((node.get("agentActivity") or {}).get("state") or "").startswith("needs_input"):
-        raise ValueError("It's waiting at an approval prompt. Answer that in its terminal first; a message now could answer the prompt by accident.")
+    force = body.get("force") is True
+    if not force and ((node.get("agentActivity") or {}).get("state") or "").startswith("needs_input"):
+        return _blocked_reply(seat, "OpenRig says it's waiting at a prompt")
+    if force:
+        kind, age, tail = screen_prompt(seat, FORCE_MAX_AGE_S)
+        if kind != "idle":
+            return {"error": "Not sent: its screen no longer shows an empty input box (or is too old to tell).", "screen": tail}
     rig = _rig_bin()
     if not rig:
         raise ValueError("Couldn't find the rig command on this machine")
-    r = subprocess.run([rig, "send", seat, f"Message from the user (via Rig Console): {msg}"],
-                       capture_output=True, text=True, timeout=30)
+    sent = {"sent": True, "at": datetime.now().astimezone().isoformat(timespec="seconds")}
+    mid = CV.new_id()   # travels in the text; a reply file must name it exactly (PL-025)
+    if force:
+        # --dangerously-interact types keystrokes without OpenRig's From/To envelope, and Enter would submit
+        # early, so the text is one line and carries its own label.
+        r = _rig_send(rig, seat, _delivered(seat, mid, " ".join(msg.split())),
+                      "--dangerously-interact", "--reason", FORCE_REASON)
+        if r.returncode != 0:
+            raise ValueError((r.stderr or r.stdout or "rig send failed").strip()[:300])
+        CV.record(seat, msg, mid)
+        return {**sent, "id": mid, "forced": True, "note": (r.stdout or "").strip()[:300]}
+    r = _rig_send(rig, seat, _delivered(seat, mid, msg))
     if r.returncode != 0:
-        raise ValueError((r.stderr or r.stdout or "rig send failed").strip()[:300])
-    return {"sent": True, "at": datetime.now().astimezone().isoformat(timespec="seconds"),
-            "note": (r.stdout or "").strip()[:300]}
+        out = (r.stderr or r.stdout or "rig send failed").strip()
+        if "interactive prompt" in out:
+            return _blocked_reply(seat, "OpenRig refused: it says the seat is at a prompt")
+        raise ValueError(out[:300])
+    CV.record(seat, msg, mid)   # kept with its reply on the Messages page (PL-024, PL-025)
+    return {**sent, "id": mid, "note": (r.stdout or "").strip()[:300]}
 
 TOKEN = os.environ.get("RIG_CONSOLE_TOKEN", "")
+# Builds are agent-written JavaScript, so they get their own port (R-006): a different origin from the
+# console, with no pages, no API and no sign-in. The phone reaches it through Tailscale Serve on
+# RIG_PLAY_PUBLIC_PORT (default 8443).
+PLAY_PORT = int(os.environ.get("PLAY_PORT") or (int(os.environ.get("PORT", "8800")) + 1))
+PLAY_PUBLIC_PORT = int(os.environ.get("RIG_PLAY_PUBLIC_PORT") or 8443)
+EXTRA_HOSTS = {h.strip().lower() for h in os.environ.get("RIG_CONSOLE_HOSTS", "").split(",") if h.strip()}
+# Once your Tailscale name is in RIG_CONSOLE_HOSTS, only that name is accepted; until then any *.ts.net
+# name is, and /api/health asks you to pin it (MA-013).
+TS_PINNED = any(h.endswith(".ts.net") for h in EXTRA_HOSTS)
+
+
+def _host_name(host):
+    host = (host or "").strip().lower()
+    return host[1:host.index("]")] if host.startswith("[") and "]" in host else host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+
+
+def _name_ok(name):
+    return bool(name) and (name in ("localhost", "127.0.0.1", "::1") or name in EXTRA_HOSTS
+                           or (not TS_PINNED and name.endswith(".ts.net")))
 HOST = os.environ.get("HOST", "127.0.0.1")
 
 
@@ -569,16 +860,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                       ".md": "text/plain; charset=utf-8", ".json": "application/json", ".webmanifest": "application/manifest+json"}
     PUBLIC = ("/manifest.json", "/icon.svg")   # the browser fetches these without cookies when installing
 
-    def _allowed(self):
-        """Local requests are always allowed. Remote ones (laptop/phone over Tailscale)
-        need the token once via ?token=..., after which a cookie remembers it."""
-        if self.path.split("?", 1)[0] in self.PUBLIC:
-            return True
-        proxied = any(self.headers.get(h) for h in ("X-Forwarded-For", "Tailscale-User-Login", "Forwarded"))
-        if self.client_address[0] in ("127.0.0.1", "::1") and not proxied:
-            return True
-        # Requests relayed by a proxy on this PC (e.g. Tailscale Serve) come from 127.0.0.1 too,
-        # but they're really from another device, so they need the token like any remote request.
+    def _signed_in(self):
+        """True when this browser holds the console cookie, or brings the token in ?token= (which then
+        sets the cookie). Works for local and remote requests alike."""
         if not TOKEN:
             return False
         q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
@@ -595,9 +879,70 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self._set_cookie = True   # refresh it, so older cookies pick up the current settings
         return ok
 
-    def _login_page(self):
-        """Friendly sign-in instead of a bare 403: type the token once, the cookie remembers it."""
+    def _local(self):
+        proxied = any(self.headers.get(h) for h in ("X-Forwarded-For", "Tailscale-User-Login", "Forwarded"))
+        return self.client_address[0] in ("127.0.0.1", "::1") and not proxied
+
+    def _to_play(self, path):
+        """Send the browser to the same build on the builds port: http://localhost:<PLAY_PORT> on this PC,
+        or https://<tailscale name>:<PLAY_PUBLIC_PORT> through Tailscale Serve."""
+        if not re.match(r"^/play/[A-Za-z0-9._-]{1,64}/[A-Za-z0-9._/%-]{1,512}$", path) or ".." in path:
+            self.send_error(404)
+            return
+        fwd = (self.headers.get("X-Forwarded-Host") or "").split(",")[0].strip()
+        host = fwd if fwd and _name_ok(_host_name(fwd)) else (self.headers.get("Host") or "localhost").strip()   # MA-013
+        name = host[: host.index("]") + 1] if host.startswith("[") else host.rsplit(":", 1)[0]
+        origin = f"https://{name}:{PLAY_PUBLIC_PORT}" if not self._local() else f"http://{name}:{PLAY_PORT}"
+        self.send_response(302)
+        self.send_header("Location", origin + path)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def _host_ok(self):
+        """DNS rebinding guard (MA-007 finding 3): a web page can point its own domain at 127.0.0.1 and
+        become same-origin with the console. Browsers still send that domain as Host, so only answer
+        to names that are really this console: localhost, the Tailscale name (*.ts.net), and any extra
+        names in RIG_CONSOLE_HOSTS (comma-separated)."""
+        host = (self.headers.get("Host") or "").strip().lower()
+        name = _host_name(host)
+        return _name_ok(name)
+
+    def _refuse_host(self):
+        body = b"Unknown host name. Open the console at localhost or its Tailscale address (or add the name to RIG_CONSOLE_HOSTS)."
+        self.send_response(421)
+        self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_HEAD(self):
+        if not self._host_ok():
+            return self._refuse_host()
+        if not self._allowed():
+            self.send_error(403)
+            return
+        return super().do_HEAD()
+
+    def _allowed(self):
+        """Who may look. Local requests may always read. Remote ones (laptop/phone over Tailscale)
+        need the token once via ?token=..., after which a cookie remembers it.
+        Who may *change* things is stricter: see do_POST."""
+        if self.path.split("?", 1)[0] in self.PUBLIC:
+            return True
+        signed = self._signed_in()
+        if self._local():
+            return True
+        # Requests relayed by a proxy on this PC (e.g. Tailscale Serve) come from 127.0.0.1 too,
+        # but they're really from another device, so they need the token like any remote request.
+        return signed
+
+    def _login_page(self, local=False):
+        """Friendly sign-in instead of a bare 403: type the token once, the cookie remembers it.
+        /signin shows the same form on this PC, where it's needed before making changes (R-005)."""
         path, _, query = self.path.partition("?")
+        if local:
+            nxt = (urllib.parse.parse_qs(query).get("next") or ["/"])[0]
+            path, query = (nxt if nxt.startswith("/") and not nxt.startswith("//") else "/"), ""
         keep = "".join(f'<input type="hidden" name="{html.escape(k)}" value="{html.escape(v)}">'
                        for k, vs in urllib.parse.parse_qs(query).items() if k != "token" for v in vs)
         body = f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -608,7 +953,7 @@ h1{{margin:0 0 6px;font-size:20px}} p{{margin:0 0 16px;color:#8e9aac;font-size:1
 input[type=password]{{width:100%;box-sizing:border-box;padding:12px;border-radius:10px;border:1px solid #212c3c;background:#141d2a;color:#e3e8ef;font-size:16px}}
 button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;background:#f0b23c;color:#111;font-weight:800;font-size:16px}}
 </style></head><body><form method="get" action="{html.escape(path)}"><h1>Rig Console</h1>
-<p>Enter your console token. This device will remember it.</p>{keep}
+<p>Enter your console token. This device will remember it{" and can then make decisions" if local else ""}.</p>{keep}
 <input type="password" name="token" autocomplete="current-password" placeholder="Token" required autofocus>
 <button type="submit">Sign in</button></form></body></html>""".encode()
         self.send_response(401)
@@ -626,6 +971,8 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
         self.wfile.write(body)
 
     def do_GET(self):
+        if not self._host_ok():
+            return self._refuse_host()
         if not self._allowed():
             p = self.path.split("?", 1)[0]
             if p.startswith("/api/") or not TOKEN:
@@ -634,6 +981,13 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 self._login_page()
             return
         path = self.path.split("?", 1)[0]
+        if path.startswith("/go/play/") and not getattr(self, "_token_login", False):
+            return self._to_play(path[len("/go"):])
+        if path.startswith("/play/"):
+            self.send_error(404, "Builds are served on their own port now; open them from the Builds page.")
+            return
+        if path == "/signin" and not getattr(self, "_token_login", False):
+            return self._login_page(local=True)
         if getattr(self, "_token_login", False):
             # Signed in with ?token=: set the cookie and reload without the token in the address bar or history.
             rest = [(k, v) for k, vs in urllib.parse.parse_qs(self.path.partition("?")[2]).items() if k != "token" for v in vs]
@@ -643,6 +997,8 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
             self.end_headers()
             return
         try:
+            if path == "/api/session":
+                return self.send_json({"signed_in": self._signed_in(), "token_set": bool(TOKEN)})
             if path == "/api/runs":
                 return self.send_json(list_runs())
             if path == "/api/team":
@@ -663,12 +1019,14 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 return self.send_json(G.list_gates())
             if path == "/api/builds":
                 return self.send_json(G.list_builds())
+            if path == "/api/models":
+                return self.send_json(MD.load())
             if path == "/api/jobs":
                 return self.send_json(S.jobs_list())
             if path == "/api/replay_rigs":
                 return self.send_json(S.replay_rigs())
             if path == "/api/health":
-                return self.send_json(F.health())
+                return self.send_json(health())
             if path == "/api/usage":
                 return self.send_json(F.usage_list())
             if path == "/api/evidence":
@@ -687,7 +1045,7 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 rigs = sorted({row[1] for row in csv.reader(io.StringIO("\n".join(tail_lines(ACTIVITY, 5_000_000)))) if len(row) > 2 and row[0][:2] == "20"})
                 return self.send_json(F.runs_summary(DATA, rigs, _load("_queue.json")))
             if path == "/api/briefs":
-                bdir = os.path.expanduser("~/openrig/briefs")
+                bdir = BRIEFS
                 items = []
                 if os.path.isdir(bdir):
                     for fn in sorted(os.listdir(bdir)):
@@ -697,6 +1055,18 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
             if path == "/api/rigs":
                 return self.send_json(sorted({r.get("rigName") for r in _load("_ps.json") if r.get("rigName")} |
                                              {row[1] for row in csv.reader(io.StringIO("\n".join(tail_lines(ACTIVITY, 2_000_000)))) if len(row) > 2 and row[0][:2] == "20"}))
+            if path == "/api/needs":    # the nav badge: open cards on the Needs you page; cheap, from the watcher
+                return self.send_json(NEEDS)
+            if path == "/api/tasks":    # the Needs you page (R-018): open cards and the last 14 days' answers
+                return self.send_json({"open": [t for t in G.list_tasks() if not t.get("error")],
+                                       "unreadable": [t for t in G.list_tasks() if t.get("error")],
+                                       "resolved": G.resolved_tasks()})
+            if path == "/api/messages":   # your questions to seats with their replies (PL-024)
+                q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
+                seat = (q.get("seat") or [""])[0]
+                return self.send_json(CV.history(seat if re.match(r"^[A-Za-z0-9._@-]{1,128}$", seat) else None))
+            if path == "/api/lounge":   # read-only, never notifies (R-019)
+                return self.send_json(LG.posts())
             if path == "/api/screen":
                 q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
                 seat = (q.get("seat") or [""])[0]
@@ -707,16 +1077,39 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                     return self.send_json({"error": "no screen yet"})
                 with open(p, encoding="utf-8", errors="replace") as f:
                     lines = f.read().splitlines()
-                return self.send_json({"updated": lines[0] if lines else "", "lines": [l.rstrip() for l in lines[1:]][-80:]})
+                kind, _, _ = screen_prompt(seat)
+                return self.send_json({"updated": lines[0] if lines else "", "lines": [l.rstrip() for l in lines[1:]][-80:],
+                                       "prompt": kind, "reply": last_reply(lines[-200:])})
         except Exception as e:
             return self.send_json({"error": str(e)})
         return super().do_GET()
 
     def do_POST(self):
+        if not self._host_ok():
+            return self._refuse_host()
         if not self._allowed():
             self.send_error(403)
             return
         path = self.path.split("?", 1)[0]
+        # Every change needs the signed-in cookie, even from this PC (R-005). Agents run on this PC as the
+        # same user, so "local" can't mean "the owner"; only the owner's browser holds the cookie.
+        # Without a token configured there's nothing to check, and /api/health says so.
+        if not TOKEN:
+            body = json.dumps({"error": "Set RIG_CONSOLE_TOKEN before making changes: without it the console can't tell you from an agent."}).encode()
+            self.send_response(403)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if not self._signed_in():
+            body = json.dumps({"error": "Sign in on this device to make changes.", "signin": True}).encode()
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         # Reject cross-site requests: browsers can't send this header cross-origin
         # without a CORS preflight, which this server never approves.
         if self.headers.get("X-Rig-Console") != "1" or "application/json" not in (self.headers.get("Content-Type") or ""):
@@ -729,6 +1122,15 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 return self.send_json(F.usage_add(body))
             if path == "/api/send":
                 return self.send_json(send_message(body))
+            if path == "/api/task":
+                tid = str(body.get("id") or "")
+                if not G.ID_RE.match(tid):
+                    raise ValueError("Unknown task")
+                record, asker, rec_path = G.answer_task(tid, body)
+                said = {"done": "Done", "wont": "Won’t do", "answered": "answered", "skipped": "skipped"}[record["result"]]
+                told = bool(asker) and _console_send(asker, f"The owner answered your card '{record['title']}': {said}. "
+                                                            f"Read {rec_path}, act on it, then remove the task file.")
+                return self.send_json({"saved": True, "result": record["result"], "asker_told": told})
             if path == "/api/dismiss":
                 key = str(body.get("key") or "")
                 if not re.match(r"^[a-z]+:[A-Za-z0-9._@-]{1,128}$", key):
@@ -755,14 +1157,14 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
 
     def translate_path(self, path):
         path = posixpath.normpath(urllib.parse.unquote(path.split("?", 1)[0]))
-        m = re.match(r"^/(job|play)/([A-Za-z0-9._-]{1,64})/(.+)$", path)
+        m = re.match(r"^/(job)/([A-Za-z0-9._-]{1,64})/(.+)$", path)
         if m:
             full = G.safe_path(m.group(2), m.group(3))
             return full or os.path.join(DASH, "__forbidden__")
         if path.startswith("/data/"):
             root, rel = DATA, path[len("/data/"):]
         else:
-            root, rel = DASH, path.lstrip("/") or "index.html"
+            root, rel = DASH, path.lstrip("/") or "graph.html"   # home is the live graph
         full = os.path.realpath(os.path.join(root, rel))
         if not full.startswith(os.path.realpath(root) + os.sep):
             return os.path.join(DASH, "__forbidden__")
@@ -772,17 +1174,106 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
         if getattr(self, "_set_cookie", False):
             self.send_header("Set-Cookie", f"rc_token={TOKEN}; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=31536000")
         p = self.path.split("?", 1)[0]
-        if p.startswith("/play/"):
-            # Godot 4 web builds need cross-origin isolation; big .wasm/.pck files may be cached but rechecked.
-            self.send_header("Cross-Origin-Opener-Policy", "same-origin")
-            self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
-            self.send_header("Cache-Control", "no-cache")
-        else:
-            if p.startswith("/job/"):
-                # Files agents wrote: show them, but never let them run scripts as the console.
-                self.send_header("Content-Security-Policy", "sandbox")
-                self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Cache-Control", "no-store")
+        if p.startswith(("/job/", "/data/")):
+            # Files agents wrote: show them, but never let them run scripts as the console.
+            self.send_header("Content-Security-Policy", "sandbox")
+            self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
+    def log_message(self, *a):
+        pass
+
+
+# The watcher's own heartbeat. Before this, any error in the loop was swallowed and phone alerts could
+# stop with no sign (PL-006). Now each round records its outcome, errors go to the service log, and
+# /api/health shows "Alerts" red once the loop hasn't finished a round for a minute.
+WATCH = {"started": time.time(), "last_ok": None, "error": None, "error_at": None, "rounds": 0}
+
+
+def health():
+    out = F.health()
+    now, w = time.time(), WATCH
+    if w["last_ok"] and now - w["last_ok"] < 60:
+        out["alerts"] = {"ok": True, "detail": f"checked {int(now - w['last_ok'])} s ago"}
+    elif not w["last_ok"] and now - w["started"] < 90:
+        out["alerts"] = {"ok": True, "detail": "starting"}
+    else:
+        last = f"last good check {int((now - w['last_ok']) // 60)} min ago" if w["last_ok"] else "no good check since start"
+        out["alerts"] = {"ok": False, "detail": f"stopped: {last}" + (f" ({w['error']})" if w["error"] else "") + ". Phone alerts won't arrive."}
+    # R-005 step 3 (option A): is the console out of the agents' reach yet?
+    try:
+        agents_uid = os.stat(G.LAUNCHES if os.path.isdir(G.LAUNCHES) else os.path.expanduser("~")).st_uid
+        problems = []
+        if os.getuid() == agents_uid:
+            problems.append("runs as the agents' user, so they can read its token")
+        if os.path.realpath(DASH).startswith("/mnt/"):
+            problems.append("runs from /mnt/c, where agents can edit its code")
+        out["isolation"] = {"ok": not problems, "level": "advisory",
+                            "detail": "runs as its own user, from code agents can't edit" if not problems
+                            else "Console " + " and ".join(problems) + " (R-005 step 3)."}
+    except OSError:
+        pass
+    if not TOKEN:
+        out["token"] = {"ok": False, "detail": "No console token set, so changes are switched off. Set RIG_CONSOLE_TOKEN."}
+    if TOKEN and not TS_PINNED:
+        out["hostname"] = {"ok": False, "level": "advisory",
+                           "detail": "Your Tailscale name isn't pinned: add it to RIG_CONSOLE_HOSTS (e.g. prometheus.tail1234.ts.net)."}
+    if os.environ.get("NTFY_TOPIC"):
+        p = F.PUSH
+        failed = p["error"] and (not p["last_ok"] or p["error_at"] > p["last_ok"])
+        out["push"] = {"ok": not failed, "detail": f"last push failed: {p['error']}" if failed else "working"}
+    return out
+
+
+class PlayHandler(http.server.SimpleHTTPRequestHandler):
+    """The builds port (R-006). It serves only /play/<job>/<file> from inside the job's build folder, with
+    the cross-origin isolation headers Godot needs. No pages, no /api/, no sign-in, no ?token=, and it
+    never sets a cookie: a build running here is a different origin and can't act as the console.
+    The console cookie still reaches this port (cookies ignore ports), so remote requests are allowed only
+    with it, like the console itself; it's HttpOnly, so a build's script can't read it."""
+    extensions_map = Handler.extensions_map
+
+    def _ok(self):
+        if not Handler._host_ok(self):
+            Handler._refuse_host(self)
+            return None
+        path = posixpath.normpath(urllib.parse.unquote(self.path.split("?", 1)[0]))
+        m = re.match(r"^/play/([A-Za-z0-9._-]{1,64})/(.+)$", path)
+        full = G.build_file(m.group(1), m.group(2)) if m else None   # build folders only (MA-013)
+        if not full or not os.path.isfile(full):
+            self.send_error(404)
+            return None
+        if not Handler._local(self):
+            jar = http.cookies.SimpleCookie()
+            try:
+                jar.load(self.headers.get("Cookie") or "")
+            except http.cookies.CookieError:
+                pass
+            if not (TOKEN and "rc_token" in jar and hmac.compare_digest(jar["rc_token"].value, TOKEN)):
+                self.send_error(403, "Open the console once on this device to sign in, then play from the Builds page.")
+                return None
+        return full
+
+    def do_GET(self):
+        if self._ok():
+            super().do_GET()
+
+    def do_HEAD(self):
+        if self._ok():
+            super().do_HEAD()
+
+    def translate_path(self, path):
+        path = posixpath.normpath(urllib.parse.unquote(path.split("?", 1)[0]))
+        m = re.match(r"^/play/([A-Za-z0-9._-]{1,64})/(.+)$", path)
+        return (G.build_file(m.group(1), m.group(2)) if m else None) or os.path.join(DASH, "__forbidden__")
+
+    def end_headers(self):
+        # Godot 4 web builds need cross-origin isolation; big .wasm/.pck files may be cached but rechecked.
+        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+        self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "no-cache")
         super().end_headers()
 
     def log_message(self, *a):
@@ -804,8 +1295,19 @@ def _watch():
                 print("event collector:", e)
             F.track_approvals(g["nodes"])
             F.push_alerts(g["alerts"])
-        except Exception:
-            pass
+            OB.deliver(lambda title, body, pr, url: F.push_now(f"{title}\n{body}".strip(), "From the operator", pr, url),
+                       lambda text: _console_send(OB.RECEIPT_TO, text), set(_dismissed()))
+            EP.track(g["nodes"], lambda s: screen_prompt(s)[2], _approval_item,
+                     idle_on_screen=lambda s: screen_prompt(s)[0] == "idle")
+            CV.capture(g["nodes"], lambda s: _screen_tail(s, 400), lambda s: screen_prompt(s)[0] == "idle",
+                       G.folder_of_rig(CV.ARCHITECTS_RIG))
+            NEEDS["count"] = sum(1 for a in g["alerts"] if a["kind"] == "task")   # open cards on the Needs you page
+            WATCH["last_ok"], WATCH["error"] = time.time(), None
+        except Exception as e:
+            WATCH["error"], WATCH["error_at"] = f"{type(e).__name__}: {e}"[:200], time.time()
+            print("watcher round failed:", WATCH["error"], flush=True)
+            traceback.print_exc()
+        WATCH["rounds"] += 1
         time.sleep(10)
 
 
@@ -814,5 +1316,8 @@ if __name__ == "__main__":
     if HOST not in ("127.0.0.1", "localhost") and not TOKEN:
         raise SystemExit("Refusing to listen beyond localhost without RIG_CONSOLE_TOKEN set.")
     threading.Thread(target=_watch, daemon=True).start()
+    if PLAY_PORT:
+        threading.Thread(target=http.server.ThreadingHTTPServer((HOST, PLAY_PORT), PlayHandler).serve_forever, daemon=True).start()
+        print(f"Builds on http://{HOST}:{PLAY_PORT}")
     print(f"Dashboard on http://{HOST}:{PORT}  (Ctrl+C to stop)")
     http.server.ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
