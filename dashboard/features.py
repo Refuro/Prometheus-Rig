@@ -9,8 +9,58 @@ STATE = os.path.expanduser(os.environ.get("RIG_STATE_DIR", os.path.join(DASH, "s
 SNAP = os.path.expanduser(os.environ.get("RIG_SNAPSHOTS", os.path.join(DASH, "..", "snapshots")))
 os.makedirs(STATE, exist_ok=True)
 ACTIVITY = os.path.join(SNAP, "activity-log.csv")
-os.makedirs(STATE, exist_ok=True)
+# R-011: the logger rotates daily to activity-log-<first day>.csv; yesterday's stays in SNAP, older days move
+# here, off OneDrive.
+ARCHIVE = os.path.expanduser(os.environ.get("RIG_ACTIVITY_ARCHIVE", "~/openrig/activity"))
+DAY_RE = re.compile(r"^activity-log-(\d{4}-\d{2}-\d{2})\.csv$")
 _lock = threading.Lock()
+
+
+def activity_files(since=None, until=None):
+    """The activity log's files, oldest first: rotated days (here and in ARCHIVE), then today's. With
+    since/until (datetimes), only files that can hold rows in that span: a rotated file covers its name's day
+    up to its last write."""
+    days = []
+    for d in (ARCHIVE, SNAP):
+        try:
+            names = os.listdir(d)
+        except OSError:
+            continue
+        for n in names:
+            m = DAY_RE.match(n)
+            p = os.path.join(d, n)
+            if not m or os.path.islink(p):
+                continue
+            try:
+                first = datetime.strptime(m.group(1), "%Y-%m-%d").astimezone()
+                last = datetime.fromtimestamp(os.path.getmtime(p)).astimezone()
+            except (OSError, ValueError):
+                continue
+            if (until and first > until) or (since and last < since):
+                continue
+            days.append((m.group(1), p))
+    out = [p for _, p in sorted(set(days))]
+    return out + ([ACTIVITY] if os.path.isfile(ACTIVITY) else [])
+
+
+def activity_tail(max_bytes=256_000):
+    """The last max_bytes of the log as lines (no header), reaching back into the previous file when today's is
+    still short (just after the daily rotation)."""
+    files, lines, want = activity_files()[-2:], [], max_bytes
+    for p in reversed(files):
+        try:
+            with open(p, "rb") as f:
+                f.seek(0, os.SEEK_END)
+                size = f.tell()
+                f.seek(max(0, size - want))
+                part = f.read().decode("utf-8", "replace").splitlines()[1:]   # a partial line, or the header
+        except OSError:
+            continue
+        lines = part + lines
+        want -= size
+        if want <= 0:
+            break
+    return lines
 RUN_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
@@ -60,10 +110,10 @@ def _state_code(s):
     return "b" if s.startswith("needs_input") else "w" if s in ("working", "running") else "i"
 
 
-def timeline(rig, run=None, queue=None):
+def timeline(rig, run=None, queue=None, since=None, until=None):
     lanes, t0, t1 = {}, None, None
-    if os.path.isfile(ACTIVITY):
-        with open(ACTIVITY, newline="") as f:
+    for path in activity_files(since, until):   # every daily file the team's run can touch (R-011)
+        with open(path, newline="") as f:
             for r in csv.reader(f):
                 if len(r) < 6 or r[1] != rig or r[0][:2] != "20":
                     continue
@@ -218,10 +268,7 @@ def evidence_status(run):
 def health():
     out = {}
     try:
-        last = None
-        with open(ACTIVITY, "rb") as f:
-            f.seek(max(0, os.path.getsize(ACTIVITY) - 400))
-            last = f.read().decode("utf-8", "replace").strip().splitlines()[-1].split(",")[0]
+        last = activity_tail(400)[-1].split(",")[0]   # spans the daily rotation (R-011)
         age = (_now() - _parse_local(last)).total_seconds()
         when = f"{int(age)} s" if age < 120 else f"{int(age // 60)} min" if age < 7200 else f"{int(age // 3600)} h"
         out["logger"] = {"ok": age < 60, "detail": f"last write {when} ago", "age_s": int(age)}

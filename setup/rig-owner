@@ -1,27 +1,33 @@
 #!/usr/bin/env bash
 # Installed root-owned at /usr/local/lib/rig-console/rig-owner by install-console-user.sh.
 # The console (user rigconsole) may run exactly this, as the agents' user, through one sudo rule.
-# It allows only "rig send" and "rig ps", so the console can tell a lead about your decision and look
-# up who's in a team, and nothing else (R-005 step 3, option A).
+# It allows exactly the four calls the console makes, and nothing else (R-005 step 3, option A; MA-014
+# finding 6):
+#   send <seat> <text>            tell a seat about your decision or deliver your message
+#   receipt <seat> <text>         the console's automatic receipts (PL-017)
+#   approval-item <id> <summary>  one queue item to the operator about an approval wait (R-020); body on stdin
+#   ps                            who's in which team (always "rig ps --nodes -A --json")
 set -euo pipefail
 sender="owner@rig-console"
+seat_ok() { [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$ ]]; }
+text_ok() { [ -n "$1" ] && [ "${1:0:1}" != "-" ]; }   # a text starting with "-" could read as a flag
 case "${1:-}" in
-  send|ps) ;;
-  receipt) shift; set -- send "$@"; sender="console@rig-console" ;;   # automatic receipts (PL-017)
-  approval-item)   # one queue item to the operator about an approval wait (R-020): fixed destination, body on stdin
-    [ "$#" -eq 3 ] || { echo "rig-owner: approval-item <id> <summary>" >&2; exit 2; }
+  send|receipt)
+    [ "$#" -eq 3 ] && seat_ok "$2" && text_ok "$3" || { echo "rig-owner: $1 <seat> <text>" >&2; exit 2; }
+    [ "$1" = receipt ] && sender="console@rig-console"
+    set -- send "$2" "$3" ;;
+  approval-item)
+    [ "$#" -eq 3 ] && [[ "$2" =~ ^qitem-[0-9]{14}-[0-9a-f]{16}$ ]] && text_ok "$3" \
+      || { echo "rig-owner: approval-item <id> <summary>" >&2; exit 2; }
     set -- queue create --source console@rig-console --destination operator-agent@kernel --id "$2" --summary "$3" --body -
     sender="console@rig-console" ;;
-  *) echo "rig-owner: only 'send', 'receipt' and 'ps' are allowed" >&2; exit 2 ;;
+  ps)
+    [ "$#" -eq 1 ] || [ "$*" = "ps --nodes -A --json" ] || { echo "rig-owner: ps takes no arguments" >&2; exit 2; }
+    set -- ps --nodes -A --json ;;
+  *) echo "rig-owner: only send, receipt, approval-item and ps are allowed" >&2; exit 2 ;;
 esac
-# The console never answers an agent's prompt: no keystroke mode, whatever the console asks for.
-# (Its "Send anyway" for seats OpenRig misreads as at-a-prompt is off under option A unless the owner
-# decides otherwise: gate pl-016-send-anyway.)
-for a in "$@"; do
-  case "$a" in
-    --dangerously-interact|--raw) echo "rig-owner: keystroke modes are not allowed" >&2; exit 2 ;;
-  esac
-done
+# No keystroke mode can get through: the argument lists above are fixed, so the console never answers an
+# agent's prompt. ("Send anyway" is off under option A: gate pl-016-send-anyway.)
 # sudo drops the console's environment, so name the sender here (OpenRig shows it as "From:").
 export OPENRIG_SESSION_NAME="$sender"
 export NVM_DIR="$HOME/.nvm"

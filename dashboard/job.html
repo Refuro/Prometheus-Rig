@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f17" media="(prefers-color-scheme: dark)">
+<title>Jobs · Rig Console</title>
+<link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="/md.js"></script>
+<!-- One page per job (R-013 Assets, R-014 Docs, R-015 Milestones, R-023 Docket; PL-034). Read-only.
+     Everything shown is team-written: text is escaped, files open through the sandboxed /job/ route,
+     builds play on the builds port. -->
+<style>
+:root{
+  --paper:#eef1f4; --surface:#f7f9fb; --raised:#fff; --ink:#152033; --muted:#5d687a; --faint:#8a94a4;
+  --line:#d7dde5; --signal:#c98200; --signal-soft:#fbf0d9; --cut:#c2412b; --ok:#2e9d62; --ok-soft:#e3f4ea; --blue:#3a6ea5;
+  --font:"Schibsted Grotesk",ui-sans-serif,system-ui,"Segoe UI",sans-serif; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0a0f17; --surface:#0f1621; --raised:#141d2a; --ink:#e3e8ef; --muted:#8e9aac; --faint:#5d6a7e;
+  --line:#212c3c; --signal:#f0b23c; --signal-soft:#2f2511; --cut:#f0765c; --ok:#3cb371; --ok-soft:#12261b; --blue:#7fb0e6;
+}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:14.5px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+main{max-width:980px;margin:0 auto;padding:20px 16px 60px}
+a{color:var(--blue)}
+h1{margin:0;font-size:22px;font-weight:800;letter-spacing:-.01em}
+h2{margin:22px 0 8px;font-size:12.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.sub{color:var(--muted);font-size:13.5px;margin:2px 0 14px}
+.chip{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--surface);border:1px solid var(--line);color:var(--muted);vertical-align:2px}
+.chip.fact{text-transform:none;letter-spacing:0;font-size:12.5px;font-weight:600;padding:3px 10px}
+.chip.ok{color:var(--ok);background:var(--ok-soft);border-color:transparent} .chip.warn{color:var(--signal);background:var(--signal-soft);border-color:transparent} .chip.bad{color:var(--cut);border-color:var(--cut)}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:6px 0 14px;overflow-x:auto}
+.tabs a{padding:8px 14px;font-weight:700;font-size:14px;color:var(--muted);text-decoration:none;border-bottom:2px solid transparent;white-space:nowrap}
+.tabs a[aria-current="page"]{color:var(--ink);border-bottom-color:var(--signal)}
+.card{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.muted{color:var(--muted)} .faint{color:var(--faint);font-size:12.5px}
+.empty{color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.jobs{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.jobs a.card{display:block;text-decoration:none;color:inherit}
+.jobs a.card:hover{border-color:var(--signal)}
+.ms{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.ms .t{font-weight:750;font-size:15.5px}
+.bar{display:flex;height:7px;border-radius:5px;overflow:hidden;background:var(--surface);margin:6px 0 3px}
+.bar i{display:block}
+.links{display:flex;gap:12px;flex-wrap:wrap;margin-top:6px;font-size:13.5px;font-weight:600}
+.list a{display:block;padding:7px 0;border-top:1px solid var(--line);text-decoration:none;color:var(--ink)}
+.list a:first-child{border-top:0}
+.list a:hover{color:var(--blue)}
+.sw{display:flex;flex-wrap:wrap;gap:8px}
+.sw div{width:86px;font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.sw span{display:block;height:42px;border-radius:9px;border:1px solid var(--line);margin-bottom:3px}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.filters button{all:unset;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);padding:4px 11px;border-radius:999px;border:1px solid var(--line);background:var(--raised)}
+.filters button[aria-pressed="true"]{color:var(--ink);border-color:var(--signal)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.grid.lineup{display:flex;overflow-x:auto;gap:6px;align-items:flex-end;padding-bottom:6px}
+.grid.lineup .a{flex:none;width:auto}
+.grid.lineup .a img{height:260px;width:auto;max-width:none}
+.grid.lineup .cap{display:none}
+.a{background:var(--raised);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.a img,.a video{display:block;width:100%;height:150px;object-fit:contain;background:repeating-conic-gradient(var(--surface) 0 25%, var(--paper) 0 50%) 0 0/16px 16px}
+.a audio{width:100%;margin-top:8px}
+.cap{padding:6px 9px;font-size:12px;overflow-wrap:anywhere}
+.seat{font-weight:800;font-size:15.5px}
+.grp{margin-top:8px}
+.grp b{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.it{padding:5px 0;border-top:1px dashed var(--line);font-size:13.5px;cursor:pointer}
+.it:first-of-type{border-top:0}
+.it .age{color:var(--faint);font-size:12px;margin-left:6px}
+.mark{font-size:11px;font-weight:700;color:var(--cut);margin-left:6px;text-transform:uppercase;letter-spacing:.04em}
+.body{display:none;white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 var(--mono);color:var(--muted);margin-top:4px}
+.it.open .body{display:block}
+/* reader */
+#reader{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;z-index:50}
+#reader.open{display:block}
+#rd{position:absolute;inset:4vh 0 0 auto;width:min(760px,100%);background:var(--raised);border-radius:16px 0 0 0;display:flex;flex-direction:column}
+#rdHead{display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line)}
+#rdTitle{flex:1;font-weight:700;overflow-wrap:anywhere}
+#rdHead button{all:unset;cursor:pointer;font-weight:700;padding:4px 10px;border-radius:8px;border:1px solid var(--line)}
+#rdBody{overflow:auto;padding:6px 18px 40px;line-height:1.6}
+#rdBody pre{white-space:pre-wrap;background:var(--surface);padding:10px;border-radius:8px;font-size:12.5px}
+#rdBody .tbl{overflow-x:auto} #rdBody table{border-collapse:collapse;font-size:13px} #rdBody td,#rdBody th{border:1px solid var(--line);padding:4px 8px;vertical-align:top}
+#rdBody blockquote{border-left:3px solid var(--line);margin:8px 0;padding-left:12px;color:var(--muted)}
+#rdBody a.fref{cursor:pointer}
+@media (max-width:700px){#rd{inset:6vh 0 0 0;border-radius:16px 16px 0 0}}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<main id="main"><div class="empty">Loading…</div></main>
+<div id="reader" role="dialog" aria-modal="true"><div id="rd">
+  <div id="rdHead"><button id="rdBack" type="button" hidden>‹ Back</button><span id="rdTitle"></span><a id="rdRaw" target="_blank" rel="noopener">Raw</a><button id="rdClose" type="button">Close</button></div>
+  <div id="rdBody"></div></div></div>
+<script>
+const $ = id => document.getElementById(id);
+const esc = mdEsc;
+const JOB = new URLSearchParams(location.search).get("job") || "";
+const TAB = () => (location.hash.slice(1) || "overview");
+const ago = s => s < 90 ? `${Math.max(0, Math.round(s))} s` : s < 5400 ? `${Math.round(s / 60)} min` : s < 172800 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} d`;
+const when = t => t ? new Date(t * 1000).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}) : "";
+const get = async u => { const r = await fetch(u, {cache: "no-store"}); if (r.status === 404) throw new Error("update"); return r.json(); };
+const STATUS = {approved: "ok", building: "warn", "vision-check": "warn", gate: "warn", "sent-back": "bad", planned: ""};
+
+async function index(){
+  document.title = "Jobs · Rig Console";
+  let jobs = [];
+  try { jobs = await get("/api/jobs"); } catch { $("main").innerHTML = `<div class="empty">Couldn't reach the console.</div>`; return; }
+  $("main").innerHTML = `<h1>Jobs</h1><div class="sub">Every team's work in one place: decisions, milestones, builds, documents and art. Newest activity first.</div>
+    <div class="jobs">${jobs.map(j => `<a class="card" href="/job.html?job=${encodeURIComponent(j.name)}">
+      <div class="row"><b>${esc(j.title || j.name)}</b></div>
+      <div class="faint">${esc(j.name)}${j.type ? " · " + esc(j.type) : ""}${j.rig ? " · team " + esc(j.rig) : ""} · active ${esc(when(j.last_seen))}</div></a>`).join("")}</div>`;
+}
+
+let O = null;
+async function page(){
+  try { O = await get(`/api/job?job=${encodeURIComponent(JOB)}`); }
+  catch (e) { $("main").innerHTML = `<div class="empty">${e.message === "update" ? "Job pages arrive with the next console update." : "Couldn't reach the console."}</div>`; return; }
+  if (O.error){ $("main").innerHTML = `<div class="empty">${esc(O.error)}. <a href="/job.html">All jobs</a></div>`; return; }
+  document.title = `${O.title} · Rig Console`;
+  const tabs = [["overview", "Overview"], ...(O.tabs.docs ? [["docs", "Docs"]] : []), ...(O.tabs.assets ? [["assets", "Assets"]] : []),
+                ...(O.tabs.report ? [["report", "Report"]] : []), ...(O.tabs.docket ? [["docket", "Docket"]] : [])];
+  const t = tabs.some(([k]) => k === TAB()) ? TAB() : "overview";
+  $("main").innerHTML = `<div class="faint"><a href="/job.html">All jobs</a></div>
+    <h1>${esc(O.title)}</h1>
+    <div class="sub">${O.type ? `<span class="chip">${esc(O.type)}</span> ` : ""}${O.team.rig ? `team <b>${esc(O.team.rig)}</b>` : "no team"}${O.team.lead ? ` · lead ${esc(O.team.lead)}` : ""}</div>
+    <nav class="tabs">${tabs.map(([k, n]) => `<a href="#${k}"${k === t ? ' aria-current="page"' : ""}>${n}</a>`).join("")}</nav>
+    <div id="tab"><div class="empty">Loading…</div></div>`;
+  ({overview, docs, assets, report, docket})[t]();
+}
+
+function overview(){
+  const o = O, ms = o.milestones;
+  const pct = (n, tot) => tot ? (100 * n / tot) : 0;
+  $("tab").innerHTML =
+    `<h2>Waiting on you</h2>${o.open_gates.length ? `<div class="card list">${o.open_gates.map(g => `<a href="/decide.html?job=${encodeURIComponent(o.job)}&gate=${encodeURIComponent(g.id)}">${esc(g.title)} <span class="chip warn">decide</span></a>`).join("")}</div>`
+      : `<div class="empty">No open decisions.</div>`}`
+    + (ms ? `<h2>Milestones${ms.game ? " · " + esc(ms.game) : ""}</h2><div class="ms">${ms.milestones.map(m => {
+        const qb = m.quality_bar, tot = qb.pass + qb.fail + qb.not_yet;
+        return `<div class="card"><div class="row"><span class="t">${esc(m.title || m.id)}</span><span class="chip ${STATUS[m.status] || ""}">${esc(m.status || "?")}</span>
+            ${m.vision_check ? `<span class="chip ${m.vision_check === "PASS" ? "ok" : "bad"}">vision ${esc(m.vision_check)}</span>` : ""}</div>
+          ${m.tests.passed || m.tests.failed || m.tests.at || m.exploits_open ? `<div class="faint">Tests: ${m.tests.passed} passed${m.tests.failed ? `, <b style="color:var(--cut)">${m.tests.failed} failed</b>` : ""}${m.tests.at ? " · " + esc(m.tests.at) : ""}${m.exploits_open ? ` · ${m.exploits_open} exploit${m.exploits_open === 1 ? "" : "s"} open` : ""}</div>` : ""}
+          ${tot ? `<div class="bar" title="Quality bar"><i style="width:${pct(qb.pass, tot)}%;background:var(--ok)"></i><i style="width:${pct(qb.fail, tot)}%;background:var(--cut)"></i></div>
+            <div class="faint">Quality bar: ${qb.pass} pass · ${qb.fail} fail · ${qb.not_yet} not yet</div>` : ""}
+          <div class="links">${m.play ? `<a href="${esc(m.play)}" target="_blank" rel="noopener">▶ Play</a>` : ""}${m.download ? `<a href="${esc(m.download)}">Download</a>` : ""}
+            ${m.plan ? `<a href="#" data-read="${esc(m.plan)}">Plan</a>` : ""}${m.packet ? `<a href="#" data-read="${esc(m.packet)}">Packet</a>` : ""}
+            ${m.gate ? `<a href="/decide.html?job=${encodeURIComponent(o.job)}&gate=${encodeURIComponent(m.gate)}">Gate</a>` : ""}</div></div>`; }).join("")}</div>` : "")
+    + `<h2>Builds</h2>${o.builds.length ? `<div class="card list">${o.builds.map(b => `<a href="${esc(b.url)}" target="_blank" rel="noopener">▶ ${esc(b.title || b.name)} <span class="faint">${esc(b.name)} · ${esc(when(b.updated))} · ${b.size_mb} MB</span></a>`).join("")}</div>` : `<div class="empty">No playable builds yet.</div>`}`
+    + (o.decided.length ? `<h2>Decided recently</h2><div class="card list">${o.decided.map(g => `<a href="/decide.html?job=${encodeURIComponent(o.job)}&gate=${encodeURIComponent(g.id)}">${esc(g.title)} <span class="faint">${esc((g.at || "").slice(0, 16).replace("T", " "))}</span></a>`).join("")}</div>` : "");
+  wireReads($("tab"));
+}
+
+async function docs(){
+  let d;
+  try { d = await get(`/api/job/docs?job=${encodeURIComponent(JOB)}`); } catch { $("tab").innerHTML = `<div class="empty">Couldn't load the documents.</div>`; return; }
+  const order = {open: 0, asked: 0, answered: 1, closed: 2, done: 2};
+  const inbox = d.inbox.slice().sort((a, b) => (order[a.status] ?? 1) - (order[b.status] ?? 1) || b.id.localeCompare(a.id));
+  const counts = inbox.reduce((c, i) => (c[i.status] = (c[i.status] || 0) + 1, c), {});
+  $("tab").innerHTML = d.groups.map(g => `<h2>${esc(g.name)}</h2><div class="card list">${g.docs.map(x => `<a href="#" data-read="${esc(x.url || "")}">${esc(x.title)} <span class="faint">${esc(x.path)}</span></a>`).join("")}</div>`).join("")
+    + (d.palette.length ? `<h2>Palette</h2><div class="card sw">${d.palette.map(c => `<div><span style="background:${esc(c.hex)}"></span>${esc(c.name)}<br>${esc(c.hex)}</div>`).join("")}</div>` : "")
+    + (inbox.length ? `<h2>Inbox · ${Object.entries(counts).map(([k, n]) => `${n} ${esc(k)}`).join(" · ")}</h2><div class="card list">${inbox.map(i => `<a href="#" data-read="${esc(i.url || "")}"><span class="chip ${i.status === "open" ? "warn" : i.status === "answered" ? "ok" : ""}">${esc(i.status)}</span> ${esc(i.id)}: ${esc(i.title)} <span class="faint">${esc(i.by)}${i.opened ? " · " + esc(i.opened) : ""}</span></a>`).join("")}</div>` : "");
+  wireReads($("tab"));
+}
+
+let A = null, filt = {set: "", status: "", ai: false, lineup: false};
+async function assets(){
+  try { A = await get(`/api/job/assets?job=${encodeURIComponent(JOB)}`); } catch { $("tab").innerHTML = `<div class="empty">Couldn't load the assets.</div>`; return; }
+  drawAssets();
+}
+function drawAssets(){
+  const sets = [...new Set(A.items.map(a => a.set).filter(Boolean))], stats = [...new Set(A.items.map(a => a.status).filter(Boolean))];
+  const items = A.items.filter(a => (!filt.set || a.set === filt.set) && (!filt.status || a.status === filt.status) && (!filt.ai || a.ai_made));
+  const btn = (k, v, label) => `<button type="button" data-f="${k}" data-v="${esc(v)}" aria-pressed="${filt[k] === v}">${esc(label)}</button>`;
+  $("tab").innerHTML = `<div class="faint" style="margin-bottom:8px">${A.source === "manifest" ? "From the team's asset manifest." : "No asset manifest yet: showing the image, audio and video files in art/, audio/ and models/."}${A.capped ? " (First 400 shown.)" : ""}</div>
+    <div class="filters">${btn("set", "", "All")}${sets.map(s => btn("set", s, s)).join("")}</div>
+    ${stats.length || A.source === "manifest" ? `<div class="filters">${btn("status", "", "Any status")}${stats.map(s => btn("status", s, s)).join("")}<button type="button" data-ai aria-pressed="${filt.ai}">AI-made</button></div>` : ""}
+    <div class="filters"><button type="button" data-lineup aria-pressed="${filt.lineup}">Lineup: same height, side by side</button></div>
+    ${items.length ? `<div class="grid${filt.lineup ? " lineup" : ""}">${items.map(a => `<div class="a">
+      ${a.media === "image" ? `<a href="${esc(a.file)}" target="_blank" rel="noopener"><img loading="lazy" src="${esc(a.preview)}" alt="${esc(a.title)}"></a>`
+        : a.media === "video" ? `<video src="${esc(a.preview)}" muted loop playsinline controls preload="metadata"></video>`
+        : a.media === "audio" ? `<audio controls preload="none" src="${esc(a.file)}"></audio>` : ""}
+      <div class="cap"><b>${esc(a.title)}</b>${a.status ? ` <span class="chip">${esc(a.status)}</span>` : ""}${a.ai_made ? ` <span class="chip warn">AI</span>` : ""}<br><span class="faint">${esc(a.set || "")}${a.licence ? " · " + esc(a.licence) : ""}</span></div></div>`).join("")}</div>`
+      : `<div class="empty">Nothing matches.</div>`}`;
+  $("tab").querySelectorAll("button[data-f]").forEach(b => b.onclick = () => { filt[b.dataset.f] = b.dataset.v; drawAssets(); });
+  $("tab").querySelectorAll("button[data-ai]").forEach(b => b.onclick = () => { filt.ai = !filt.ai; drawAssets(); });
+  $("tab").querySelectorAll("button[data-lineup]").forEach(b => b.onclick = () => { filt.lineup = !filt.lineup; drawAssets(); });
+}
+
+// ---------- Report (owner-approved option 1, PL-036): how the team spent its time, from the data the run report uses
+const fmtMin = m => m < 60 ? `${Math.round(m)} min` : `${Math.floor(m / 60)} h ${Math.round(m % 60)} min`;
+async function report(){
+  const rig = O.team.rig;
+  let tl, ap;
+  try { [tl, ap] = await Promise.all([get(`/api/timeline?rig=${encodeURIComponent(rig)}`), get(`/api/approvals?rig=${encodeURIComponent(rig)}`)]); }
+  catch { $("tab").innerHTML = `<div class="empty">Couldn't load the report.</div>`; return; }
+  const short = s => s.split("@")[0];
+  let html = "";
+  if (!tl.start) html += `<div class="empty">No activity recorded for team ${esc(rig)} yet.</div>`;
+  else {
+    const t0 = Date.parse(tl.start), t1 = Math.max(Date.parse(tl.end), t0 + 60000), span = t1 - t0;
+    const tot = Object.values(tl.stats).reduce((a, s) => ({w: a.w + s.w, b: a.b + s.b}), {w: 0, b: 0});
+    const lanes = tl.lanes.slice().sort((a, b) => /lead/.test(b.session) - /lead/.test(a.session) || a.session.localeCompare(b.session));
+    const COL = {w: "var(--ok)", b: "var(--cut)", i: "var(--line)"};
+    html += `<div class="row" style="gap:8px;margin-bottom:6px">
+        <span class="chip fact">${fmtMin(span / 60000)} long</span><span class="chip fact ok">${fmtMin(tot.w)} agent time working</span>
+        <span class="chip fact ${tot.b > 5 ? "bad" : ""}">${fmtMin(tot.b)} waiting for approval</span><span class="chip fact">${tl.events.filter(e => e.kind === "sent").length} handoffs</span></div>
+      <div class="faint" style="margin-bottom:10px">${esc(new Date(t0).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}))} to ${esc(new Date(t1).toLocaleString([], {month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}))}.
+        <span style="color:var(--ok)">■</span> working <span style="color:var(--cut)">■</span> waiting for approval <span style="color:var(--faint)">■</span> idle</div>
+      <div class="card">${lanes.map(l => { const s = tl.stats[l.session] || {w: 0, b: 0, i: 0}; return `<div style="margin:6px 0 10px">
+        <div class="row" style="justify-content:space-between"><b style="font-size:13.5px">${esc(short(l.session))}</b><span class="faint">${fmtMin(s.w)} working · ${fmtMin(s.b)} waiting · ${fmtMin(s.i)} idle</span></div>
+        <div style="position:relative;height:12px;border-radius:6px;background:var(--surface);overflow:hidden;margin-top:3px">${l.segments.map(([a, b, c]) => {
+          const x = (Date.parse(a) - t0) / span * 100, w = Math.max(0.3, (Date.parse(b) - Date.parse(a)) / span * 100);
+          return `<i title="${esc({w: "working", b: "waiting for approval", i: "idle"}[c])}" style="position:absolute;top:0;bottom:0;left:${x.toFixed(2)}%;width:${w.toFixed(2)}%;background:${COL[c] || COL.i}"></i>`; }).join("")}</div></div>`; }).join("")}</div>`;
+  }
+  const waits = ap.groups || [], total = waits.reduce((a, g) => a + g.wait_s, 0);
+  const n = (ap.rows || []).length;
+  html += `<h2>Approval waits${waits.length ? ` · ${n} prompt${n === 1 ? "" : "s"}, ${fmtMin(total / 60)} waiting` : ""}</h2>`
+    + (waits.length ? `<div class="card list">${waits.map(g => `<a><b>${esc(g.kind)}</b> <span class="faint">${g.count}× · ${fmtMin(g.wait_s / 60)} total · longest ${fmtMin(g.longest_s / 60)}</span><br><span class="faint">${esc(g.example)}</span></a>`).join("")}</div>`
+      : `<div class="empty">No approval prompts logged for this team.</div>`);
+  html += `<h2>Model notes</h2>` + (O.model_files.length ? `<div class="card list">${O.model_files.map(f => `<a href="#" data-read="${esc(f.url)}">${esc(f.name)}</a>`).join("")}</div>
+      <div class="faint" style="margin-top:6px">The lead's end-of-run notes. The Model Architect's grades are on the <a href="/models.html">Models</a> page.</div>`
+    : `<div class="empty">No model notes yet: the lead writes them at the end of a run.</div>`);
+  if (O.type === "research") html += `<div class="faint" style="margin-top:14px">Funnel, usage and evidence checks: <a href="/runs.html?run=${encodeURIComponent(O.job)}">the research run report</a>.</div>`;
+  $("tab").innerHTML = html;
+  wireReads($("tab"));
+}
+
+async function docket(){
+  let d;
+  try { d = await get("/api/docket"); } catch { $("tab").innerHTML = `<div class="empty">Couldn't load the docket.</div>`; return; }
+  if (d.error){ $("tab").innerHTML = `<div class="empty">${esc(d.error)}</div>`; return; }
+  const name = s => s.split("@")[0].replace(/^arch-/, "").replace(/^./, c => c.toUpperCase()) + (s.startsWith("arch-") ? " Architect" : "");
+  // "external:owner-e2e-test-message" reads as "owner e2e test message"; seats keep their address.
+  const plainPeer = p => /^(external|auth|fold):/.test(p) ? p.replace(/^[a-z]+:/, "").replace(/[-_]+/g, " ") : p;
+  const line = x => `<div class="it">${x.summary ? esc(x.summary) : `<span class="muted">${esc(x.state)} item</span>`}${x.peer ? ` <span class="faint">${x.state === "blocked" ? "blocked on" : "→"} ${esc(plainPeer(x.peer))}</span>` : ""}<span class="age">${ago(x.age_s)}</span>${x.not_delivered ? `<span class="mark">not delivered</span>` : ""}${x.stalled ? `<span class="mark">stalled</span>` : ""}
+      <div class="body">${esc(x.id)}${x.body ? "\n\n" + esc(x.body) : ""}</div></div>`;
+  const grp = (title, xs, f) => xs.length ? `<div class="grp"><b>${title}</b>${xs.map(f).join("")}</div>` : "";
+  $("tab").innerHTML = `<div class="faint" style="margin-bottom:10px">Each architect's live work, from the queue, open decisions and Needs you cards. Queue snapshot ${esc(when(d.snapshot_at))}.${d.summaries ? "" : " One-line summaries arrive when the snapshot logger restarts; states and ages are current."} Tap a line for its id and text.</div>`
+    + (d.seats.length ? "" : `<div class="empty">No architect seats are running right now.</div>`)
+    + d.seats.map(s => `<div class="card"><div class="seat">${esc(name(s.seat))}</div>
+      ${grp("Working on", s.working, line)}${grp("Up next", s.next, line)}
+      ${grp("Waiting on you", s.waiting_owner, w => `<div class="it"><a href="${esc(w.url)}">${esc(w.title)}</a> <span class="faint">${esc(w.kind)}</span></div>`)}
+      ${grp("Waiting on others", s.waiting_others, line)}
+      ${!s.working.length && !s.next.length && !s.waiting_owner.length && !s.waiting_others.length ? `<div class="faint">Nothing open.</div>` : ""}</div>`).join("");
+  $("tab").querySelectorAll(".it").forEach(el => { if (!el.querySelector("a")) el.onclick = () => el.classList.toggle("open"); });
+}
+
+// ---------- Reader: job files rendered in place (same safe renderer as the Decisions page)
+const stack = [];
+function resolveRef(ref, fromUrl){
+  const root = `/job/${JOB}/`;
+  let r = String(ref).trim().replace(/^~\/openrig\/(research|jobs)\//, "/");
+  const k = r.indexOf(`${JOB}/`);
+  if (k >= 0 && (k === 0 || r[k - 1] === "/")) return root + r.slice(k + JOB.length + 1);
+  if (r.startsWith("/")) return null;
+  const fromRoot = r.includes("/") && !/^\.\.?\//.test(r);
+  const base = !fromRoot && fromUrl && fromUrl.startsWith(root) ? fromUrl : root;
+  const u = new URL(r, location.origin + base);
+  return u.pathname.startsWith(root) ? u.pathname : null;
+}
+async function openReader(url, fresh){
+  if (!url) return;
+  if (fresh) stack.length = 0;
+  stack.push(url);
+  $("rdTitle").textContent = decodeURIComponent(url.replace(`/job/${JOB}/`, ""));
+  $("rdRaw").href = url; $("rdBack").hidden = stack.length < 2;
+  $("reader").classList.add("open"); document.body.style.overflow = "hidden";
+  const el = $("rdBody"); el.innerHTML = `<p class="muted">Loading…</p>`;
+  try {
+    const r = await fetch(url, {cache: "no-store"});
+    if (!r.ok){ el.innerHTML = `<p class="muted">Couldn't open this file (${r.status}).</p>`; return; }
+    const text = await r.text();
+    el.innerHTML = /\.(md|txt)$/i.test(url) ? md(text) : `<pre>${esc(/\.json$/i.test(url) ? (() => { try { return JSON.stringify(JSON.parse(text), null, 2); } catch { return text; } })() : text)}</pre>`;
+    el.querySelectorAll("a.fref").forEach(a => { const t = resolveRef(a.dataset.f, url); if (!t){ a.classList.add("dead"); return; } a.href = t; a.onclick = e => { e.preventDefault(); openReader(t); }; });
+    el.scrollTop = 0;
+  } catch { el.innerHTML = `<p class="muted">Couldn't reach the console.</p>`; }
+}
+function closeReader(){ $("reader").classList.remove("open"); document.body.style.overflow = ""; stack.length = 0; }
+function wireReads(root){ root.querySelectorAll("[data-read]").forEach(a => a.onclick = e => { e.preventDefault(); openReader(a.dataset.read, true); }); }
+$("rdClose").onclick = closeReader;
+$("rdBack").onclick = () => { stack.pop(); const u = stack.pop(); if (u) openReader(u); };
+$("reader").onclick = e => { if (e.target.id === "reader") closeReader(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeReader(); });
+window.addEventListener("hashchange", () => O ? page() : null);
+JOB ? page() : index();
+</script>
+</body>
+</html>

@@ -180,6 +180,19 @@ only they can do or answer. For one, an architect writes `~/openrig/jobs/archite
 - Optional, and worth filling in: `why` (why it needs the owner), `blocks` (what waits on it), `recommend`
   (our suggestion). Also `details` (a path in the architects job folder, shown as a link) and `urgent: true`
   (pushes to the phone once; otherwise no push).
+- **Commands for the owner go in `steps`** (the owner's convention, 2026-10-13): one exact, complete command
+  per step, where to run it, and what confirms it worked. The page shows each with a Copy button:
+  ```json
+  "steps": [{"where": "Ubuntu window (not tmux)", "run": "cd /mnt/c/.../OpenRig", "check": ""},
+            {"where": "Ubuntu window", "run": "git status --short -- dashboard/", "check": "Lists only files you expect"},
+            {"where": "Console", "say": "Sign in again on your phone.", "check": "Decisions page lets you decide"}]
+  ```
+  Use `run` for a command or `say` for a plain instruction. For git, review before committing
+  (`git status`, `git diff --staged`) and never stage everything blindly. Put long background in
+  `details`, not in the steps.
+- **Limits** (longer text is cut, ending in "…"): `title` 100 characters, `action` 600, `why` 400, `blocks`
+  300, `recommend` 1000; up to 20 `steps`, each `where` 80, `run` 1000 (never cut: a longer step is
+  refused rather than shortened, so write it as two), `say` 400, `check` 300.
 - **Answers:** the console writes `decisions/task-<id>.json` (and `.md`) with the whole card plus `result`
   (`done`, `wont`, `answered`, `skipped`), `answer` and `note`, then tells `asked_by`. Read it, act on it,
   then delete the task file. The answered card stays visible under "Done recently" for 14 days.

@@ -533,6 +533,29 @@ RESOLVED_DAYS = 14
 RESULTS = {"do": ("done", "wont"), "ask": ("answered", "skipped")}
 
 
+MAX_STEPS = 20
+
+
+def _cut(s, n):
+    """Card text, shortened visibly (…) rather than silently (Rig, 18:07Z: a cut recommend lost commands)."""
+    s = str(s or "").strip()
+    return s if len(s) <= n else s[:n - 1].rstrip() + "…"
+
+
+def _steps(raw):
+    """Owner steps (JOBS.md §4b): [{"where", "run" or "say", "check"}], in order. Malformed steps are dropped."""
+    out = []
+    for s in raw if isinstance(raw, list) else []:
+        if not isinstance(s, dict) or not (str(s.get("run") or "").strip() or str(s.get("say") or "").strip()):
+            continue
+        run = str(s.get("run") or "").strip()
+        if len(run) > 1000:   # a shortened command could still run and do something else: never show one
+            run, s = "", {**s, "say": "This command is too long for a card; see Details."}
+        out.append({"where": _cut(s.get("where"), 80), "run": run,
+                    "say": _cut(s.get("say"), 400), "check": _cut(s.get("check"), 300)})
+    return out[:MAX_STEPS]
+
+
 def _task_dirs():
     j = _jobs().get(TASKS_JOB)
     return (os.path.join(j["folder"], "tasks"), os.path.join(j["folder"], "decisions")) if j else (None, None)
@@ -556,7 +579,7 @@ def resolved_tasks(now=None):
         except (OSError, ValueError):
             continue
         if isinstance(r, dict) and r.get("task"):
-            out.append({k: r.get(k) for k in ("task", "kind", "title", "action", "why", "blocks", "recommend", "asked_by",
+            out.append({k: r.get(k) for k in ("task", "kind", "title", "action", "why", "blocks", "recommend", "steps", "asked_by",
                                               "result", "answer", "note", "decided_at")})
     return sorted(out, key=lambda r: r.get("decided_at") or "", reverse=True)
 
@@ -586,9 +609,9 @@ def list_tasks():
         asker = str(t.get("asked_by") or "")
         details = str(t.get("details") or "")[:300]
         out.append({"id": tid, "job": TASKS_JOB, "kind": "ask" if t.get("kind") == "ask" else "do",
-                    "title": str(t["title"]).strip()[:100], "action": str(t["action"]).strip()[:400],
-                    "why": str(t.get("why") or "").strip()[:300], "blocks": str(t.get("blocks") or "").strip()[:200],
-                    "recommend": str(t.get("recommend") or "").strip()[:400],
+                    "title": _cut(t["title"], 100), "action": _cut(t["action"], 600),
+                    "why": _cut(t.get("why"), 400), "blocks": _cut(t.get("blocks"), 300),
+                    "recommend": _cut(t.get("recommend"), 1000), "steps": _steps(t.get("steps")),
                     "asked_by": asker if ASKER_RE.match(asker) else "", "urgent": t.get("urgent") is True,
                     "details": details, "details_url": _url(TASKS_JOB, details),
                     "created": os.path.getmtime(os.path.join(tdir, fn))})
@@ -617,7 +640,7 @@ def answer_task(tid, body):
         raise ValueError("Write your answer first, or Skip")
     note = str(body.get("note") or "")[:2000].strip()
     stamp = datetime.now().astimezone().isoformat(timespec="seconds")
-    record = {"job": TASKS_JOB, "task": tid, **{k: t[k] for k in ("kind", "title", "action", "why", "blocks", "recommend", "asked_by")},
+    record = {"job": TASKS_JOB, "task": tid, **{k: t[k] for k in ("kind", "title", "action", "why", "blocks", "recommend", "steps", "asked_by")},
               "result": result, "answer": answer, "note": note, "decided_at": stamp, "decided_by": "user (Rig Console)"}
     ddir = os.path.join(_jobs()[TASKS_JOB]["folder"], "decisions")
     os.makedirs(ddir, exist_ok=True)
@@ -626,6 +649,8 @@ def answer_task(tid, body):
     lines = [f"# Card `{tid}`: {label}", "",
              f"Answered {stamp} by the user in Rig Console. The answer is the fields in `task-{tid}.json`;",
              "lines starting with > are quoted from the card as it was posted.", "", quote(t["title"]), quote(t["action"])]
+    for i, s in enumerate(t.get("steps") or [], 1):
+        lines.append(quote(f"{i}. [{s['where'] or 'step'}] {s['run'] or s['say']}" + (f" -- check: {s['check']}" if s["check"] else "")))
     if answer:
         lines += ["", "## The user's answer", answer]
     if note:
@@ -641,32 +666,32 @@ def answer_task(tid, body):
     return record, t["asked_by"], path
 
 
+def _builds_dir(j):
+    """The job's builds folder: job.json "builds", but only builds/ or a folder inside it. job.json is
+    team-written, so "builds": "decisions" (or ".") must not put other files on the builds port (MA-020)."""
+    try:
+        with open(os.path.join(j["folder"], "job.json")) as f:
+            d = str((json.load(f) or {}).get("builds") or "builds")
+    except (OSError, ValueError, AttributeError):
+        return "builds"
+    d = os.path.normpath(d)
+    return d if d.split(os.sep)[0] == "builds" and not os.path.isabs(d) else "builds"
+
+
 def build_file(job, rel):
-    """rel (a path in the job folder) only if it lies inside the job's builds folder (job.json "builds",
-    default builds/). The builds port serves nothing else (MA-013)."""
+    """rel (a path in the job folder) only if it lies inside the job's builds folder (_builds_dir).
+    The builds port serves nothing else (MA-013, MA-020)."""
     j = _jobs().get(job)
     if not j:
         return None
-    meta_dir = "builds"
-    try:
-        with open(os.path.join(j["folder"], "job.json")) as f:
-            meta_dir = (json.load(f) or {}).get("builds") or "builds"
-    except (OSError, ValueError):
-        pass
-    base, full = safe_path(job, meta_dir), safe_path(job, rel)
+    base, full = safe_path(job, _builds_dir(j)), safe_path(job, rel)
     return full if base and full and full.startswith(base + os.sep) else None
 
 
 def list_builds():
     out = []
     for j in _jobs().values():
-        meta_dir = "builds"
-        try:
-            with open(os.path.join(j["folder"], "job.json")) as f:
-                meta_dir = (json.load(f) or {}).get("builds") or "builds"
-        except (OSError, ValueError):
-            pass
-        base = safe_path(j["name"], meta_dir)
+        base = safe_path(j["name"], _builds_dir(j))
         if not base or not os.path.isdir(base):
             continue
         cands = [("latest", base)] if os.path.isfile(os.path.join(base, "index.html")) else []

@@ -18,12 +18,36 @@ MIRROR_TIMEOUT="${MIRROR_TIMEOUT:-300}" # a copy taking longer than this is stop
 MIRROR_MAX_SIZE="${MIRROR_MAX_SIZE:-20M}"
 STEP_TIMEOUT="${STEP_TIMEOUT:-20}"      # any one rig or tmux command
 RESEARCH="$HOME/openrig/research"
+OPERATOR="${RIG_OPERATOR_DIR:-$HOME/openrig/operator}"   # the operator's log (R-022), mirrored for reading (owner, 2026-10-13)
 MIRROR="${RESEARCH_MIRROR:-$REPO/research-mirror}"
 LOCK="$HOME/.cache/rig-snapshots/mirror.lock"
 LOG="$OUT/activity-log.csv"
+# R-011: the log rotates daily. Today's and yesterday's stay here (OneDrive) for reading; older days move to
+# ARCHIVE, off OneDrive. The console reads both (RIG_ACTIVITY_ARCHIVE).
+ARCHIVE="${RIG_ACTIVITY_ARCHIVE:-$HOME/openrig/activity}"
+HEADER="timestamp,rig,session,lifecycle,activity,work"
 ERRLOG="$OUT/_logger.log"   # timeouts and skips; also in the journal (journalctl -u rig-snapshots)
-mkdir -p "$OUT" "$(dirname "$LOCK")"
-[ -f "$LOG" ] || echo "timestamp,rig,session,lifecycle,activity,work" > "$LOG"
+mkdir -p "$OUT" "$ARCHIVE" "$(dirname "$LOCK")"
+[ -f "$LOG" ] || echo "$HEADER" > "$LOG"
+
+# Once a day: the log's first day isn't today any more, so it becomes activity-log-<first day>.csv, and
+# finished days older than yesterday move to ARCHIVE. A move that times out is retried next round.
+rotate_log() {
+  local today first yday f d
+  today="$(date +%F)"
+  first="$(sed -n '2{s/^\([0-9-]\{10\}\).*/\1/p;q}' "$LOG" 2>/dev/null)"
+  if [ -n "$first" ] && [ "$first" != "$today" ] && [ ! -e "$OUT/activity-log-$first.csv" ]; then
+    mv -f "$LOG" "$OUT/activity-log-$first.csv" && echo "$HEADER" > "$LOG" && note "activity log rotated: activity-log-$first.csv"
+  fi
+  yday="$(date -d yesterday +%F)"
+  for f in "$OUT"/activity-log-*.csv; do
+    [ -e "$f" ] || continue
+    d="${f##*/activity-log-}"; d="${d%.csv}"
+    if [[ "$d" < "$yday" ]]; then
+      t 300 "archive $d" mv -f "$f" "$ARCHIVE/" && note "activity log archived: activity-log-$d.csv"
+    fi
+  done
+}
 export NVM_DIR="$HOME/.nvm"; [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 
 note() {   # one line to the journal and to _logger.log (kept to its last 500 lines)
@@ -62,6 +86,7 @@ for c in "ps" "queue list" "queue show"; do
 done
 last_mirror=$((-MIRROR_EVERY))   # mirror on the first round
 while true; do
+  rotate_log
   now="$(date '+%Y-%m-%d %H:%M:%S')"
   ps_out="$(t "$STEP_TIMEOUT" "rig ps" rig ps --nodes -A 2>&1)"
   {
@@ -71,6 +96,9 @@ while true; do
   } > "$OUT/_status.tmp" && mv -f "$OUT/_status.tmp" "$OUT/_status.txt"
   t "$STEP_TIMEOUT" "rig ps json" rig ps --nodes -A --json > "$OUT/_ps.tmp" 2>&1 && mv -f "$OUT/_ps.tmp" "$OUT/_ps.json"
   t "$STEP_TIMEOUT" "rig queue list" rig queue list -a -A --limit 300 --json > "$OUT/_queue.tmp" 2>&1 && mv -f "$OUT/_queue.tmp" "$OUT/_queue.json"
+  # Active items with their summaries, for the console's Docket tab (R-023); the compact list leaves summaries out.
+  t "$STEP_TIMEOUT" "rig queue list active" rig queue list -A --full --limit 300 --json > "$OUT/_queue_active.tmp" 2>&1 \
+    && mv -f "$OUT/_queue_active.tmp" "$OUT/_queue_active.json"
   t "$STEP_TIMEOUT" "rig ps ctx" rig ps --nodes -A --json --fields rigName,canonicalSessionName,contextUsage > "$OUT/_ctx.tmp" 2>&1 && mv -f "$OUT/_ctx.tmp" "$OUT/_ctx.json"
   # Log the daemon's own activity state (includes needs_input, which the text table hides).
   python3 - "$OUT/_ps.json" "$now" >> "$LOG" <<'PY' || echo "$ps_out" | awk -v ts="$now" 'NR>1 && NF>=5 {print ts","$1","$2","$3","$4","$5}' >> "$LOG"
@@ -78,6 +106,8 @@ import json, sys
 rows = json.load(open(sys.argv[1]))
 rows = rows.get("items", rows) if isinstance(rows, dict) else rows
 for r in rows:
+    if r.get("sessionStatus") not in (None, "running"):
+        continue   # R-011: live seats only; stopped teams added a row per seat every 10 s
     a = r.get("agentActivity") or {}
     st = a.get("state", "unknown")
     if st == "running": st = "working"
@@ -91,9 +121,14 @@ PY
       t "$STEP_TIMEOUT" "capture $s" tmux capture-pane -p -J -S "-$LINES" -t "=$s:" 2>&1; } > "$f.tmp" && mv -f "$f.tmp" "$f"
   done
   # Read-only mirror of the research output so Claude can review it.
-  if [ -d "$RESEARCH" ] && [ $((SECONDS - last_mirror)) -ge "$MIRROR_EVERY" ]; then
+  if [ $((SECONDS - last_mirror)) -ge "$MIRROR_EVERY" ]; then
     last_mirror=$SECONDS
-    mirror_research
+    [ -d "$RESEARCH" ] && mirror_research
+    # The operator's folder: small text files, copied one way into snapshots/operator/. Only the copy is
+    # ever changed (--delete applies to the mirror); links are skipped, never followed.
+    if [ -d "$OPERATOR" ]; then
+      t "$STEP_TIMEOUT" "operator mirror" rsync -rt --delete --no-links --max-size=5M "$OPERATOR/" "$OUT/operator/" 2>>"$ERRLOG"
+    fi
   fi
   sleep "$INTERVAL"
 done

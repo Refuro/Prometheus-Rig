@@ -123,7 +123,7 @@ details.file pre{white-space:pre-wrap;font:12.5px/1.55 ui-monospace,SFMono-Regul
 
   <section aria-labelledby="dcH">
     <h2 id="dcH">Decisions</h2>
-    <p class="lede">Every checkpoint call sent from Rig Console, across runs, and where those niches ended up.</p>
+    <p class="lede">Checkpoint calls made with the Niche board's old picker, across runs, and where those niches ended up. Decisions made at gates are on the <a href="/decide.html">Decisions</a> page and each job's <a href="/job.html">job page</a>.</p>
     <div id="decisions"></div>
   </section>
 
@@ -146,7 +146,8 @@ const PHASE = {longlist:"Longlist",screen:"Screening",checkpoint:"Checkpoint","d
 let run = new URLSearchParams(location.search).get("run"), runs = [], rigs = [];
 const hm = d => d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"});
 const fmtMin = m => m < 60 ? `${Math.round(m)} min` : `${Math.floor(m/60)} h ${Math.round(m%60)} min`;
-const rigFor = r => rigs.find(x => x.endsWith(r)) || rigs.find(x => x.includes(r)) || null;
+// The run's team from the operator's launch record when the console has one; else the old name match.
+const rigFor = r => (runs.find(x => x.run === r) || {}).rig || rigs.find(x => x.endsWith(r)) || rigs.find(x => x.includes(r)) || null;
 const post = (url, body) => fetch(url, {method:"POST", headers:{"Content-Type":"application/json","X-Rig-Console":"1"}, body: JSON.stringify(body||{})}).then(r => r.json());
 
 async function init(){
@@ -179,7 +180,7 @@ async function decisionsLog(){
       <b>${esc(x.run)}</b>, ${esc(new Date(x.decided_at).toLocaleString([], {month:"short", day:"numeric", hour:"numeric", minute:"2-digit"}))}
       <table style="margin-top:6px"><tbody>${x.outcomes.map((o,i) => `<tr><td>${i+1}. ${esc(o.name)} <span class="msg">${esc(o.id)}</span>${x.notes && x.notes[o.id] ? `<div class="msg">Your note: ${esc(x.notes[o.id])}</div>` : ""}</td><td><span class="vchip ${o.stage === "cut" ? "dead" : o.stage === "finalist" || o.stage === "shortlisted" ? "ok" : ""}">${esc(o.stage || "unknown")}</span></td><td class="msg">${esc(o.reason || "")}</td></tr>`).join("")}</tbody></table>
       ${x.general_note ? `<div class="msg">General note: ${esc(x.general_note)}</div>` : ""}</div>`).join("")
-    : `<div class="empty">No decisions sent from Rig Console yet. Checkpoint calls made by messaging the operator don't appear here; use the picker on the Niche board to have them logged.</div>`;
+    : `<div class="empty">No picker decisions. Checkpoints are decisions at gates now: see the Decisions page and each job's page.</div>`;
 }
 
 async function compare(){

@@ -4,6 +4,7 @@
 # It changes one thing itself (Windows interop off in /etc/wsl.conf) and tells you how to do the other
 # (sudo needs your password), because editing sudo rules from a script can lock you out.
 set -euo pipefail
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin   # the system's own sudo, never a planted one
 if [ "$(id -u)" = 0 ]; then echo "Run this as yourself, not with sudo."; exit 1; fi
 
 echo "== Your password"
@@ -39,6 +40,12 @@ else
   echo "   Edit safely with:  sudo visudo -f <that file>   (keep a second terminal open with 'sudo -s' until it works)"
   echo "   If you ever lock yourself out: in PowerShell, 'wsl -u root' still opens a root shell from Windows."
 fi
+
+echo "== Anything left behind (until now any agent could become root)"
+echo "   sudo rule files (expect README and rig-console, plus any you made yourself):"
+sudo ls /etc/sudoers.d | sed 's/^/     /'
+echo "   What sudo lets you do (expect only your own '(ALL : ALL) ALL'):"
+sudo -l | sed 's/^/     /'
 
 cat <<DONE
 

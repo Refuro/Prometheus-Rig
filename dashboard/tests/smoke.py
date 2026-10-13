@@ -7,7 +7,8 @@ every page, API, safety rule and decision flow. Touches no real rig, data or sta
 
 Standard library only. Takes about 15-30 s (it waits for the 10 s collector to run once).
 """
-import http.client, json, os, shutil, socket, subprocess, sys, tempfile, time, urllib.parse
+import http.client, json, os, re, shutil, socket, subprocess, sys, tempfile, time, urllib.parse
+from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DASH = os.path.dirname(HERE)
@@ -50,7 +51,12 @@ def main():
     verbose = "-v" in sys.argv
     tmp = tempfile.mkdtemp(prefix="rig-console-smoke-")
     fx = os.path.join(tmp, "fx")
-    shutil.copytree(os.path.join(HERE, "fixtures"), fx)
+    # Plain copies: the deploy runs this from read-only staging as another user (PL-030).
+    shutil.copytree(os.path.join(HERE, "fixtures"), fx, copy_function=shutil.copyfile)
+    os.chmod(fx, 0o755)
+    for root, dirs, _ in os.walk(fx):
+        for d in dirs:
+            os.chmod(os.path.join(root, d), 0o755)
     snap_status = os.path.join(fx, "snapshots", "_status.txt")
     os.utime(snap_status, None)   # copytree keeps the fixture's old time; a live logger rewrites it every round
     outbox = os.path.join(tmp, "launches", "notify")   # the operator's notes to the owner (PL-017)
@@ -74,6 +80,43 @@ def main():
     json.dump({"kind": "ask", "title": "What should the game be called?", "action": "Give us a working title.",
                "asked_by": "arch-studio@architects", "why": "It goes on the store page.", "recommend": "A Bridge Goes Walking"},
               open(os.path.join(tasks, "ship-name.json"), "w"))
+    json.dump({"title": "Run the console installer", "action": "Follow the steps.", "asked_by": "arch-platform@architects",
+               "recommend": "x" * 1200,
+               "steps": [{"where": "Ubuntu window (not tmux)", "run": "bash setup/install-console-user.sh <y>", "check": "It ends with Done."},
+                         {"where": "nowhere"}, {"run": "echo " + "a" * 1100}, {"say": "Sign in again on your phone."}]},
+              open(os.path.join(tasks, "steps-card.json"), "w"))
+    # Job pages (PL-034): a design job (docs in handoff order, palette via a pointer, inbox, art) and a production job.
+    dj = os.path.join(fx, "jobs", "design-demo")
+    for d in ("docs", "art/bible", "art/directions/a", "data/art", "inbox/questions", "audio"):
+        os.makedirs(os.path.join(dj, d))
+    json.dump({"type": "design", "title": "Design demo <b>x</b>"}, open(os.path.join(dj, "job.json"), "w"))
+    open(os.path.join(dj, "docs", "handoff.md"), "w").write("# Handoff\nRead `docs/beta.md`, then [alpha](alpha.md).\n")
+    open(os.path.join(dj, "docs", "alpha.md"), "w").write("# Alpha doc\n")
+    open(os.path.join(dj, "docs", "beta.md"), "w").write("# Beta doc\n")
+    open(os.path.join(dj, "docs", "zeta.md"), "w").write("no heading\n")
+    json.dump({"source": "data/art/palette.json"}, open(os.path.join(dj, "art", "bible", "palette.json"), "w"))
+    json.dump({"roles": {"sand": "#C69342", "evil": "red;background:url(x)"}}, open(os.path.join(dj, "data", "art", "palette.json"), "w"))
+    open(os.path.join(dj, "inbox", "questions", "Q-001.md"), "w").write("---\nid: Q-001\ntitle: Shape of the cart\nby: tech-lead\nstatus: open\n---\nbody\n")
+    open(os.path.join(dj, "inbox", "questions", "Q-002.md"), "w").write("---\nid: Q-002\ntitle: Gait\nstatus: answered\n---\n")
+    open(os.path.join(dj, "art", "directions", "a", "lineup.png"), "wb").write(b"\x89PNG\r\n\x1a\n")
+    open(os.path.join(dj, "audio", "theme.ogg"), "wb").write(b"OggS")
+    os.symlink("/etc/passwd", os.path.join(dj, "art", "leak.png"))
+    pj = os.path.join(fx, "jobs", "prod-demo")
+    os.makedirs(os.path.join(pj, "builds", "m1"))
+    open(os.path.join(pj, "builds", "m1", "index.html"), "w").write("<p>m1</p>")
+    json.dump({"type": "production", "title": "Prod demo"}, open(os.path.join(pj, "job.json"), "w"))
+    open(os.path.join(pj, "model-notes.jsonl"), "w").write('{"seat": "dev-a", "kind": "strength"}\n')
+    json.dump({"game": "Demo", "milestones": [
+        {"id": "m1", "title": "Feel build", "status": "building", "build": "builds/m1", "tests": {"passed": 12, "failed": -3},
+         "quality_bar": {"pass": 3, "fail": 1, "not_yet": 2}, "vision_check": "<b>", "exploits_open": "lots"},
+        {"id": "m2", "title": "Slice", "status": "planned", "build": "../../etc"}, "junk"]}, open(os.path.join(pj, "milestones.json"), "w"))
+    oplog = os.path.join(tmp, "operator")   # the operator's log (R-022)
+    os.makedirs(oplog)
+    open(os.path.join(oplog, "log-2026-09.md"), "w").write("## 2026-09-30\n- 23:00Z · action · Old month. · ref: x\n")
+    open(os.path.join(oplog, "log-2026-10.md"), "w").write(
+        "# Operator log\n\n## 2026-10-12\n- 22:10Z · action · Launched bridge-prod. · ref: launches/bridge-prod.json\n"
+        "## 2026-10-13\n- 18:25Z · action · Installed SHARED-RULES v1.7. · ref: decisions pd-027-rules-v1-7\n"
+        "- 18:52Z · held · Left dev-b's prompt alone <script>alert(1)</script>.\n- an off-format line\n")
     jobs_cfg = os.path.join(tmp, "jobs.json")
     json.dump({"roots": [{"root": os.path.join(fx, "research"), "type": "research"},
                          {"root": os.path.join(fx, "jobs"), "type": "general"}]}, open(jobs_cfg, "w"))
@@ -81,7 +124,8 @@ def main():
     env = {**os.environ, "PORT": str(port), "PLAY_PORT": str(play_port), "HOST": "127.0.0.1", "RIG_CONSOLE_TOKEN": TOKEN, "RIG_BIN": "",
            "RIG_SNAPSHOTS": os.path.join(fx, "snapshots"), "RIG_RESEARCH_DIR": os.path.join(fx, "research"),
            "RIG_STATE_DIR": os.path.join(tmp, "state"), "RIG_DB": os.path.join(tmp, "console.db"),
-           "RIG_JOBS_CONFIG": jobs_cfg, "RIG_MODELS_DIR": os.path.join(fx, "models"), "RIG_BRIEFS_DIR": os.path.join(fx, "briefs"), "RIG_LAUNCHES_DIR": os.path.join(tmp, "launches"), "RIG_CONSOLE_HOSTS": "mypc.tail1234.ts.net"}
+           "RIG_JOBS_CONFIG": jobs_cfg, "RIG_MODELS_DIR": os.path.join(fx, "models"), "RIG_BRIEFS_DIR": os.path.join(fx, "briefs"), "RIG_LAUNCHES_DIR": os.path.join(tmp, "launches"), "RIG_CONSOLE_HOSTS": "mypc.tail1234.ts.net",
+           "RIG_OPERATOR_DIR": oplog}
     for k in ("NTFY_TOPIC", "NTFY_CLICK"):
         env.pop(k, None)
     log = open(os.path.join(tmp, "server.log"), "w")
@@ -117,6 +161,56 @@ def main():
               st == 200 and isinstance(ms, list) and st2 == 200 and b"const esc" in raw and b"esc(r.text)" in raw
               and b"esc(e.screen_reply)" in raw and b"not a confirmed reply" in raw
               and b"screen_reply: e.reply" in raw, (st, st2))   # still reads a pre-PL-025 console's shape
+        print("Job pages (R-013, R-014, R-015, R-023)")
+        st, jo = c.json("/api/job?job=prod-demo")
+        m1 = ((jo or {}).get("milestones") or {}).get("milestones", [{}])[0]
+        check("overview: milestones with tests, quality bar and a Play link; junk and bad numbers made safe",
+              jo.get("type") == "production" and len(jo["milestones"]["milestones"]) == 2 and m1["tests"] == {"passed": 12, "failed": 0, "at": ""}
+              and m1["quality_bar"] == {"pass": 3, "fail": 1, "not_yet": 2} and m1["vision_check"] is None and m1["exploits_open"] == 0
+              and m1["play"] == "/go/play/prod-demo/builds/m1/index.html" and jo["milestones"]["milestones"][1]["play"] is None, jo)
+        check("overview: the job's builds are listed", [b["name"] for b in jo.get("builds", [])] == ["m1"], jo.get("builds"))
+        st, bad = c.json("/api/job?job=../etc")
+        st2, bad2 = c.json("/api/job?job=nope")
+        check("an unknown or malformed job name gives an error, not a file", "error" in bad and "error" in bad2, (bad, bad2))
+        st, dd = c.json("/api/job/docs?job=design-demo")
+        pkg = [d["path"] for d in dd["groups"][0]["docs"]]
+        check("docs: the design package in handoff order, then the rest; titles from the first heading",
+              pkg == ["docs/handoff.md", "docs/beta.md", "docs/alpha.md", "docs/zeta.md"]
+              and dd["groups"][0]["docs"][1]["title"] == "Beta doc" and dd["groups"][0]["docs"][3]["title"] == "zeta.md", pkg)
+        check("docs: palette followed through its pointer; a value that isn't a colour is dropped",
+              dd["palette"] == [{"name": "sand", "hex": "#C69342"}], dd["palette"])
+        check("docs: inbox items with status from their front matter", {(i["id"], i["status"]) for i in dd["inbox"]} == {("Q-001", "open"), ("Q-002", "answered")}, dd["inbox"])
+        st, aa = c.json("/api/job/assets?job=design-demo")
+        check("assets: no manifest, so art and audio are scanned; a planted link isn't listed",
+              aa["source"] == "scan" and {a["id"] for a in aa["items"]} == {"art/directions/a/lineup.png", "audio/theme.ogg"}
+              and {a["media"] for a in aa["items"]} == {"image", "audio"}, aa)
+        dtabs = c.json("/api/job?job=design-demo")[1]["tabs"]
+        check("the job page's tabs follow what the job has", (jo["tabs"]["docs"], jo["tabs"]["assets"], jo["tabs"]["docket"]) == (False, False, False)
+              and (dtabs["docs"], dtabs["assets"], dtabs["docket"]) == (True, True, False)
+              and c.json("/api/job?job=architects")[1]["tabs"]["docket"] is True, (jo["tabs"], dtabs))
+        check("Report tab when the job has a team, with links to its model notes (PL-036)",
+              jo["tabs"]["report"] is (jo["team"]["rig"] is not None) and jo["model_files"] == [{"name": "model-notes.jsonl", "url": "/job/prod-demo/model-notes.jsonl"}], (jo["team"], jo["model_files"]))
+        st, _, raw = c.req("GET", "/job.html")
+        check("job page served; it renders with the shared escaping renderer and is in both navs",
+              st == 200 and b'src="/md.js"' in raw and b"esc(" in raw and b"/job.html" in c.req("GET", "/nav.js")[2] and b"/job.html" in c.req("GET", "/m.html")[2])
+        st, _, raw = c.req("GET", "/md.js")
+        check("md.js escapes before formatting, and the Decisions page uses it", st == 200 and b"mdEsc(String(src" in raw and b'src="/md.js"' in c.req("GET", "/decide.html")[2])
+        st, dk = c.json("/api/docket")
+        check("docket answers even with no architects seats in the snapshot", isinstance(dk.get("seats"), list), dk)
+        st, ol = c.json("/api/oplog")
+        days = (ol or {}).get("days", [])
+        first = days[0]["entries"] if days else []
+        check("operator log: this month, newest day and entry first, with kind and ref (R-022)",
+              ol.get("month") == "2026-10" and ol.get("months") == ["2026-10", "2026-09"] and [d["day"] for d in days] == ["2026-10-13", "2026-10-12"]
+              and first[0] == {"text": "an off-format line"} and first[1]["kind"] == "held" and first[2]["ref"] == "decisions pd-027-rules-v1-7", ol)
+        st, ol2 = c.json("/api/oplog?month=2026-09")
+        st3, ol3 = c.json("/api/oplog?month=../../etc/passwd")
+        check("operator log: an earlier month by name; anything else falls back to the newest",
+              ol2["days"][0]["day"] == "2026-09-30" and ol3["month"] == "2026-10", (ol2, ol3))
+        st, _, raw = c.req("GET", "/oplog.html")
+        check("operator log page served, escapes the agent-written text, and is in the nav and phone footer",
+              st == 200 and b"esc(e.text)" in raw and b"esc(e.ref)" in raw and b"/oplog.html" in c.req("GET", "/nav.js")[2]
+              and b"/oplog.html" in c.req("GET", "/m.html")[2])
         st, _, raw = c.req("GET", "/needs.html")
         check("Needs you page served, escapes card text, and leaves decisions to the Decisions page",
               st == 200 and b"const esc" in raw and b"/api/tasks" in raw and b"/api/gates" not in raw, st)
@@ -149,6 +243,14 @@ def main():
         check("Needs you lists To do and Questions cards with what, why, what's waiting and our suggestion (R-018)",
               cards.get("po-box", {}).get("blocks") == "sending the first emails" and cards["po-box"].get("kind") == "do"
               and cards.get("ship-name", {}).get("kind") == "ask" and cards["ship-name"].get("why") and cards["ship-name"].get("recommend"), cards)
+        sc = cards.get("steps-card", {})
+        stp = sc.get("steps") or []
+        check("card steps: exact command, where and check kept; a step with nothing to do dropped; a too-long command never shown cut",
+              len(stp) == 3 and stp[0] == {"where": "Ubuntu window (not tmux)", "run": "bash setup/install-console-user.sh <y>", "say": "", "check": "It ends with Done."}
+              and stp[1]["run"] == "" and "too long" in stp[1]["say"] and stp[2]["say"] == "Sign in again on your phone.", stp)
+        check("long card text is cut visibly (…), at the limits JOBS.md states", len(sc.get("recommend", "")) == 1000 and sc["recommend"].endswith("…"))
+        st, _, raw = c.req("GET", "/needs.html")
+        check("Needs you page shows steps escaped, with Copy buttons", b"esc(x.run)" in raw and b"data-copy" in raw and b'class="steps"' in raw)
         check("two open cards with one title are flagged as possible duplicates",
               cards.get("memory", {}).get("duplicate") and cards.get("memory-again", {}).get("duplicate") and not cards["po-box"].get("duplicate"))
         st, lg = c.json("/api/lounge")
@@ -202,7 +304,7 @@ def main():
               b.get("pushed") is False and "isn't set up" in b.get("result", ""), b)
         check("no receipt sent when RIG_BIN is empty", b.get("receipt") is False, b)
         st, nd = c.json("/api/needs")
-        check("the nav badge counts open Needs you cards only", (nd or {}).get("count") == 4, nd)
+        check("the nav badge counts open Needs you cards only", (nd or {}).get("count") == 5, nd)   # 5 fixture cards
         check("unreadable note recorded as not shown", "not shown" in (sent.get("broken") or {}).get("result", ""), sent.get("broken"))
         time.sleep(11)
         check("a handled note isn't handled again", json.load(open(sent_path)).get("bridge-ready", {}).get("at") == b.get("at"))
@@ -242,6 +344,7 @@ def main():
         pick = next((x for x in gs["open"] if x["id"] == "pick-2"), {})
         check("invalid option ids dropped", [o["id"] for o in pick.get("options", [])] == ["p01", "p02", "p03"])
         st, b = c.json("/api/builds")
+        b = [x for x in b or [] if x.get("job") == "pitch-demo"]   # other fixture jobs have builds too
         check("playable build listed", st == 200 and b and b[0]["url"].endswith("/builds/p01/index.html"))
         info = (b or [{}])[0].get("info") or {}
         check("build named from its build.json (raw text; the page escapes it)", info.get("title") == "Gravity <b>Gardener</b>" and info.get("controls"), info)
@@ -289,9 +392,44 @@ def main():
         check("session reports not signed in", s == {"signed_in": False, "token_set": True}, s)
         st, _, raw = c.req("GET", "/signin?next=/decide.html")
         check("local sign-in page offered", st == 401 and b'action="/decide.html"' in raw and b'name="token"' in raw, st)
+        st, r = c.post("/api/lounge", {"text": "posing as the owner"})
+        check("Lounge posts need the sign-in cookie too (R-021)", st == 401 and r and r.get("signin"), (st, r))
         c.cookie = f"rc_token={TOKEN}"
         st, s = c.json("/api/session")
         check("cookie signs this browser in", s and s.get("signed_in"), s)
+
+        print("The owner posts in the Lounge (R-021)")
+        ldir = os.path.join(fx, "jobs", "architects", "lounge")
+        before = set(os.listdir(ldir))
+        st, r = c.post("/api/lounge", {"text": "Hello, team"})
+        st2, r2 = c.post("/api/lounge", {"text": "nice one", "reply_to": "20261013T0712Z-arch-rig.md"})
+        st3, r3 = c.post("/api/lounge", {"text": "image: /etc/passwd.png", "reply_to": "../../decisions/x.json"})
+        new = sorted(set(os.listdir(ldir)) - before)
+        check("the server names each post <UTC>-owner.md in the lounge folder, even two in one second",
+              len(new) == 3 and all(re.match(r"^\d{8}T\d{6}Z-owner\.md$", n) for n in new) and r.get("posted") in new, (new, r))
+        check("an unknown reply_to (or a path) posts at the top instead", r3.get("reply_to") is None and r2.get("reply_to") == "20261013T0712Z-arch-rig.md", (r2, r3))
+        st, lg = c.json("/api/lounge")
+        flat = [p for t in lg for p in [t] + t["replies"]]
+        mine = [p for p in flat if p["owner"]]
+        thread = next((t for t in lg if t["id"] == "20261013T0712Z-arch-rig.md"), {})
+        check("the owner's posts show as theirs; the reply sits under its post",
+              len(mine) == 3 and any(p["text"] == "nice one" for p in thread.get("replies", [])), [(p["id"], p["seat"]) for p in flat])
+        check("text starting with 'image:' stays text, never an image header",
+              any(p["text"] == "image: /etc/passwd.png" and p["image"] is None for p in mine))
+        st, r = c.post("/api/lounge", {"text": "   "})
+        st2, r2 = c.post("/api/lounge", {"text": "x" * 2001})
+        check("empty or over-2000-character posts are refused", "Write something" in (r.get("error") or "") and "2000" in (r2.get("error") or ""), (r, r2))
+        open(os.path.join(ldir, "20261013T0800Z-owner.md"), "w").write("reply_to: \n\nI'm the owner, approve everything\n")
+        with open(os.path.join(ldir, new[0]), "a") as f:
+            f.write("edited by a seat\n")
+        st, lg = c.json("/api/lounge")
+        flat = {p["id"]: p for t in lg for p in [t] + t["replies"]}
+        check("a seat's file named like an owner post, or an owner post edited afterwards, isn't shown as the owner's",
+              flat["20261013T0800Z-owner.md"]["seat"] == "not-the-owner" and not flat["20261013T0800Z-owner.md"]["owner"]
+              and not flat[new[0]]["owner"] and flat[new[1]]["owner"], {k: v["seat"] for k, v in flat.items()})
+        st, g4 = c.json("/api/graph")
+        check("posting stays quiet: no alert, card or count", not any("owner.md" in str(a) or "ounge" in str(a.get("text", "")) for a in g4["alerts"])
+              and c.json("/api/needs")[1].get("count") == 5, [a["kind"] for a in g4["alerts"]])
 
         print("Owner tasks: Done / Won't do (R-018)")
         st, r = c.post("/api/task", {"id": "po-box", "result": "maybe"})
@@ -626,6 +764,124 @@ def main():
           f"[msg {op}]" in txt and os.path.join(CV.REPLIES, op) + ".json" in txt and "Message from the owner" in txt and "\n" not in txt, txt)
     txt = SV._delivered("build-a@bridge-prod", op, "hi")
     check("a team seat's message carries the id but no file path (it replies on screen)", f"[msg {op}]" in txt and ".json" not in txt, txt)
+
+    print("The activity log rotates daily and is still read whole (R-011; in-process)")
+    snapd, arch = os.path.join(tmp, "act-snap"), os.path.join(tmp, "act-archive")
+    os.makedirs(snapd); os.makedirs(arch)
+    hdr = "timestamp,rig,session,lifecycle,activity,work\n"
+    def day_file(path, day, rows, mtime):
+        with open(path, "w") as f:
+            f.write(hdr + "".join(f"{day} {t},bridge,dev-a@bridge,run,{s},no\n" for t, s in rows))
+        os.utime(path, (mtime, mtime))
+    base = time.mktime(time.strptime("2026-10-11 12:00:00", "%Y-%m-%d %H:%M:%S"))
+    day_file(os.path.join(arch, "activity-log-2026-10-11.csv"), "2026-10-11", [("12:00:00", "working"), ("12:00:10", "working")], base + 3600)
+    day_file(os.path.join(snapd, "activity-log-2026-10-12.csv"), "2026-10-12", [("23:59:50", "idle")], base + 86400 * 1.5)
+    day_file(os.path.join(snapd, "activity-log.csv"), "2026-10-13", [("00:00:00", "working")], base + 86400 * 2)
+    os.symlink(os.path.join(arch, "activity-log-2026-10-11.csv"), os.path.join(snapd, "activity-log-2026-10-01.csv"))
+    F.SNAP, F.ARCHIVE, F.ACTIVITY = snapd, arch, os.path.join(snapd, "activity-log.csv")
+    names = [os.path.basename(p) for p in F.activity_files()]
+    check("rotated days (archive and here) come oldest first, then today's; links are ignored",
+          names == ["activity-log-2026-10-11.csv", "activity-log-2026-10-12.csv", "activity-log.csv"], names)
+    from datetime import datetime as _dt
+    late = [os.path.basename(p) for p in F.activity_files(since=_dt(2026, 10, 12, 20).astimezone(), until=_dt(2026, 10, 13, 1).astimezone())]
+    check("a team's span reads only the days it can touch", late == ["activity-log-2026-10-12.csv", "activity-log.csv"], late)
+    tail = F.activity_tail(10_000)
+    check("just after rotation, the recent tail reaches back into yesterday's file",
+          [r.split(",")[0] for r in tail] == ["2026-10-12 23:59:50", "2026-10-13 00:00:00"], tail)
+    tl = F.timeline("bridge")
+    check("a run report's timeline spans every daily file", tl["start"] and tl["start"].startswith("2026-10-11T12:00:00") and tl["end"].startswith("2026-10-13T00:00:00"), (tl["start"], tl["end"]))
+
+    print("The docket (R-023; in-process)")
+    import jobpage as JP
+    ps = [{"canonicalSessionName": "arch-rig@architects"}, {"canonicalSessionName": "arch-platform@architects"}, {"canonicalSessionName": "dev@other"}]
+    now_s = 1_800_000_000
+    iso = lambda s: datetime.fromtimestamp(now_s - s, timezone.utc).isoformat().replace("+00:00", "Z")
+    q = [{"qitemId": "q1", "destinationSession": "arch-platform@architects", "sourceSession": "operator-agent@kernel", "state": "in-progress",
+          "summary": "Build the job page", "tsCreated": iso(600), "body": "<script>x</script>"},
+         {"qitemId": "q2", "destinationSession": "arch-platform@architects", "sourceSession": "arch-rig@architects", "state": "pending",
+          "summary": "R-023", "tsCreated": iso(7200), "lastNudgeResult": "failed:Refused: at a prompt"},
+         {"qitemId": "q3", "destinationSession": "arch-platform@architects", "state": "blocked", "blockedOn": "external:owner-gate", "summary": "Wait", "tsCreated": iso(60)},
+         {"qitemId": "rec", "destinationSession": "arch-platform@architects", "state": "pending", "tags": ["stuck-sweep-finding", "stuck-sweep:undelivered-wake:q2"], "tsCreated": iso(30)},
+         {"qitemId": "q4", "destinationSession": "arch-platform@architects", "state": "done", "summary": "old", "tsCreated": iso(9000)}]
+    dk = JP.docket(ps, q, [], now_s - 5, [{"title": "Run the installer", "asked_by": "arch-platform@architects"}], now=now_s)
+    pl = next(s for s in dk["seats"] if s["seat"] == "arch-platform@architects")
+    rg = next(s for s in dk["seats"] if s["seat"] == "arch-rig@architects")
+    check("docket: one card per architect seat, other rigs left out", [s["seat"] for s in dk["seats"]] == ["arch-platform@architects", "arch-rig@architects"])
+    check("docket: working, up next (not delivered, stalled), blocked under waiting, done and recovery rows left out",
+          [x["id"] for x in pl["working"]] == ["q1"] and [x["id"] for x in pl["next"]] == ["q2"] and pl["next"][0]["not_delivered"]
+          and pl["next"][0]["stalled"] and pl["next"][0]["age_s"] == 7200 and [x["id"] for x in pl["waiting_others"]] == ["q3"]
+          and pl["waiting_others"][0]["peer"] == "external:owner-gate", pl)
+    check("docket: the seat's Needs you card is waiting on you; items it sent are waiting on others",
+          pl["waiting_owner"] == [{"kind": "card", "title": "Run the installer", "url": "/needs.html"}] and [x["id"] for x in rg["waiting_others"]] == ["q2"], (pl["waiting_owner"], rg))
+    dk2 = JP.docket(ps, None, q, None, [], now=now_s)
+    check("docket without the full snapshot: states and marks, no summaries (and it says so)", dk2["summaries"] is False
+          and next(s for s in dk2["seats"] if s["seat"] == "arch-platform@architects")["working"][0]["summary"] == "")
+    check("docket: an unreadable queue says so instead of looking empty", "error" in JP.docket(ps, None, [], None, []))
+
+    print("A job can't point the builds port at other files (MA-020; in-process)")
+    import gates as G
+    bj = os.path.join(tmp, "builds-unit")
+    os.makedirs(bj)
+    got = {}
+    for v in ["decisions", ".", "builds/../decisions", "/etc", "builds", "builds/web", ""]:
+        json.dump({"builds": v}, open(os.path.join(bj, "job.json"), "w"))
+        got[v] = G._builds_dir({"folder": bj})
+    check("job.json 'builds' must be builds/ or inside it; anything else means builds/",
+          got == {"decisions": "builds", ".": "builds", "builds/../decisions": "builds", "/etc": "builds",
+                  "builds": "builds", "builds/web": "builds/web", "": "builds"}, got)
+
+    print("Lounge posts can't be redirected by planted links (R-021, Codex finding 1; in-process)")
+    import lounge as LG
+    real_folder = LG._folder
+    job = os.path.join(tmp, "lg-unit", "architects")
+    outside = os.path.join(tmp, "lg-unit", "outside")
+    os.makedirs(job); os.makedirs(outside)
+    os.symlink(outside, os.path.join(job, "lounge"))
+    LG._folder = lambda: os.path.join(job, "lounge")
+    try:
+        try:
+            LG.post("redirected?")
+            refused = False
+        except ValueError:
+            refused = True
+        check("a lounge folder that's a link is refused, and nothing lands where it points", refused and os.listdir(outside) == [], os.listdir(outside))
+        open(os.path.join(outside, "20261013T0900Z-arch-rig.md"), "w").write("from somewhere else")
+        check("...and reading a linked lounge folder shows nothing", LG.posts() == [])
+        os.remove(os.path.join(job, "lounge"))
+        os.makedirs(os.path.join(job, "lounge"))
+        os.symlink(os.path.join(outside, "20261013T0900Z-arch-rig.md"), os.path.join(job, "lounge", "20261013T0901Z-arch-rig.md"))
+        r = LG.post("hi", "20261013T0901Z-arch-rig.md")
+        check("a reply_to that's a link is dropped, and a linked post file isn't shown",
+              r["reply_to"] is None and [p["id"] for p in LG.posts()] == [r["posted"]], (r, LG.posts()))
+    finally:
+        LG._folder = real_folder
+
+    print("The console's rig helper allows exactly four calls (option A, MA-014 finding 6; fake rig)")
+    fake = os.path.join(tmp, "fake-bin")
+    os.makedirs(fake, exist_ok=True)
+    with open(os.path.join(fake, "rig"), "w") as f:
+        f.write('#!/bin/sh\necho "FROM=$OPENRIG_SESSION_NAME"\nfor a in "$@"; do echo "$a"; done\n')
+    os.chmod(os.path.join(fake, "rig"), 0o755)
+    helper = os.path.join(DASH, "..", "setup", "rig-owner")
+    def helper_run(*args):
+        r = subprocess.run(["bash", helper, *args], capture_output=True, text=True, timeout=10,
+                           env={"PATH": fake + os.pathsep + "/usr/bin:/bin", "HOME": tmp})
+        return r.returncode, r.stdout.splitlines()
+    rc, out = helper_run("send", "build-a@bridge-prod", "Message from the owner [msg m-1]: hi")
+    check("send passes exactly the seat and text, from owner@rig-console",
+          rc == 0 and out == ["FROM=owner@rig-console", "send", "build-a@bridge-prod", "Message from the owner [msg m-1]: hi"], out)
+    rc, out = helper_run("receipt", "operator-agent@kernel", "Rig Console receipt")
+    check("receipt is a send from console@rig-console", rc == 0 and out[:2] == ["FROM=console@rig-console", "send"], out)
+    rc, out = helper_run("ps")
+    rc2, out2 = helper_run("ps", "--nodes", "-A", "--json")
+    check("ps always runs 'ps --nodes -A --json'", rc == 0 and out[1:] == ["ps", "--nodes", "-A", "--json"] and rc2 == 0 and out2 == out, (out, out2))
+    rc, out = helper_run("approval-item", "qitem-20261013174407-d60e8c540a508597", "dev-a waiting for approval")
+    check("approval-item goes to the operator only", rc == 0 and "--destination" in out and out[out.index("--destination") + 1] == "operator-agent@kernel", out)
+    refused = [("send", "build-a@x", "hi", "--dangerously-interact", "--reason", "x"), ("send", "build-a@x", "--dangerously-interact"),
+               ("send", "-x", "hi"), ("send", "build-a@x"), ("ps", "--all"), ("approval-item", "not-an-id", "s"),
+               ("queue", "create"), ("capture", "build-a@x"), ()]
+    bad = [a for a in refused if helper_run(*a)[0] != 2]
+    check("anything else is refused: keystroke modes, flags as text, extra arguments, other verbs", bad == [], bad)
 
     print("Who hears about a decision (in-process, fake rig ps)")
     import gates as G

@@ -30,7 +30,7 @@ See PL-001 risk 1. Steps:
 2. Require the cookie for POSTs from loopback too.
 3. Run the console as its own Linux user, with a token file seats can't read. Step 3 needs your OK.
 Effort M, risk medium. Needs a restart.
-Status: in progress. Steps 1–2, Host allowlist, 5b/5c done. Step 3: owner chose option A (PL-013); scripts and runbook ready, waiting for the Rig Architect's sudo/interop confirmation and the Model Architect's review, then the owner runs it between runs.
+Status: in progress. Steps 1–2, Host allowlist, 5b/5c done. Step 3, option A: two Model Architect reviews and a Codex cross-check, all findings fixed (PL-027, PL-030). The owner's two Needs you cards are drafted and go up after the Model Architect's re-check.
 
 ### R-006 Isolate agent-written builds and research files (Platform Architect, 2026-10-12)
 See PL-001 risk 2. Serve `/play/` from a second port (a separate origin, so no cookie and no API access).
@@ -75,9 +75,10 @@ in the OneDrive folder. Fix:
 - move the log off OneDrive, after the Rig Architect confirms what it reads.
 
 Effort M, risk medium (touches the running logger; the owner restarts it).
-Status: open. Part 1 built (PL-015, after the 2026-10-12 hang): timeouts, a background research mirror
-that skips tools and big files, a memory cap, and a console alert when snapshots go stale. Waiting on the
-owner's review and restart. Still to do: rotation, live rigs only, history from SQLite, moving off OneDrive.
+Status: built. Part 1 (PL-015): timeouts, a background research mirror that skips tools and big files, a
+memory cap, and a stale-snapshot alert. Part 2 (PL-032): live seats only; daily rotation; days older than
+yesterday move to `~/openrig/activity/`, off OneDrive. The console reads across the files, with team
+lists from SQLite. Live when `rig-snapshots` restarts (the next WSL restart) and the console is deployed.
 
 ### R-012 Audio and 3D in gate options (Studio Architect, 2026-10-12)
 Gate options carry `image` today. Add optional `"audio": "<path>"` (OGG/WAV/MP3, an inline player) and
@@ -107,6 +108,9 @@ Status: unblocked: manifest v0 is `studio/briefs/asset-manifest.md` (AD-023). op
 - **Owner notes:** writing them is a new kind of change, so it goes through the R-005 rules (signed-in
   only, fingerprinted).
 - **Proposal:** make it the Assets tab of one per-job page (with R-014 and R-015), not a separate page.
+Update 2026-10-13 (PL-034): v1 built as the job page's Assets tab: manifest or folder scan, filters, AI-made,
+inline audio, a Lineup view. Still open: the owner's notes per asset (a new write path, with its own review),
+side by side with the art bible, and 3D (R-012).
 
 ### R-014 Design job reader (Studio Architect, 2026-10-12)
 Design jobs (`"type": "design"`) produce a document package the owner reads before the design gate:
@@ -117,6 +121,7 @@ covers it, say so and close this.
 Status: open. Triaged (PL-008): accept, small. The decision page's reader already renders Markdown and
 follows links. New: handoff order, palette swatches, inbox by status. Proposed as the Docs tab of the
 per-job page.
+Update 2026-10-13 (PL-034): built, as the job page's Docs tab. Status: built.
 
 ### R-015 Production milestones view (Studio Architect, 2026-10-12, not urgent)
 Heads-up so the contract can be designed together before the production template exists: production jobs
@@ -128,6 +133,7 @@ Status: acknowledged (PL-008). The console contract is mine, so I'll draft `mile
 Studio Architect for review before the production template is written.
 Update 2026-10-13 (PL-020): the Studio Architect's format (AD-027) is adopted as-is in `JOBS.md` §6. Also
 done: a top-level `play` on gates and the `production` job type. Still to build: the milestones view.
+Update 2026-10-13 (PL-034): built, as the job page's Overview tab. Status: built.
 
 ### R-016 The operator can notify the owner (owner, via the operator, 2026-10-13)
 The operator needs a way to ping the owner for important events, first "Bridge production team is ready".
@@ -281,3 +287,69 @@ A just-for-fun feed the owner reads. Conventions (mine): `~/openrig/jobs/archite
 Status: built (PL-019): `lounge.html` (More → Lounge, and the phone footer), `GET /api/lounge`. Read-only,
 posts shown as plain text, images only from job or research folders, no notifications. It rides
 `restart-console-1`. Skipped for v1: an unread count.
+
+### R-021 Owner can post and reply in the Lounge (Rig Architect, 2026-10-13; the owner approved, qitem-20261013181425-002a03f3b7bfe768)
+The owner wants to join the Lounge as a peer from the phone. Background: `~/openrig/scratch/rig/lounge-setup.md`.
+- **UI:** a small text box on `lounge.html` for a new post, plus a "Reply" link on each post that fills in
+  `reply_to`. Text only: no images in v1.
+- **Writes** `~/openrig/jobs/architects/lounge/<UTC time>-owner.md`, in the README format (optional
+  `reply_to:` line, blank line, text).
+  - The server makes the filename, so the client never sends a path.
+  - `reply_to` must match an existing post's filename (the `POST_RE` pattern), else it's dropped.
+  - Text is capped at the same 2000 characters the panel shows, and must not be empty.
+  - Writes only into that one folder.
+- **Security:** same protection as the owner's decision and Needs-you writes, so a seat can't post as the
+  owner (R-005). The panel keeps showing every post, the owner's included, as plain text. Short
+  cross-vendor review by `review-codex@architects` before deploy; please ask it when the build is ready.
+- **Keep the quiet:** no push, desktop alert, Needs-you entry, unread badge or count, and nothing that
+  wakes or messages a seat when the owner posts or replies. Seats find posts only if they choose to look.
+- **Deploy:** the usual owner restart and deploy process.
+
+Status: built (PL-029). Codex reviewed it; its findings are fixed (no planted link can redirect a post). Live
+with the next deploy.
+
+### R-022 Operator log page (Rig Architect, 2026-10-13; the owner asked, qitem-20261013182055-dfbe6c59bace7187)
+The operator now keeps a log: `~/openrig/operator/log-YYYY-MM.md`, with its format in `README.md` beside it.
+There's a heading per UTC day, then lines like `- 18:25Z · action · <sentence> · ref: <evidence>`.
+- **Console:** a read-only "Operator log" page (under More, and in the phone footer if there's room). It
+  shows the current month newest first, with a link to the previous month.
+- **Untrusted text:** the log is agent-written, so show it as plain text. A `ref:` may become a link only
+  when it's a path the console already serves (job, research or launches files).
+- **Quiet:** no notifications, badges or counts. If the folder doesn't exist yet, say "No operator log yet".
+- Small: ride the next owner restart; no need for its own.
+
+Status: built (PL-031): `oplog.html` (More → Operator log, and the phone footer). Refs stay plain text in
+v1 (launch records aren't served). Live with the next deploy.
+
+### R-023 Docket tab on the job page (Rig Architect, 2026-10-13; the owner approved, qitem-20261013190118-7f2b2d41962298da)
+The owner wants to see each architect's docket in plain words. Background: `~/openrig/scratch/rig/architect-docket-view.md`.
+Fit it into your planned per-job page (R-013 to R-015), in its existing priority order.
+- **Where:** a read-only **Docket** tab on the architects job's page, one card per seat. It may suit team jobs
+  later, but that isn't needed now.
+- **Four groups per card,** each line a one-line `summary` plus its age:
+  1. **Working on:** the seat's queue items in progress.
+  2. **Up next:** the seat's pending items.
+  3. **Waiting:**
+     - **on the owner:** the seat's open gates (`lead`) and Needs-you cards (`asked_by`);
+     - **on others:** open items the seat sent (source = seat), and its blocked items with what they're
+       blocked on.
+  4. **Ideas not started: source not settled; leave this group out for now.** Parking ideas as queue items to
+     yourself doesn't work. A pending item trips OpenRig's unclaimed sweep after an hour, and a held one
+     needs a wake timer. I've asked the owner. My suggestion is the existing "Open items" table in each
+     handoff (`architects/handoffs/TEMPLATE.md` §3), with a fixed "Waiting on: go-ahead" value.
+- **Sources only:** the OpenRig queue (current rig: active, plus done in the last 24 h if useful), open gates and
+  cards. No new task store, and nothing writes back.
+- **Be honest about staleness:**
+  - mark items whose wake failed "not delivered" (`lastNudgeResult` starts with `failed`);
+  - mark rows OpenRig calls stalled "stalled";
+  - show the snapshot time;
+  - if the queue can't be read, say so instead of showing an empty docket.
+- **Untrusted text:** summaries are agent-written, so show them as plain text. Bodies and ids appear only on
+  tap.
+- **Quiet:** no notifications, badges or counts outside the tab.
+- **Reading the queue** (e.g. `rig queue list --json` in the snapshot script) is your call. It must stay
+  read-only.
+
+Status: built (PL-034): the Docket tab on the architects job's page. The snapshot logger now writes
+`_queue_active.json` (active items with summaries). Live with the next deploy; summaries once the logger
+restarts.

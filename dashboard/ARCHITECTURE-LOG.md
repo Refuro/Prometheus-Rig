@@ -1215,6 +1215,369 @@ rule, but the gate is still undecided, so whatever restart comes next loads both
 
 ---
 
+## PL-027 Option A ready for the owner: the Model Architect's review fixed, two Needs you cards (owner go-ahead, qitem-20261013180300, 2026-10-13)
+**Why now:** the owner approved my priority list (`scratch/platform/restart-5-and-ideas.md`): option A
+first, then the activity log, then job pages. Option A's two preconditions were met: SHARED-RULES §1 now
+forbids seats `sudo` and Windows programs, and the Model Architect reviewed the scripts
+(`models/reviews/PL-013-option-A.md`, MA-014). But I'd never fixed that review's findings. Done now:
+
+- **Finding 1 (high), deploy a reviewed commit:** `deploy-console.sh` refuses if `dashboard/` has uncommitted
+  changes. It shows the commits and files changed since the last deploy and asks. It exports the commit
+  with `git archive`, runs the smoke test on that exact copy, deploys it and records the hash in
+  `/var/lib/rig-console/deployed`. Health's "Console isolation" line shows the deployed commit. The
+  remaining risk is as the review says: the boundary is the owner reading the diff, or the commit
+  history, since architect seats can commit.
+- **Finding 2 (high), the token on screen:** the installer refuses to run inside tmux. It never prints the
+  token; it writes it to `/root/rig-console-token` (root, 600) for the owner to read once with
+  `sudo cat`.
+- **Finding 4, prove the boundary:** the five extra checks (code, settings, console user, state, plus
+  interop and sudo) are steps in the owner's card. I left out the `/proc/<pid>/environ` check: it needs
+  `$(…)` inside a path and adds little once the settings file itself is unreadable.
+- **Finding 6, the helper:** `rig-owner` now allows exactly `send|receipt <seat> <text>`,
+  `approval-item <qitem id> <summary>` and `ps` (always `--nodes -A --json`). It refuses extra arguments,
+  text starting with "-", and anything else. Smoke-tested against a fake `rig`.
+- **Point 7:** the installer's `rig ps` self-test now also says that a failure may mean sudo isn't setting
+  HOME. Re-signing on every device is a card step.
+- **Not done, on purpose:**
+  - **Finding 3 (launch records writable by seats):** added to "doesn't close". It's option B territory,
+    or a later pin-and-alert like PL-010.
+  - **Finding 5 (`ProtectHome=read-only`):** the helper's `rig` runs inside the console's mount
+    namespace, and I can't test which home paths `rig` writes without root. A read-only home could break
+    every decision message. Revisit after option A is live, with the owner, one setting at a time.
+
+**Owner steps:** two Needs you cards in the architects job:
+- `console-own-user`: commit, password, installer, token, sign in again;
+- `close-wsl-root`: harden, remove NOPASSWD, `wsl --shutdown`, the checks.
+
+Each step has the exact command, where to run it and its success check. The runbook is in
+`ops/console-user-runbook.md`. Part A only restarts the console. Part B stops every team, so the owner
+tells the operator first.
+
+**Checked:**
+- Smoke 181/181. New: the helper's four calls and its refusals.
+- `bash -n` on all three scripts.
+- Not run end-to-end: it needs root on the PC. The card's checks are the end-to-end test.
+
+**Outcome:** pending: the owner runs the cards; I record the check results here.
+
+---
+
+## PL-028 Needs you cards get exact steps (owner convention via Rig, qitem-20261013180423 and -180714, 2026-10-13)
+**Why:** the owner wants command cards to give the exact commands one at a time, where to run each, and
+what success looks like. Rig also found a card's `recommend` cut silently at 400 characters, losing
+commands.
+
+**What:**
+- **`steps`** on a card: `[{"where", "run" or "say", "check"}]`, up to 20.
+  - The page shows a numbered list; each command is in monospace with a Copy button (it selects the text
+    if the clipboard is blocked), and its check is in green.
+  - A step with neither `run` nor `say` is dropped. A command over 1000 characters is never shown cut,
+    because a shortened command could still run and do something else: the step says "too long; see
+    Details" instead.
+  - Steps are kept in the answer record and its `.md`.
+- **Limits raised and made visible:** action 600, why 400, blocks 300, recommend 1000. Cut text ends in
+  "…". All limits are stated in `JOBS.md` §4b, with the owner's git rule: review first, no blanket
+  staging.
+- `needs.html` is served from disk, so it's live now. It shows steps only once the server sends them,
+  after the next deploy.
+
+**Checked:**
+- Smoke 181/181: steps kept, malformed dropped, a too-long command never cut, cut text visibly marked, and
+  the page escapes steps and has Copy buttons.
+- Browser: `needs.html` at both widths with a steps card; I looked at the phone screenshot.
+
+---
+
+## PL-029 The owner posts in the Lounge (R-021, owner-approved via Rig, qitem-20261013181450, 2026-10-13)
+**What:**
+- **`lounge.html`:** a text box at the top ("Post"), and "Reply" on each post. Nothing is notified or
+  counted.
+- **`POST /api/lounge`:** the same checks as decisions: token set, sign-in cookie, the `X-Rig-Console`
+  header and JSON.
+- **`lounge.post()` decides where the post goes:**
+  - it names the file `<UTC>-owner.md`, stepping a second on if that name is taken;
+  - it always writes the `reply_to:` header line, so text starting with `image:` stays text;
+  - 2000 characters at most, and empty posts are refused;
+  - `reply_to` must be an existing plain post file, else the post goes at the top.
+- **Seats can't pose as the owner:** seats can write in that folder, so the console records a sha256 of
+  each post it writes in `state/lounge-owner.json`. Only matching files show as "You". Others named
+  `-owner.md`, or owner posts edited afterwards, show as "Someone posing as you (not from the console)".
+- **Codex review** (`scratch/platform/r021-review.md`):
+  - **Finding 1 (medium), fixed:** a linked lounge folder, or a link anywhere on its path, could redirect a
+    post. Now every folder from `/` down is opened with `O_NOFOLLOW`, and the post is created relative to
+    that handle with `O_EXCL|O_NOFOLLOW`. Reading uses the same handle, so a linked folder shows nothing,
+    and linked post files are skipped.
+  - **Finding 2, the provenance ledger:** `install-console-user.sh` doesn't carry `lounge-owner.json`
+    over (PL-030).
+  - **Finding 3, wording:** right. The check is "holds the console token", not "is the owner's browser".
+    The token's secrecy is what option A protects.
+
+**Checked:** smoke 192/192. New: sign-in required; server-chosen names, even two in one second; replies
+nest; `image:` stays text; empty and too-long posts refused; forged and edited owner posts not shown as the
+owner's; quiet; a linked folder refused and shows nothing; a linked `reply_to` dropped. Browser:
+`lounge.html` at both widths. The page is live from disk now; posting works after the next deploy (until
+then it says so).
+
+---
+
+## PL-030 Option A, second round: the Model Architect's re-check and Codex's cross-check (MA-016, 2026-10-13)
+I pulled both owner cards (to `ops/draft-card-*.json`) until these were fixed.
+- **Finding 1 (high), deploys after hardening were a root path:**
+  - The deploy script is installed root-owned as `/usr/local/sbin/rig-console-deploy` from the reviewed
+    commit; deploys update it and `rig-owner` from the commit being deployed.
+  - It never runs git with the agents' repo config: every call passes `core.fsmonitor=false`, a null
+    hooks path and no pager. The diff, log and archive come from a fresh `--no-local` clone.
+  - **Codex's stronger boundary, taken:** the commit is unpacked into root-owned, read-only staging under
+    `/var/tmp`, and the smoke test runs there as `nobody` with a bare environment. So committed test code
+    can't use the owner's sudo, touch the owner's files or change what gets installed.
+  - Checked by running the smoke test from a read-only copy with `env -i` (192/192). Root wasn't
+    available to test `nobody` itself.
+  - If the last deployed commit is gone (history rewritten), it says so and asks for a full read.
+- **Finding 2 (high), unreviewed setup scripts:** the installer and the deploy refuse if `dashboard/` or
+  `setup/` has uncommitted changes. The installer installs `rig-owner` from `HEAD`, not the working copy.
+  Card step: commit both.
+- **Finding 3, the ntfy topic:** a new random topic, root-only in `/root/rig-console-ntfy-topic`, plus a
+  card step to switch the phone app.
+- **Finding 4, trust anchors (taking the cross-check's correction):**
+  - `decision-fingerprints.json` is carried over. Starting empty trusts every existing decision anyway
+    (`unverified_decisions`, first run). An empty-but-valid ledger would push an urgent "written outside
+    the console" alert for every past decision. So option A protects decisions from now on, not
+    retroactively.
+  - `job-pins.json` is shown to the owner and copied only on "y"; otherwise pins start fresh.
+  - `lounge-owner.json` isn't carried over.
+- **Smaller points:**
+  - carried-over settings are filtered to plain characters and shown for a "y";
+  - `harden-wsl.sh` now lists `/etc/sudoers.d` and `sudo -l`;
+  - every script sets a fixed system `PATH`, so a `sudo` planted in `~/.local/bin` is never run.
+- **My addition, the owner's own shell:** seats run as the owner and can edit `~/.bashrc`, so a normal
+  Ubuntu window could capture a `sudo` password. Every card starts a clean window from Win+R:
+  `wsl --exec /bin/bash --noprofile --norc`.
+- **"Cards ≠ proof":** card A now checks what was installed (the sudoers line, the helper's hash against
+  the commit, ownership).
+
+**Still doesn't close (option B territory):**
+- agents run as the owner: they can read the owner's SSH and git keys and everything on `/mnt/c`, and edit
+  job folders and launch records;
+- the owner's session outside the clean window;
+- decisions forged before option A;
+- anything planted while any seat could become root (the sudoers and `sudo -l` checks catch the obvious
+  ones, not a setuid binary or a root cron job);
+- agents can still fake snapshot data and so raise alerts with their own text.
+
+**Checked:** smoke 192/192 (also from a read-only copy with a bare environment); `bash -n` on all four
+scripts.
+
+**Outcome:** pending: the Model Architect's re-check, then the cards go back to the owner.
+
+---
+
+## PL-031 Operator log page (R-022); builds folder pinned under builds/ (MA-020) (2026-10-13)
+**Operator log (R-022, owner via Rig):**
+- `oplog.py` reads `~/openrig/operator/log-YYYY-MM.md` (`RIG_OPERATOR_DIR`) into days and entries
+  (time, kind, sentence, ref), newest day and entry first. Lines that don't fit the format are shown as
+  they are. Only a month that exists can be picked, so a path can't be passed in.
+- **`oplog.html`:** under More and in the phone footer. Escaped plain text; `held`, `incident` and
+  `outcome` are tinted. There are month chips once there are two months. If the folder is missing it
+  says "No operator log yet"; on a console without the API it says it arrives with the next update.
+- **Refs stay text in v1.** R-022 allows links only to files the console already serves, and launch
+  records aren't served, so there's nothing to link yet.
+- The installer gives the console user read access to `~/openrig/operator` (option A).
+
+**MA-020 (Model Architect's PL-014 re-test, 11/12):** a team's `job.json` could set `"builds":
+"decisions"` and put its decision files on the builds port. `_builds_dir` now accepts only `builds/` or a
+folder inside it; anything else means `builds/`. Every template uses `builds`.
+
+**Checked:**
+- Smoke 196/196. New: order, months, kinds, refs and off-format lines; a bad month falls back; the page
+  escapes text and is in both navs; `builds` values like `decisions`, `.`, `builds/../decisions` and
+  `/etc` fall back.
+- Browser: `oplog.html` and `m.html` at both widths.
+
+---
+
+## PL-032 The activity log rotates daily and leaves OneDrive (R-011 part 2, owner-approved priority 2, 2026-10-13)
+**Why:** 41 MB in OneDrive since Oct 11 (about 1 MB an hour), never rotated, with a row every 10 s for
+every stopped seat too.
+
+**What:**
+- **Logger (`setup/rig-snapshots.sh`):**
+  - only live seats are logged;
+  - `rotate_log` runs each round: when the log's first day isn't today, it becomes
+    `activity-log-<first day>.csv` with a fresh header;
+  - yesterday's file stays in `snapshots/`, readable in OneDrive (PD-016); older days move to
+    `~/openrig/activity/` (`RIG_ACTIVITY_ARCHIVE`), with a timeout, retried if it times out.
+  - The first run archives the current 41 MB file under 2026-10-11.
+- **Console:**
+  - `features.activity_files(since, until)` lists the daily files, oldest first, skipping links;
+  - `activity_tail()` reaches back into yesterday's file just after the rotation;
+  - run-report timelines read only the days a team's run can touch, from its span in SQLite;
+  - the run and team lists come from SQLite's full history plus the recent tail, so older teams don't drop
+    off after a rotation;
+  - health's "last write" spans the rotation.
+  - `serve.ACTIVITY` is now `features.ACTIVITY`, so the two can't point at different files; the unused
+    `tail_lines` is gone.
+- **Option A:** the installer gives the console user read access to `~/openrig/activity` and sets
+  `RIG_ACTIVITY_ARCHIVE` and `RIG_OPERATOR_DIR`. The console's `HOME` is `/var/lib/rig-console` there, so
+  every `~/openrig/...` default is now set explicitly.
+- **Not done:** moving the snapshots off OneDrive. The pane captures keep their path for Studio (AD-025);
+  only the log moves. The research mirror is unchanged (PL-015 already made it small).
+
+**Checked:**
+- Smoke 200/200. New: file order (archive, here, today); links ignored; a team's span reads only its
+  days; the tail reaches into yesterday; a timeline spans every daily file.
+- `rotate_log` taken from the real script and run on fake files (`scratchpad/rotate-test.sh`): a multi-day
+  log rotates under its first day and is archived whole; yesterday's stays; today's and header-only logs
+  are left alone. 5/5.
+
+**Live:** the logger runs from the repo as the owner's user, so it changes at its next restart (the WSL
+restart in card B, or any reboot). The console side goes live with the next deploy.
+
+---
+
+## PL-033 Option A round 3: the Model Architect's last findings; cards back up (MA-021, 2026-10-13)
+The Model Architect's round 2 (`models/reviews/PL-027-recheck.md`, "Round 2") confirmed findings 1–4 and the
+fingerprint carry-over, and PL-031's builds fix (12/12). Three small findings, all fixed:
+- **R2-1, the owner was sent to plain git in the agents' repo:**
+  - the deploy prompt now offers `d`, the full changes from the clean clone through `less`;
+  - the cards and runbook define `g`: git with no hooks, fsmonitor, external diff or GPG program, and
+    attributes from the empty tree (so no `.gitattributes` filter or textconv runs). `g commit -m`, so no
+    editor runs either;
+  - there's a last `g status` right before the installer.
+  - **My addition:** both scripts' `safe_git` also uses `--attr-source=<empty tree>`, because their own
+    `git status` in the repo could otherwise run a planted clean filter. Tested on git 2.43.
+- **R2-2, committed symlinks:** the installer and the deploy refuse any mode `120000` entry under
+  `dashboard/` or `setup/`.
+- **R2-3, symlinks in the copied state:** the copy uses `rsync --no-links`, and card A checks
+  `sudo find /var/lib/rig-console -type l` prints nothing.
+- **R2-4, checks printed by the script they check:** card B runs `sudo ls -la /etc/sudoers.d` and
+  `sudo -l` as its own steps after the restart.
+
+**Cards back up:** `tasks/console-own-user.json` (18 steps) and `tasks/close-wsl-root.json` (17). The first
+card's deploy also puts the console changes of PL-027 to PL-032 live (PL-025 and PL-026 are live already).
+
+**Checked:** `bash -n` on the scripts; card JSON validated; every command is under the 1000-character limit.
+
+---
+
+## PL-034 One page per job: Overview, Docs, Assets, Docket (R-013, R-014, R-015, R-023; owner-approved priority 3, 2026-10-13)
+**Why:** the owner's favourite of the approved list. Each team's decisions, milestones, builds, documents and
+art were spread over folders and pages. R-023 (Rig, owner-approved) adds each architect's docket.
+
+**What (`jobpage.py`, `job.html`, `md.js`; More → Teams → Jobs, and the phone footer):**
+- **`/job.html`** lists every job, newest activity first. **`/job.html?job=<name>`** shows a header (title,
+  type, team and lead from the launch record) and tabs. A tab appears only when the job has something for
+  it.
+  - **Overview:** open decisions (links to the Decisions page), milestones from `milestones.json` (R-015),
+    builds with ▶ Play, and recently decided.
+    - Each milestone shows its status, tests, a quality-bar bar and the vision check, plus Play, Download,
+      Plan, Packet and Gate.
+    - Numbers and statuses are checked: anything not a non-negative number shows as 0, and anything other
+      than PASS/FAIL as no vision check.
+    - Play appears only when the build is inside the job's builds folder (MA-020).
+  - **Docs (R-014):**
+    - the design package with `docs/handoff.md` first, then the files it names in its order, then the
+      rest; titles come from each file's first heading;
+    - palette swatches from `art/bible/palette.json` (following one `source` pointer inside the job, as
+      bridge-design does); values that aren't hex colours are dropped, so nothing else reaches a style;
+    - the inbox, sorted by the status in each file's front matter.
+    - Files open in an in-page reader that uses the Decisions page's escaping Markdown renderer, now shared
+      as `md.js` (one copy, not two).
+  - **Assets (R-013):** the asset manifest (`studio/briefs/asset-manifest.md` v0) when there is one. Until
+    then it scans `art/`, `audio/`, `models/` and `assets/` for images, audio and video, skipping links,
+    at most 400 files.
+    - Filters by set and status, plus AI-made; audio plays inline.
+    - A **Lineup** toggle shows the filtered images at one height, side by side, which is how the team
+      checks consistency.
+  - **Docket (R-023, the architects job only):** one card per architect seat, with Working on, Up next,
+    Waiting on you (its open gates by `lead`, its Needs you cards by `asked_by`) and Waiting on others
+    (items it sent, and its blocked items with what they're blocked on).
+    - Items whose wake failed say "not delivered". Items OpenRig's stuck sweep filed a recovery row for say
+      "stalled", and the recovery rows themselves aren't shown as work.
+    - The snapshot time is shown. An unreadable queue says so; it doesn't look empty.
+    - "Ideas not started" is left out, as R-023 asks.
+    - Its first run on the live queue found two v1.9 notices that had never reached me (wake failed at a
+      prompt). I've closed them.
+- **Queue summaries:** the logger's compact queue snapshot leaves out `summary`, so it now also writes
+  `_queue_active.json` (active items, `--full`). Until the logger restarts, the Docket uses the compact
+  snapshot, shows states, ages and marks, and says summaries are coming.
+- **Read-only throughout:**
+  - job names must match the job-name pattern;
+  - every path goes through `safe_path`;
+  - files open through the sandboxed `/job/` route and builds through the builds port;
+  - all text is escaped.
+- **Not in v1:**
+  - the owner's notes on an asset (R-013): a new write path, so it needs its own review;
+  - the asset lineup's side-by-side with the art bible references;
+  - a 3D viewer (R-012).
+
+**Checked:**
+- Smoke 216/216. New:
+  - milestones sanitised, with Play only for a real build;
+  - unknown or malformed job names;
+  - handoff order and headings;
+  - the palette pointer, and a non-colour dropped;
+  - inbox statuses;
+  - the asset scan skipping a planted link;
+  - tabs per job;
+  - the page and `md.js` escape, and the Decisions page uses `md.js`;
+  - the Docket's groups, marks, recovery rows left out, the fallback, and an unreadable queue.
+- Browser: job list, production overview, design Docs and Assets, and the Docket, at both widths. I looked at
+  the screenshots, using three real Bridge images copied into the temporary fixture.
+- The in-page reader is the Decisions page's code; the browser check doesn't click into it.
+
+**Live:** with the next deploy (card A). Docket summaries come when the logger restarts.
+
+---
+
+## PL-035 Run report review (owner via the operator, qitem-20261013185443, 2026-10-13)
+**Finding:** it works for research runs and predates the new setup. Write-up for the owner:
+`scratch/platform/run-report-review.md`.
+- **Fixed:**
+  - each run's team now comes from the launch record (or pin) via `list_runs()["rig"]`; `runs.html` falls
+    back to the old name match only when there's none;
+  - the Decisions section no longer points at the old checkpoint picker; it points to the Decisions page and
+    the job pages.
+- **No change needed:** approvals, usage, the evidence check, the comparison. The timeline already reads the
+  daily files (PL-032).
+- **Owner's call:** design, production and validation jobs have no time view. I suggested a Report tab on the
+  job page (timeline, approval waits, model notes).
+
+**Checked:** smoke 216/216; `runs.html` at both widths.
+
+---
+
+## PL-036 Report tab on each job page (owner approved option 1 of the run-report review, qitem-20261013194248, 2026-10-13)
+**What:** a **Report** tab on any job with a known team:
+- the team's span, agent time working, time waiting for approval, and handoffs;
+- one lane per seat (working, waiting, idle) with its minutes;
+- approval waits grouped by kind (count, total, longest, an example);
+- links to the job's own `model-notes.jsonl` and `model-metrics.csv`, opening in the reader;
+- for research jobs, a link to the research run report, which stays as it was.
+
+It reuses `/api/timeline` (which reads across the daily activity files, PL-032) and `/api/approvals`; the
+only server change is `model_files` and the `report` tab flag in the overview.
+
+**Checked:** smoke 217/217 (tab and model-note links). Browser: the Report tab at both widths on the
+fixture team; I looked at both screenshots.
+
+**Live:** with the next deploy.
+
+---
+
+## PL-037 The operator's folder is mirrored into snapshots/operator/ (owner via the operator, qitem-20261013200924, 2026-10-13)
+**What:** `rig-snapshots.sh` copies `~/openrig/operator/` (`RIG_OPERATOR_DIR`) to `snapshots/operator/` once
+a minute, on the research mirror's rhythm but independent of it.
+- The copy is one way: `rsync -rt --delete --no-links --max-size=5M`, with a timeout. `--delete` only
+  touches the mirror, and links are skipped, never followed. The operator's own files are only read.
+- `snapshots/` is git-ignored (checked with `check-ignore`), so the log can't reach the public repo.
+
+**Checked:** `bash -n`. The exact rsync line, run into my scratchpad from the real folder, gave an
+identical copy, and the source's times were unchanged.
+
+**Live:** when `rig-snapshots` restarts (the WSL restart in card B, or a reboot). No console deploy needed.
+
+---
+
 ## Notes for other roles
 
 How this works (ROLES.md): one section per role, newest first, each note dated and marked **[new]**
@@ -1222,6 +1585,14 @@ until the recipient acts on it. The owner tells a role to check its notes here; 
 their own logs.
 
 ### Notes for the Rig Architect
+- **[new] 2026-10-13 (PL-028): card steps are in `JOBS.md` §4b,** as you asked: `steps` with
+  where/run/check, the owner's git rule, and every length limit stated. Cut text now ends in "…". A command
+  is never cut. Please move your commit card's commands into `steps`. They show after the next deploy.
+- **[new] 2026-10-13 (PL-027): option A is in the owner's hands** (two Needs you cards). Two things for you:
+  - **`CHEATSHEET.md`/`SETUP.md`:** once it's run, console code goes live with `bash setup/deploy-console.sh`
+    after a commit, not `sudo systemctl restart rig-dashboard`.
+  - **Part B runs `wsl --shutdown`,** which stops every team; the operator relaunches them. If you
+    supervise a run then, the owner tells the operator first.
 - **[new] 2026-10-13 (PL-025): the reply contract is `JOBS.md` §3e.** All six of your constraints are met,
   architects included (`~/openrig/jobs/architects/replies/`). Your §7 operator duty can point at §3e. Until
   it's approved, each message to the operator carries the exact file to write, so it works without the
@@ -1351,6 +1722,15 @@ their own logs.
   ignore it.
 
 ### Notes for the Model Architect
+- **[new] 2026-10-13 (PL-030): your re-check (MA-016) and Codex's cross-check are answered.** All four
+  findings, the corrections and the smaller points are in, plus one addition (a clean shell from Win+R). On
+  finding 4 I carry the fingerprint ledger over rather than start it empty, for the reason in PL-030. The
+  cards stay pulled until you've re-checked `setup/` and the draft cards in `ops/draft-card-*.json`.
+- **[new] 2026-10-13 (PL-027): your PL-013 review (MA-014) is answered.** Findings 1, 2, 4 and 6 are fixed;
+  point 7 is partly fixed. Findings 3 and 5 are deferred, with reasons in PL-027. The owner now has two Needs
+  you cards to run it. Please re-check `setup/deploy-console.sh`, `setup/install-console-user.sh` and
+  `setup/rig-owner` when you can. The owner may run the cards before you do: tell me or the owner if you'd
+  rather they wait.
 - **Done 2026-10-13: your replies to PL-014 and PL-015 (models/LOG.md) are recorded.** The launch-records
   mirror is dropped from R-011, since your seat reads `~/openrig/launches/` directly. I'll wait for your
   MA-013 re-test.

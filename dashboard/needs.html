@@ -56,6 +56,14 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--signal);outl
 .note{font-size:13px;color:var(--cut)}
 .answer{margin-top:8px;padding:8px 11px;border-radius:10px;background:var(--surface);border:1px solid var(--line);white-space:pre-wrap;overflow-wrap:anywhere}
 .empty{color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+ol.steps{margin:10px 0 0;padding-left:22px;font-size:13.5px}
+ol.steps li{margin-bottom:9px}
+ol.steps li::marker{color:var(--muted);font-weight:700}
+.where{display:inline-block;font-size:11.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.cmd{display:flex;gap:8px;align-items:flex-start;margin-top:3px}
+.cmd code{flex:1;min-width:0;display:block;padding:7px 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);font:12.5px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere}
+button.copy{font-size:12.5px;padding:6px 10px;flex:none}
+.check{color:var(--ok);font-size:13px;margin-top:3px}
 details.resolved summary{cursor:pointer;color:var(--muted);font-weight:600;padding:6px 0}
 </style>
 </head>
@@ -76,7 +84,21 @@ const drafts = {}, notes = {};
 
 function fields(t){
   const rows = [["Why you", t.why], ["Waiting on it", t.blocks], ["We suggest", t.recommend]].filter(r => r[1]);
-  return rows.length ? `<dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : "";
+  return (rows.length ? `<dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : "") + steps(t);
+}
+// Owner steps (JOBS.md §4b): one command at a time, where to run it, and what success looks like.
+function steps(t){
+  const s = Array.isArray(t.steps) ? t.steps : [];
+  return s.length ? `<ol class="steps">${s.map(x => `<li>
+      ${x.where ? `<span class="where">${esc(x.where)}</span>` : ""}
+      ${x.run ? `<div class="cmd"><code>${esc(x.run)}</code><button class="copy" type="button" data-copy="${esc(x.run)}">Copy</button></div>` : ""}
+      ${x.say ? `<div>${esc(x.say)}</div>` : ""}
+      ${x.check ? `<div class="check">✓ ${esc(x.check)}</div>` : ""}</li>`).join("")}</ol>` : "";
+}
+async function copy(btn){
+  try { await navigator.clipboard.writeText(btn.dataset.copy); btn.textContent = "Copied"; }
+  catch { const r = document.createRange(); r.selectNodeContents(btn.previousElementSibling); const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = "Selected"; }
+  setTimeout(() => btn.textContent = "Copy", 1500);
 }
 function openCard(t){
   const ask = t.kind === "ask";
@@ -115,6 +137,7 @@ async function load(force){
     + ((d.unreadable || []).length ? `<div class="empty" style="margin-top:14px">${d.unreadable.length} card file${d.unreadable.length === 1 ? "" : "s"} couldn't be read; the architect who wrote it will fix it.</div>` : "");
   document.querySelectorAll("textarea[data-draft]").forEach(el => el.oninput = () => drafts[el.dataset.draft] = el.value);
   document.querySelectorAll(".card[data-id] button[data-act]").forEach(b => b.onclick = () => answer(b.closest(".card").dataset.id, b.dataset.act, b));
+  document.querySelectorAll("button.copy").forEach(b => b.onclick = () => copy(b));
 }
 async function answer(id, result, btn){
   const text = (drafts[id] || "").trim();

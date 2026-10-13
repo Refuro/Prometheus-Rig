@@ -16,13 +16,15 @@ import gates as G
 import models as MD
 import outbox as OB
 import lounge as LG
+import oplog as OL
+import jobpage as JP
 import escalate as EP
 import convo as CV
 
 DASH = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.expanduser(os.environ.get("RIG_RESEARCH_DIR", "~/openrig/research"))
 SNAP = os.path.expanduser(os.environ.get("RIG_SNAPSHOTS", os.path.join(DASH, "..", "snapshots")))
-ACTIVITY = os.environ.get("RIG_ACTIVITY_LOG", os.path.join(SNAP, "activity-log.csv"))
+ACTIVITY = F.ACTIVITY   # today's file; earlier days via F.activity_files (R-011)
 PORT = int(os.environ.get("PORT", "8800"))
 SNAP_STALE_S = int(os.environ.get("RIG_SNAP_STALE_S", "60"))   # the logger writes every ~10 s
 BRIEFS = os.path.expanduser(os.environ.get("RIG_BRIEFS_DIR", "~/openrig/briefs"))
@@ -47,8 +49,12 @@ def list_runs():
             funnel = F.record_funnel(name, d)
         except Exception:
             funnel = {}
+        j = G._jobs().get(name)
+        team = G.team_of(j) if j else {}
         runs.append({
             "run": name,
+            # The team from the operator's launch record (or the pin), not guessed from names (run-report review).
+            "rig": team.get("rig") if team.get("source") in ("launch record", "first seen") else None,
             "funnel": funnel,
             "phase": d.get("phase"),
             "updated": d.get("updated"),
@@ -62,22 +68,12 @@ def list_runs():
     return runs
 
 
-def tail_lines(path, max_bytes=256_000):
-    with open(path, "rb") as f:
-        f.seek(0, os.SEEK_END)
-        size = f.tell()
-        f.seek(max(0, size - max_bytes))
-        data = f.read().decode("utf-8", "replace")
-    lines = data.splitlines()
-    return lines[1:] if size > max_bytes else lines[1:]  # drop partial line or header
-
-
 def team():
     """Latest state per seat, how long it has held that state, and its share
     of time spent working over the logged window."""
     if not os.path.isfile(ACTIVITY):
         return {"logger": "missing", "seats": []}
-    rows = list(csv.reader(io.StringIO("\n".join(tail_lines(ACTIVITY)))))
+    rows = list(csv.reader(io.StringIO("\n".join(F.activity_tail()))))
     rows = [r for r in rows if len(r) >= 6 and r[0][:2] == "20"]
     if not rows:
         return {"logger": "empty", "seats": []}
@@ -288,13 +284,21 @@ def plain(action):
     return QITEM_RE.sub("a task", a)
 
 
+def _logged_rigs(tail_bytes):
+    """Every team with recorded history: SQLite's (all of it, since the activity log rotates daily, R-011),
+    plus the recent log in case the collector hasn't caught up."""
+    rigs = {r["rig"] for r in S.replay_rigs() if r.get("rig")}
+    rigs |= {row[1] for row in csv.reader(io.StringIO("\n".join(F.activity_tail(tail_bytes)))) if len(row) > 2 and row[0][:2] == "20"}
+    return rigs
+
+
 def history(minutes=30):
     """Per seat, one state per minute for the last N minutes: w(orking), b(locked), i(dle), or ''."""
     out = {}
     if not os.path.isfile(ACTIVITY):
         return out
     now = datetime.now()
-    rows = list(csv.reader(io.StringIO("\n".join(tail_lines(ACTIVITY, 600_000)))))
+    rows = list(csv.reader(io.StringIO("\n".join(F.activity_tail(600_000)))))
     for r in rows:
         if len(r) < 6 or r[0][:2] != "20":
             continue
@@ -1035,15 +1039,18 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 rig = arg("rig")
                 if not re.match(r"^[A-Za-z0-9._-]{1,64}$", rig):
                     return self.send_json({"error": "bad rig"})
-                return self.send_json(F.timeline(rig, arg("run") or None, _load("_queue.json")))
+                # Only the daily activity files this team's run can touch (R-011), from its span in SQLite.
+                span = next((r for r in S.replay_rigs() if r["rig"] == rig), None)
+                since, until = ((datetime.fromtimestamp(span["start"] - 3600).astimezone(),
+                                 datetime.fromtimestamp(span["end"] + 3600).astimezone()) if span else (None, None))
+                return self.send_json(F.timeline(rig, arg("run") or None, _load("_queue.json"), since, until))
             if path == "/api/approvals":
                 rig = arg("rig")
                 return self.send_json(F.approvals(rig if re.match(r"^[A-Za-z0-9._-]{1,64}$", rig or "") else None))
             if path == "/api/decisions":
                 return self.send_json(F.decisions(DATA))
             if path == "/api/runs_summary":
-                rigs = sorted({row[1] for row in csv.reader(io.StringIO("\n".join(tail_lines(ACTIVITY, 5_000_000)))) if len(row) > 2 and row[0][:2] == "20"})
-                return self.send_json(F.runs_summary(DATA, rigs, _load("_queue.json")))
+                return self.send_json(F.runs_summary(DATA, sorted(_logged_rigs(5_000_000)), _load("_queue.json")))
             if path == "/api/briefs":
                 bdir = BRIEFS
                 items = []
@@ -1053,8 +1060,7 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                             items.append({"name": fn, "text": open(os.path.join(bdir, fn), encoding="utf-8", errors="replace").read()[:60000]})
                 return self.send_json(items)
             if path == "/api/rigs":
-                return self.send_json(sorted({r.get("rigName") for r in _load("_ps.json") if r.get("rigName")} |
-                                             {row[1] for row in csv.reader(io.StringIO("\n".join(tail_lines(ACTIVITY, 2_000_000)))) if len(row) > 2 and row[0][:2] == "20"}))
+                return self.send_json(sorted({r.get("rigName") for r in _load("_ps.json") if r.get("rigName")} | _logged_rigs(2_000_000)))
             if path == "/api/needs":    # the nav badge: open cards on the Needs you page; cheap, from the watcher
                 return self.send_json(NEEDS)
             if path == "/api/tasks":    # the Needs you page (R-018): open cards and the last 14 days' answers
@@ -1067,6 +1073,22 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 return self.send_json(CV.history(seat if re.match(r"^[A-Za-z0-9._@-]{1,128}$", seat) else None))
             if path == "/api/lounge":   # read-only, never notifies (R-019)
                 return self.send_json(LG.posts())
+            if path in ("/api/job", "/api/job/docs", "/api/job/assets"):   # one page per job (PL-034), read-only
+                name = arg("job") or ""
+                if not G.ID_RE.match(name):
+                    raise ValueError("Unknown job")
+                fn = {"/api/job": JP.overview, "/api/job/docs": JP.docs, "/api/job/assets": JP.assets}[path]
+                return self.send_json(fn(name))
+            if path == "/api/docket":   # each architect's work (R-023), from queue rows, gates and cards only
+                qa = os.path.join(SNAP, "_queue_active.json")
+                full = _load("_queue_active.json") if os.path.isfile(qa) else None
+                qp = qa if full is not None else os.path.join(SNAP, "_queue.json")
+                return self.send_json(JP.docket(_load("_ps.json"), full, _load("_queue.json"),
+                                                os.path.getmtime(qp) if os.path.isfile(qp) else None,
+                                                [t for t in G.list_tasks() if not t.get("error")]))
+            if path == "/api/oplog":    # the operator's log, read-only (R-022)
+                q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
+                return self.send_json(OL.read((q.get("month") or [""])[0]))
             if path == "/api/screen":
                 q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
                 seat = (q.get("seat") or [""])[0]
@@ -1131,6 +1153,8 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 told = bool(asker) and _console_send(asker, f"The owner answered your card '{record['title']}': {said}. "
                                                             f"Read {rec_path}, act on it, then remove the task file.")
                 return self.send_json({"saved": True, "result": record["result"], "asker_told": told})
+            if path == "/api/lounge":   # the owner's post or reply (R-021): quiet, no notification or message
+                return self.send_json(LG.post(body.get("text"), body.get("reply_to")))
             if path == "/api/dismiss":
                 key = str(body.get("key") or "")
                 if not re.match(r"^[a-z]+:[A-Za-z0-9._@-]{1,128}$", key):
@@ -1209,8 +1233,14 @@ def health():
             problems.append("runs as the agents' user, so they can read its token")
         if os.path.realpath(DASH).startswith("/mnt/"):
             problems.append("runs from /mnt/c, where agents can edit its code")
+        try:   # which reviewed commit deploy-console.sh put live (MA-014 finding 1)
+            with open(os.environ.get("RIG_DEPLOYED_MARK", "/var/lib/rig-console/deployed")) as f:
+                deployed = f.read().strip()[:12]
+        except OSError:
+            deployed = ""
         out["isolation"] = {"ok": not problems, "level": "advisory",
-                            "detail": "runs as its own user, from code agents can't edit" if not problems
+                            "detail": ("runs as its own user, from code agents can't edit"
+                                       + (f"; deployed commit {deployed[:7]}" if deployed else "")) if not problems
                             else "Console " + " and ".join(problems) + " (R-005 step 3)."}
     except OSError:
         pass
