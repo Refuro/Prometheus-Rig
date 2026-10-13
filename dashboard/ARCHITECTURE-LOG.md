@@ -1675,6 +1675,37 @@ as `nobody` passed 218/218. Part A is live (verified at 20:57Z, PL-038). Card B 
 
 ---
 
+## PL-040 The Lounge showed no posts after the migration; Diplomacy deploy verified (owner via the operator, 2026-10-13)
+**Deploy verified (read-only):** commit 02cd97c. `rig-dashboard` runs as `rigconsole` since 14:42:40 PDT, and
+`/opt/rig-console/diplomacy.html` and `lab.py` are identical to the source. (My first check, at 21:40Z, found
+nothing deployed: that run had stopped before copying. The owner reran it.)
+
+**The empty Lounge:**
+- **Symptom:** the owner's Lounge was empty after option A. The three posts (0712Z, 0743Z and 1810Z) are
+  intact on disk.
+- **Cause (mine, PL-029):** `lounge._open_dir` opened every folder on the path for reading, to refuse planted
+  links. Under option A the console may only pass through the owner's home (`getfacl /home/you`:
+  `user:rigconsole:--x`), so it can't open it for reading. The open failed, and `posts()` treats any failure
+  as "no posts". Lounge posting and the Diplomacy pause (`lab.py`) use the same opener, so both fail too.
+  My tests ran as the owning user, who can read everything, and so never saw it.
+- **Fix:** the folders on the way are opened with `O_PATH`, which needs only pass-through access and still
+  never follows a link. Only the last folder (the lounge, or the game's board) is opened for reading. No
+  access list changes; the home stays pass-through-only.
+- **Test:** a folder on the path set to mode `--x` (pass through only, like the console's view of the
+  owner's home). Posts are listed and a new post works through it. The old opener fails this test exactly
+  as the live console did.
+- **Lesson:** a test as the owning user can't see a permission boundary; set one up in the test.
+
+**Also:** `JOBS.md` §4b now says every git step on a card is copy-pasteable as written, with exact paths for
+`add` and a filled-in message (owner, 2026-10-13).
+
+**Checked:** smoke 227/227.
+
+**Release:** commit `dashboard/lounge.py`, `dashboard/tests/smoke.py`, `dashboard/JOBS.md`,
+`dashboard/ARCHITECTURE-LOG.md`, then `rig-console-deploy`. Needs you card `deploy-lounge-fix`.
+
+---
+
 ## Notes for other roles
 
 How this works (ROLES.md): one section per role, newest first, each note dated and marked **[new]**

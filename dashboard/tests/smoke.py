@@ -898,6 +898,21 @@ def main():
     finally:
         LG._folder = real_folder
 
+    print("...and still work through a folder the console may pass through but not list (PL-040)")
+    home = os.path.join(tmp, "lg-acl", "home")   # like /home/<owner> under option A: ACL --x for the console
+    os.makedirs(os.path.join(home, "architects", "lounge"))
+    open(os.path.join(home, "architects", "lounge", "20261013T0712Z-arch-rig.md"), "w").write("hello from before the move\n")
+    os.chmod(home, 0o111)
+    LG._folder = lambda: os.path.join(home, "architects", "lounge")
+    try:
+        seen = [p["id"] for p in LG.posts()]
+        r = LG.post("still here")
+        check("the Lounge reads and posts through a pass-through-only folder (was empty after the migration)",
+              seen == ["20261013T0712Z-arch-rig.md"] and r.get("posted"), (seen, r))
+    finally:
+        LG._folder = real_folder
+        os.chmod(home, 0o755)
+
     print("Tests never touch the live console's folders (PL-038)")
     import outbox as OB, oplog as OL, store as S
     paths = {"gates.STATE_DIR": G.STATE_DIR, "gates.STATE": G.STATE, "gates.LAUNCHES": G.LAUNCHES, "features.STATE": F.STATE,

@@ -28,12 +28,17 @@ def _folder():
 def _open_dir(path, create_last=False):
     """A directory fd for path, opened one component at a time from / without following any symlink.
     Seats can edit the job tree, so a planted link must never redirect a read or an owner post (Codex R-021
-    finding 1). Raises OSError if any part is a link or missing."""
+    finding 1). Raises OSError if any part is a link or missing.
+    The folders on the way are opened with O_PATH: under option A the console may only pass through the
+    owner's home (ACL --x), not list it, and O_PATH needs only that. Only the last folder is opened for
+    reading (PL-040: opening every folder for reading left the Lounge empty after the migration)."""
     parts = [p for p in os.path.abspath(path).split(os.sep) if p]
-    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-    fd = os.open("/", flags)
+    walk = os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW
+    last = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    fd = os.open("/", walk if parts else last)
     try:
         for i, part in enumerate(parts):
+            flags = last if i == len(parts) - 1 else walk
             try:
                 nxt = os.open(part, flags, dir_fd=fd)
             except FileNotFoundError:

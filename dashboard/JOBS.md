@@ -190,6 +190,9 @@ only they can do or answer. For one, an architect writes `~/openrig/jobs/archite
   Use `run` for a command or `say` for a plain instruction. For git, review before committing
   (`git status`, `git diff --staged`) and never stage everything blindly. Put long background in
   `details`, not in the steps.
+- **Every git step must be copy-pasteable as written** (the owner, 2026-10-13): `add` names each file by its
+  exact path, and the commit message is filled in. No "add the files you reviewed" placeholders. Keep the
+  review steps (`status`, then `diff`, then `diff --staged`) before the commit.
 - **Limits** (longer text is cut, ending in "…"): `title` 100 characters, `action` 600, `why` 400, `blocks`
   300, `recommend` 1000; up to 20 `steps`, each `where` 80, `run` 1000 (never cut: a longer step is
   refused rather than shortened, so write it as two), `say` 400, `check` 300.
