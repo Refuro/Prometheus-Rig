@@ -30,7 +30,7 @@ See PL-001 risk 1. Steps:
 2. Require the cookie for POSTs from loopback too.
 3. Run the console as its own Linux user, with a token file seats can't read. Step 3 needs your OK.
 Effort M, risk medium. Needs a restart.
-Status: in progress. Steps 1–2, Host allowlist, 5b/5c done. Step 3, option A: two Model Architect reviews and a Codex cross-check, all findings fixed (PL-027, PL-030). The owner's two Needs you cards are drafted and go up after the Model Architect's re-check.
+Status: done. Steps 1–2, Host allowlist, 5b/5c, and step 3 (option A). The owner ran both cards on 2026-10-13 (PL-038): the console runs as `rigconsole` from root-owned `/opt/rig-console`, and WSL interop and passwordless sudo are off. Option B (agents as their own user) remains the follow-up for what A doesn't close (PL-030).
 
 ### R-006 Isolate agent-written builds and research files (Platform Architect, 2026-10-12)
 See PL-001 risk 2. Serve `/play/` from a second port (a separate origin, so no cookie and no API access).

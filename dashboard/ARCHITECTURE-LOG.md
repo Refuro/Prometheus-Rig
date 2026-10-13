@@ -1620,6 +1620,17 @@ operator log, card steps, and the MA-020 fix. The Health check, the new token an
 confirm; seats don't call the console. Still to do: card B (WSL root access), and the logger restart it
 brings.
 
+**Outcome: option A is complete** (owner, card B done 21:34Z, after the WSL restart; the owner noted no
+check that didn't fail). Verified read-only:
+- `/etc/wsl.conf` has `[interop] enabled = false`;
+- `rig-dashboard` is back as `rigconsole` from `/opt/rig-console` (14:29:45 PDT);
+- the new logger is running: `_queue_active.json` is current (Docket summaries), `snapshots/operator/`
+  mirrors the operator log, and the old 41 MB activity log was archived to `~/openrig/activity/` (PL-032,
+  PL-034, PL-037).
+
+I didn't re-run the sudo or interop checks myself: seats never use `sudo` or Windows programs. The owner's
+card checks are the evidence. R-005 step 3 is done.
+
 ---
 
 ## PL-039 Owner's priorities: install reconciled, Diplomacy adopted, digest and navigation triaged (qitem-20261013210002, 2026-10-13)
