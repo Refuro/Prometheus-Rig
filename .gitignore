@@ -17,6 +17,13 @@ __pycache__/
 *.env
 .env*
 
+# Per-machine agent settings: permission rules name this PC's user and paths. OpenRig installs the plugin.
+.claude/settings.local.json
+/.claude/
+/architects/.claude/settings.json
+/architects/.claude/plugins/
+.codex/
+
 # Mirror of ~/openrig/jobs (game studio and other jobs), regenerated
 /jobs-mirror/
 
@@ -28,3 +35,15 @@ briefs/research-brief.v0-yours.md
 models/observations.jsonl
 models/metrics.csv
 models/preview/
+
+# Per-seat files OpenRig and Claude Code write inside rig folders
+**/.claude/settings.local.json
+**/.openrig/
+
+# Owner's Advisor private notes (tailnet address) and one-off kickoff messages
+/ADVISOR-HANDOFF.md
+/architects/kickoff/
+
+# Owner's play notes and launch packets name private game ideas
+studio/rigs/*/owner-notes*.md
+studio/rigs/*/launch/

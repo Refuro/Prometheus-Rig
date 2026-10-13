@@ -1,0 +1,57 @@
+version: "0.2"
+name: architects
+summary: >
+  The four architects (Rig, Studio, Platform, Model) plus a Codex reviewer, as one idle-until-messaged
+  team. They coordinate with each other directly; anything that changes how teams behave, a shared rule,
+  security, or what the owner approved goes through an owner gate. Brief: brief.md.
+
+culture_file: CULTURE.md
+
+docs:
+  - path: brief.md
+  - path: README.md
+
+pods:
+  - id: arch
+    label: Architects
+    summary: Peers. Each owns the files ROLES.md gives it; they message each other with one-line pointers to files.
+    members:
+      - id: rig
+        label: "Rig Architect (Claude)"
+        agent_ref: "local:agents/rig"
+        runtime: claude-code
+        profile: default
+        cwd: "/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig"
+      - id: studio
+        label: "Studio Architect (Claude)"
+        agent_ref: "local:agents/studio"
+        runtime: claude-code
+        profile: default
+        cwd: "/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig"
+      - id: platform
+        label: "Platform Architect (Claude)"
+        agent_ref: "local:agents/platform"
+        runtime: claude-code
+        profile: default
+        cwd: "/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig"
+      - id: model
+        label: "Model Architect (Claude, strongest model)"
+        agent_ref: "local:agents/model"
+        runtime: claude-code
+        profile: default
+        cwd: "/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig"
+    edges: []
+
+  - id: review
+    label: Cross-vendor review
+    summary: Woken on request to review another architect's work. Never edits what it reviews.
+    members:
+      - id: codex
+        label: "Reviewer (Codex)"
+        agent_ref: "local:agents/reviewer"
+        runtime: codex
+        profile: default
+        cwd: "/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig"
+    edges: []
+
+edges: []
