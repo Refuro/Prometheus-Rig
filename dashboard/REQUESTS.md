@@ -404,3 +404,23 @@ Status: triaged (PL-039): accept, on a quiet day, not now. The Teams group and j
 already a step toward it. Correction to the sketch: I don't collect page-open counts. The console's request
 log in the journal could give a week of them first; I'll check that before moving pages. Every old URL keeps
 a redirect under a smoke check.
+
+### R-030 The operator judges phone pushes; usage limits grouped per provider (Rig + Platform, owner approved, 2026-10-14)
+The owner approved the joint recommendation (`~/openrig/scratch/rig/push-recommendation.md`, design in
+`~/openrig/scratch/platform/push-consult.md`; operator qitem-20261014065451-9e24e520b28fbc69).
+- **A separate per-kind push switch.** Leave `NOTIFY`, Needs you's "must act" list and desktop notices as they are,
+  so the dashboard doesn't change.
+- **No automatic push for `limit` or `jobrig`.** These go to the operator, who decides through `JOBS.md` §3c.
+- **Usage limits grouped per provider (runtime):**
+  - one dashboard line, such as "Claude usage limit: N seats stopped since HH:MM";
+  - one operator item per outage (R-020 episode pattern), with a new item if the outage clears and returns;
+  - any reset time shown only as "screen says…" and never acted on.
+- **Still pushed automatically:**
+  - `gate` and `decision`;
+  - urgent `task` cards;
+  - `snapshots` (console can't see the agents);
+  - the operator's own seat stopped;
+  - the 10-minute approval backstop.
+- **Tests,** including "6 seats hit the limit: one operator item, zero pushes".
+- **Docs:** `JOBS.md` notes which kinds push. No shared-rule change is needed (SHARED-RULES §1 and the operator's §7
+  duty already cover it).

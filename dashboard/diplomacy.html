@@ -243,6 +243,16 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     sel.value = S.phase || cur;
   }
 
+  // The board file is agent-written. Its units and centres become lists of short plain strings for the seven
+  // powers only. A count is then a real list's length, never a value the clerk wrote (review-1 by
+  // dev-codex@platform-dev, 2026-10-14: {"length": "<img onerror>"} reached innerHTML as a "count").
+  function cleanBoard(b) {
+    if (!b || typeof b !== "object" || Array.isArray(b)) return null;
+    const list = v => Array.isArray(v) ? v.filter(x => typeof x === "string").map(x => x.slice(0, 40)).slice(0, 40) : [];
+    const per = o => Object.fromEntries(POWERS.map(p => [p, list(o && typeof o === "object" ? o[p] : null)]));
+    return { units: per(b.units), centers: per(b.centers) };
+  }
+
   async function loadPhase() {
     if (!S.phase || !PHASE_RE.test(S.phase)) return;
     const p = S.phase;
@@ -252,6 +262,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
       // during an open phase the archive is empty; powers also append each message to their own sent.jsonl
       Promise.all(POWERS.map(w => jsonl(`powers/${w.toLowerCase()}/press/sent.jsonl`))).then(a => a.flat().filter(m => m.phase === p)),
     ]);
+    S.board = cleanBoard(S.board);
     S.results = (await text(`board/${p}-results.md`)) || "";
     // Orders as they stand right now: each power's own orders/<phase>.txt (overwritten until the deadline),
     // or the archived copy once the phase is adjudicated. Owner-only view; powers never see the console.
@@ -263,6 +274,17 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     // This phase's sealed intentions, only while Show intentions is on (seven small reads, like the orders).
     S.intent = S.showInt ? Object.fromEntries(await Promise.all(POWERS.map(async w => [w, await text(intentionPath(w.toLowerCase(), p))]))) : {};
     S.digest = (await text(`board/${p}-digest.md`)) || "";
+    // The clerk writes a phase's digest and results when it adjudicates, so the phase being played has none
+    // yet. Then show the latest finished phase's, labelled with its phase (owner, 00:21Z: following the live
+    // phase hid every digest). Checked phase names only; at most three earlier phases are tried.
+    S.prev = null;
+    if (!S.digest || !S.results) {
+      const earlier = (S.index?.phases || []).filter(ph => phaseKey(ph) >= 0 && phaseKey(ph) < phaseKey(p)).sort((a, b) => phaseKey(b) - phaseKey(a)).slice(0, 3);
+      for (const ph of earlier) {
+        const [dg, rs] = await Promise.all([text(`board/${ph}-digest.md`), text(`board/${ph}-results.md`)]);
+        if (dg || rs) { S.prev = { phase: ph, digest: dg || "", results: rs || "" }; break; }
+      }
+    }
     const img = $("board");
     const r = await fetch(`${BASE}/board/${p}.svg`, {method:"HEAD", cache:"no-store"}).catch(() => null);
     const stamp = r && r.ok ? `${p}|${r.headers.get("last-modified") || ""}|${r.headers.get("etag") || ""}|${r.headers.get("content-length") || ""}` : `${p}|none`;
@@ -472,9 +494,13 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     } else if (t === "compare") {
       P.innerHTML = compareHtml();
     } else if (t === "digest") {
-      P.innerHTML = S.digest ? `<div class="digest">${esc(S.digest)}</div>` : `<div class="empty">The clerk writes a one-line-per-power digest when it adjudicates ${esc(phaseLabel(S.phase))}. Until then, the Press tab has the raw conversations.</div>`;
+      P.innerHTML = S.digest ? `<div class="filters">Digest of ${esc(phaseLabel(S.phase))}</div><div class="digest">${esc(S.digest)}</div>`
+        : S.prev?.digest ? `<div class="filters"><b>Latest digest: ${esc(phaseLabel(S.prev.phase))}</b> · ${esc(phaseLabel(S.phase))} gets its own when the clerk adjudicates it.</div><div class="digest">${esc(S.prev.digest)}</div>`
+        : `<div class="empty">The clerk writes a one-line-per-power digest when it adjudicates ${esc(phaseLabel(S.phase))}. Until then, the Press tab has the raw conversations.</div>`;
     } else if (t === "results") {
-      P.innerHTML = S.results ? `<div class="md">${esc(S.results)}</div>` : `<div class="empty">Results appear when the clerk adjudicates ${esc(phaseLabel(S.phase))}.</div>`;
+      P.innerHTML = S.results ? `<div class="filters">Results of ${esc(phaseLabel(S.phase))}</div><div class="md">${esc(S.results)}</div>`
+        : S.prev?.results ? `<div class="filters"><b>Latest results: ${esc(phaseLabel(S.prev.phase))}</b> · ${esc(phaseLabel(S.phase))} is still being played.</div><div class="md">${esc(S.prev.results)}</div>`
+        : `<div class="empty">Results appear when the clerk adjudicates ${esc(phaseLabel(S.phase))}.</div>`;
     } else if (t === "chart") {
       P.innerHTML = chartSvg();
     } else {
@@ -592,7 +618,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   };
 
   function fingerprint() {
-    return JSON.stringify([S.phase, S.control, S.board, S.press.length, S.livePress.map(m => [m.from, m.to, m.n, m.phase]), S.results, S.digest, S.incidents, S.final, S.pending, S.intent, S.showInt, S.boardStamp, !!S.geo, S.timeline.length, S.tab, S.pressFilter, S.pressOrder]);
+    return JSON.stringify([S.phase, S.control, S.board, S.press.length, S.livePress.map(m => [m.from, m.to, m.n, m.phase]), S.results, S.digest, S.prev, S.incidents, S.final, S.pending, S.intent, S.showInt, S.boardStamp, !!S.geo, S.timeline.length, S.tab, S.pressFilter, S.pressOrder]);
   }
   function renderAll(force) {
     const fp = fingerprint();

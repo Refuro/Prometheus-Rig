@@ -451,6 +451,8 @@ def main():
         check("intentions: escaped like press, a remembered toggle that defaults on, the live label, and the usage-limit state",
               b"esc(t.trim())" in raw and b"dip.showIntentions" in raw and b'!== "off"' in raw
               and b"live, unarchived until game end" in raw and b"Paused: usage limit" in raw and b"powers/${low}/intentions/" in raw)
+        check("the agent-written board file is cleaned before use: real lists of strings, so a count is never the clerk's own value (review-1)",
+              b"S.board = cleanBoard(S.board);" in raw and b"Array.isArray(v) ? v.filter(x => typeof x === \"string\")" in raw)
         check("a clerk still in a paused state holds the clock: no 'adjudicating' from a stale deadline (PL-045)",
               b"clerkHolds(c) && !c.paused" in raw and b"waiting for the clerk" in raw)
         check("the Press tab has an oldest/newest order, remembered per browser",
@@ -741,6 +743,24 @@ def main():
     check("the item's summary names the prompt showing when it's sent, matching its body",
           len(made) == 4 and "journalctl" in made[3][1] and "journalctl" in made[3][2], made[-1][1] if made else None)
     check("the id is deterministic, so a retry can't duplicate it", EP.episode_id("s", 5, "a") == EP.episode_id("s", 5, "a"))
+    # PL-047: the same prompt line again right after the operator approved (arch-rig, 23:31Z and 23:58Z).
+    EP.track([], screen, create, idle, now=t0 + 300)
+    edit = {**seat, "action": "Needs your OK: ../lab/diplomacy/agents/clerk/guidance/role.md"}
+    EP.track([edit], screen, create, idle, now=t0 + 310)
+    EP.track([edit], screen, create, idle, now=t0 + 360, open_ids={"other"})
+    first = made[-1][0]
+    check("(the first wait for that file is alerted as usual)", len(made) == 5 and "role.md" in made[4][1], len(made))
+    EP.track([edit], screen, create, idle, now=t0 + 370, open_ids={first})
+    EP.track([edit], screen, create, idle, now=t0 + 420, open_ids={first})
+    check("while the operator's item is still open, the same prompt is the same wait: no repeat", len(made) == 5, len(made))
+    EP.track([edit], screen, create, idle, now=t0 + 425, open_ids=set())
+    check("item closed, but within 30 s of sending: no repeat yet (the approval may still be landing)", len(made) == 5, len(made))
+    EP.track([edit], screen, create, idle, now=t0 + 440, open_ids=set())
+    EP.track([edit], screen, create, idle, now=t0 + 490, open_ids=set())
+    check("item closed and the seat still waiting at the same prompt: a new wait, alerted again with a new id",
+          len(made) == 6 and made[5][0] != first and "role.md" in made[5][1], [m[0] for m in made[-2:]])
+    EP.track([edit], screen, create, idle, now=t0 + 600, open_ids=None)
+    check("snapshot unknown (missing or stale): no re-alert on a guess", len(made) == 6, len(made))
 
     print("Your questions kept with their replies (PL-024, in-process)")
     import convo as CV
@@ -1012,6 +1032,17 @@ def main():
     r = subprocess.run(["bash", harness, os.path.join(DASH, "..", "setup", "deploy-console.sh")], capture_output=True, text=True, timeout=20)
     check("the installed deploy command keeps the repo path after it reinstalls itself",
           [ln.split()[0] for ln in r.stdout.splitlines()] == ['REPO="/home/owner/repo"'] * 2, (r.stdout, r.stderr))
+    # rig-console-release is installed by the deploy command with the same anchored fill-in (owner-approved flow).
+    rel = os.path.join(tmp, "release")
+    shutil.copy(os.path.join(DASH, "..", "setup", "release-console.sh"), rel)
+    subprocess.run(["sed", "-i", 's#^REPO="@REPO@"#REPO="/home/owner/repo"#', rel], check=True)
+    txt = open(rel).read()
+    check("rig-console-release gets the repo path filled in, keeps its not-installed fallback, and parses",
+          '\nREPO="/home/owner/repo"' in txt and 'case "$REPO" in @*)' in txt
+          and subprocess.run(["bash", "-n", rel]).returncode == 0, txt[:200])
+    dep = open(os.path.join(DASH, "..", "setup", "deploy-console.sh")).read()
+    check("the deploy command installs rig-console-release from the reviewed commit, root-owned",
+          'G show "$COMMIT:setup/release-console.sh"' in dep and "install -o root -g root -m 755 \"$WORK/release\" /usr/local/sbin/rig-console-release" in dep)
 
     print("Who hears about a decision (in-process, fake rig ps)")
     import gates as G

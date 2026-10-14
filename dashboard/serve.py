@@ -1341,6 +1341,21 @@ class PlayHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
 
+def _open_qitem_ids(max_age_s=90):
+    """Ids of the queue items still open, from the logger's active-queue snapshot, or None when that snapshot
+    is missing, stale or possibly cut off at its 300-row limit (then nobody is re-alerted on a guess)."""
+    qa = os.path.join(SNAP, "_queue_active.json")
+    try:
+        if time.time() - os.path.getmtime(qa) > max_age_s:
+            return None
+    except OSError:
+        return None
+    rows = _load("_queue_active.json")
+    if len(rows) >= 300:
+        return None
+    return {str(r.get("qitemId")) for r in rows if isinstance(r, dict) and r.get("qitemId")}
+
+
 def _watch():
     try:
         S.backfill_activity(ACTIVITY)
@@ -1359,7 +1374,7 @@ def _watch():
             OB.deliver(lambda title, body, pr, url: F.push_now(f"{title}\n{body}".strip(), "From the operator", pr, url),
                        lambda text: _console_send(OB.RECEIPT_TO, text), set(_dismissed()))
             EP.track(g["nodes"], lambda s: screen_prompt(s)[2], _approval_item,
-                     idle_on_screen=lambda s: screen_prompt(s)[0] == "idle")
+                     idle_on_screen=lambda s: screen_prompt(s)[0] == "idle", open_ids=_open_qitem_ids())
             CV.capture(g["nodes"], lambda s: _screen_tail(s, 400), lambda s: screen_prompt(s)[0] == "idle",
                        G.folder_of_rig(CV.ARCHITECTS_RIG))
             NEEDS["count"] = sum(1 for a in g["alerts"] if a["kind"] == "task")   # open cards on the Needs you page

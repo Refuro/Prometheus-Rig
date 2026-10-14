@@ -16,6 +16,9 @@ STATE = os.path.expanduser(os.environ.get("RIG_STATE_DIR", os.path.join(os.path.
 EPISODES = os.path.join(STATE, "approval-episodes.json")
 OPERATOR = os.environ.get("RIG_APPROVALS_TO", "operator-agent@kernel")
 APPROVAL_AFTER_S = int(os.environ.get("RIG_APPROVAL_AFTER_S", "45"))
+# After the operator closes this wait's item, a seat still at a prompt REALERT_AFTER_S later is a new wait,
+# even with the same prompt line (PL-047; see track()).
+REALERT_AFTER_S = int(os.environ.get("RIG_APPROVAL_REALERT_S", "30"))
 SKIP_RIGS = {"kernel"}
 _lock = threading.Lock()
 
@@ -59,10 +62,12 @@ def body(seat, rig, action, screen, waited_s):
     return "\n".join(lines) + "\n"
 
 
-def track(nodes, screen_of, create, idle_on_screen=lambda seat: False, now=None):
+def track(nodes, screen_of, create, idle_on_screen=lambda seat: False, now=None, open_ids=None):
     """nodes: graph nodes. screen_of(seat) -> list of lines. create(qid, summary, body_text) -> bool.
     idle_on_screen(seat): True when the screen clearly shows an empty input box. OpenRig sometimes reports an
-    idle seat as at a prompt (PL-016), and the operator shouldn't get those. Returns the episodes (for tests)."""
+    idle seat as at a prompt (PL-016), and the operator shouldn't get those.
+    open_ids: ids of the queue items still open, from a fresh snapshot, or None when unknown (then no re-alert).
+    Returns the episodes (for tests)."""
     now = now or time.time()
     with _lock:
         eps = _load()
@@ -85,6 +90,13 @@ def track(nodes, screen_of, create, idle_on_screen=lambda seat: False, now=None)
             # approval never showed as a gap, so the 08:14Z prompt was swallowed). Once this wait's item is
             # sent, a different prompt is a new wait. Before it's sent, a changed line is just the same wait.
             if ep and ep["sent"] and action and action != ep["action"]:
+                ep = None
+            # The same prompt line again (a second edit of the same file) with no gap OpenRig or this 10-second
+            # watcher could see: arch-rig sat 13 minutes at 23:31Z and again at 23:58Z on 2026-10-13, each time
+            # right after the operator approved and closed the first item. A closed item with the seat still
+            # waiting REALERT_AFTER_S later means the approval landed and this is a new wait (PL-047).
+            elif (ep and ep["sent"] and open_ids is not None and ep["sent"]["id"] not in open_ids
+                  and now - ep["sent"]["at"] >= REALERT_AFTER_S):
                 ep = None
             if not ep:
                 eps[seat] = ep = {"start": now, "action": action, "sent": None}

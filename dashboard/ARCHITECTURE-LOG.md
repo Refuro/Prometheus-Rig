@@ -1904,6 +1904,113 @@ changes were re-applied on top.
 - Rendered against a copy of the live game (Fall 1901): all seven powers' arrows land on the right provinces,
   including Portugal, which my first version drew from the map's corner. I looked at desktop and phone.
 
+## PL-047 R-020: an identical prompt right after an approval was swallowed (arch-rig, 2026-10-14)
+**Finding:** the cause was in the console, not OpenRig.
+- Detection and delivery worked. On 2026-10-13 the console sent 46 approval items for arch-rig, each about
+  55 s after the wait began (45 s threshold plus a 10 s watch round). The operator closed each within about
+  13 s.
+- **The gap:** arch-rig approved an edit, then immediately hit a second prompt with the same line (the same
+  file again). OpenRig's status showed no gap, and neither did the 10 s watcher (the activity log reads
+  16:29–16:45 local as one unbroken `selection_prompt`). The console treated an identical prompt after an
+  alert as the same wait, so no new alert went out.
+- That happened at 23:31Z (adjudicate.py, 13 minutes until the next prompt) and at 23:58Z (clerk role.md,
+  until the operator found it around 00:02Z).
+- Nothing filters the architects rig or Edit prompts; only the kernel and usage-limit seats are skipped.
+- **OpenRig's part:** `needs_input` carries no per-prompt id, so back-to-back prompts can't be told apart.
+  The operator may want to report it.
+
+**Fix (`escalate.py`, `serve.py`):** once the wait's operator item is closed, a seat still waiting 30 s
+later is a new wait, and it is alerted again with a new id.
+- Open items come from the logger's active-queue snapshot the console already reads.
+- If that snapshot is missing, older than 90 s or possibly cut off at its 300-row limit, nobody is
+  re-alerted on a guess.
+- No polling was added.
+
+**Checked:** 5 new in-process checks:
+- the first wait is alerted;
+- no repeat while the item is open;
+- none within 30 s of closing;
+- a closed item with the seat still waiting gets a new alert with a new id;
+- an unknown snapshot sends nothing.
+
+## PL-048 Diplomacy: the latest digest while watching live (owner, 00:21Z)
+**Finding (the operator's diagnosis was right):** the clerk writes `<phase>-digest.md` and `-results.md` at
+adjudication. Following the live phase (PL-045) lands on the phase being played, which has neither, so the
+Digest and Results tabs said "not yet" while the last three digests existed.
+
+**Fix:**
+- When the phase on view has no digest or results, the tabs show the latest finished phase's, headed
+  "Latest digest: Winter 1901 builds · Spring 1902 movement gets its own when the clerk adjudicates it".
+- A phase's own digest is headed "Digest of <phase>".
+- An earlier phase picked on purpose shows its own.
+- At most three earlier checked phase names are tried.
+
+**Checked:** interactive 46/46 at desktop and phone. New: the live phase shows Spring 1901's digest and
+results, labelled; a deliberately chosen Spring 1901 shows "Digest of Spring 1901".
+
+## PL-049 rig-console-release: one command to review, commit and deploy (owner approved, 23:08Z)
+**What (`setup/release-console.sh`, installed by `setup/deploy-console.sh`):**
+- **Starting it:** start it from Windows with no shell profile: Win+R → `wsl --exec
+  /usr/local/sbin/rig-console-release`. It re-runs itself with a clean environment.
+- **The release note:** it reads `~/openrig/jobs/architects/releases/next.json`
+  (`{"message", "files", "smoke"}`). The note is untrusted data:
+  - paths must be plain names under `dashboard/` or `setup/`;
+  - the message must be one plain line of at most 120 characters, not starting with `-`.
+- **It refuses unless:**
+  - the listed files are exactly the changed files in `dashboard/` and `setup/`;
+  - nothing else is already staged anywhere;
+  - no listed file is a symlink.
+- **Review and commit:**
+  - it shows every changed line with the agents' git settings off (no hooks, filters, textconv, pager config
+    or external diff);
+  - on y, it stages exactly those paths;
+  - if a file's content changed after you were shown it, it unstages and stops;
+  - otherwise it commits and sets the note aside so it can't be replayed.
+- **Deploy:** on a second y it runs `rig-console-deploy`, which keeps its own review, smoke test and sudo.
+- **Installing it:**
+  - `rig-console-deploy` installs it, root-owned, from the reviewed commit, with the same anchored repo-path
+    fill-in as itself (PL-041).
+  - The first time, the deploy command doing the deploy is the older one, which doesn't know about it. So
+    run `rig-console-deploy` once more: it sees the commit is already live and installs the release command.
+
+**Checked:**
+- Harness 24/24 on throwaway repos:
+  - happy path, including a new file;
+  - an extra changed file and an unchanged listed file;
+  - six hostile paths and four bad messages;
+  - broken JSON, a symlink, something else already staged;
+  - n at either question;
+  - planted hook, textconv, pager and a `GIT_DIR`/`LESSOPEN` from the caller (with a control showing the
+    hook does run under plain git);
+  - a file swapped after review;
+  - no note.
+- Smoke 246/246, including the release command's repo-path fill-in and the deploy command installing it.
+
+## PL-058 Security fix from the Codex developer's first review: Diplomacy board injection (2026-10-14)
+**Found by** dev-codex@platform-dev (review-1, `scratch/platform/dev/out/review-1.md`), and confirmed by me.
+
+**The hole:** the Diplomacy page put `units[p].length` and `centers[p].length` straight into the page as
+counts. The board file is agent-written (the clerk). A file with `{"length": "<img src=x onerror=…>"}` in
+place of a list put markup into the owner's console page, where script can act with the owner's sign-in.
+It was live from PL-039, the page's adoption, until this fix.
+
+**Exposure:** a read-only scan of all 32 board files in the job folders found every units and centres entry
+to be a plain list of strings, with no markup. Diplomacy game 1 is over.
+
+**Fix (`diplomacy.html`):** `cleanBoard()` runs once, as the board loads.
+- Units and centres become lists of plain strings, at most 40 of 40 characters each, for the seven powers
+  only.
+- Anything else is dropped, so every count is a real list's length.
+- Nothing else in the page reads the board.
+
+**Checked:**
+- Smoke 247/247, with a new marker check.
+- A browser check plants the hostile board file. On the fixed page no element appears and no dialog fires
+  (desktop and phone). On the deployed PL-046 page the same check fails, which proves the hole and the test.
+
+The review's other three findings (a review-folder link, two digest day boundaries) are in the next batch,
+which isn't deployed yet. They're fixed there.
+
 ---
 
 ## Notes for other roles

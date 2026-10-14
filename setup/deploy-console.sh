@@ -49,7 +49,23 @@ if [ -n "$LINKS" ]; then
 fi
 
 LAST="$($SUDO cat "$MARK" 2>/dev/null || true)"   # /var/lib/rig-console is the console user's
-if [ -n "$LAST" ] && [ "$LAST" = "$COMMIT" ]; then echo "Commit ${COMMIT:0:7} is already live. Nothing to do."; exit 0; fi
+# rig-console-release, from the same reviewed commit, filled in the same anchored way as this script (PL-041).
+install_release() {
+  G show "$COMMIT:setup/release-console.sh" > "$WORK/release" 2>/dev/null || return 0   # not in this commit: nothing to install
+  sed -i "s#^REPO=\"@REPO@\"#REPO=\"$REPO\"#" "$WORK/release"
+  grep -q "^REPO=\"$REPO\"" "$WORK/release" || { echo "Couldn't fill in the repo path in rig-console-release; not installed."; return 0; }
+  $SUDO install -o root -g root -m 755 "$WORK/release" /usr/local/sbin/rig-console-release
+}
+if [ -n "$LAST" ] && [ "$LAST" = "$COMMIT" ]; then
+  # Already live. The first time, the deploy command that put it live was an older one that didn't install
+  # rig-console-release: do that now (it asks for your password once).
+  if [ ! -x /usr/local/sbin/rig-console-release ] && G cat-file -e "$COMMIT:setup/release-console.sh" 2>/dev/null; then
+    echo "Commit ${COMMIT:0:7} is already live. Installing rig-console-release from it..."
+    install_release && echo "Installed. From now on: Win+R, then  wsl --exec /usr/local/sbin/rig-console-release"
+    exit 0
+  fi
+  echo "Commit ${COMMIT:0:7} is already live. Nothing to do."; exit 0
+fi
 if [ -n "$LAST" ] && G cat-file -e "$LAST^{commit}" 2>/dev/null; then
   echo "Commits touching dashboard/ or setup/ since the last deploy (${LAST:0:7}):"
   G log --format='   %h %an, %ar: %s' "$LAST..$COMMIT" -- dashboard/ setup/
@@ -101,6 +117,7 @@ sed "s#^REPO=\"@REPO@\"#REPO=\"$REPO\"#" "$STAGE/setup/deploy-console.sh" > "$WO
 grep -q "^REPO=\"$REPO\"" "$WORK/deploy" || { echo "Couldn't fill in the repo path in the deploy command. Nothing installed."; exit 1; }
 $SUDO install -o root -g root -m 755 "$WORK/deploy" "$SELF"
 $SUDO install -o root -g root -m 755 "$STAGE/setup/rig-owner" /usr/local/lib/rig-console/rig-owner
+install_release
 echo "$COMMIT" | $SUDO tee "$MARK" >/dev/null
 $SUDO systemctl restart rig-dashboard
 sleep 2
