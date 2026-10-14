@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80"><rect width="120" height="80" fill="#cfe3ef"/><path d="M20 20h44v30h-44z" fill="#4169e1"/><path d="M66 18h32v34h-32z" fill="#a08a75"/><text x="60" y="72" font-size="8" text-anchor="middle">fixture board F1901M</text></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800"><rect width="1200" height="800" fill="#cfe3ef"/><path d="M200 200h440v300h-440z" fill="#4169e1"/><path d="M660 180h320v340h-320z" fill="#a08a75"/>
+<text x="600" y="740" font-size="60" text-anchor="middle">fixture board F1901M</text>
+<g font-size="22" text-anchor="middle">
+<text x="300" y="300">PAR</text><text x="420" y="360">BUR</text><text x="200" y="260">BRE</text><text x="90" y="300">MAO</text>
+<text x="360" y="470">MAR</text><text x="220" y="560">SPA</text><text x="320" y="230">PIC</text><text x="380" y="190">BEL</text>
+<text x="470" y="170">HOL</text><text x="520" y="280">RUH</text><text x="600" y="330">MUN</text><text x="600" y="200">KIE</text>
+<text x="700" y="210">BER</text><text x="300" y="120">ENG</text><text x="420" y="80">NTH</text><text x="160" y="160">LON</text>
+<text x="700" y="420">TYR</text><text x="560" y="480">PIE</text><text x="640" y="560">VEN</text><text x="820" y="300">SIL</text>
+<text x="880" y="400">BOH</text><text x="900" y="480">VIE</text><text x="520" y="420">SWI</text><text x="140" y="420">GAS</text>
+</g></svg>

@@ -458,6 +458,11 @@ def main():
         check("the page follows the live phase unless an earlier one was picked, with Back to live; chips rewire themselves",
               b"S.follow = S.phase === S.live" in raw and b'id="btnLive"' in raw and b"phaseKey" in raw
               and b"bb.onclick = b.onclick" not in raw and b"wire();" in raw)
+        check("map arrows: the agent-written SVG is parsed as data only, arrows built with DOM calls, labelled as orders, behind the toggle",
+              b'parseFromString(t, "image/svg+xml")' in raw and b"createElementNS(NS" in raw and b"ovl.innerHTML" not in raw
+              and b"can differ from its sealed intention" in raw and b"const on = S.showInt && S.geo" in raw)
+        st, _, svg = c.req("GET", "/job/diplomacy-1/board/F1901M.svg")
+        check("the fixture map has province labels for the arrows", st == 200 and svg.count(b"<text") >= 20 and b">PAR<" in svg)
 
         print("The owner posts in the Lounge (R-021)")
         ldir = os.path.join(fx, "jobs", "architects", "lounge")

@@ -54,8 +54,14 @@ button:disabled{opacity:.5;cursor:default}
 button:focus-visible,select:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
 .layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;margin-top:14px}
 @media (max-width:900px){.layout{grid-template-columns:1fr}}
-.board{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:8px;min-height:200px;display:flex;align-items:center;justify-content:center}
+.board{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:8px;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;align-self:start}
 .board img{max-width:100%;height:auto;border-radius:8px;display:block}
+.mapwrap{position:relative;max-width:100%}
+.mapwrap .ovl{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}   /* order arrows, same coordinates as the map */
+.legend{font-size:12.5px;color:var(--muted);margin-top:6px;align-self:flex-start}
+.legend:empty{display:none}
+.power .aim{flex-basis:100%;margin:4px 0 0 22px;font-size:12.5px;color:var(--muted);line-height:1.4}
+.power .aim b{color:var(--ink);font-weight:700}
 .board .empty{padding:30px}
 .powers{display:flex;flex-direction:column;gap:8px}
 .power{display:flex;gap:10px;align-items:center;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:9px 12px;cursor:pointer;text-align:left}
@@ -262,9 +268,120 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     const stamp = r && r.ok ? `${p}|${r.headers.get("last-modified") || ""}|${r.headers.get("etag") || ""}|${r.headers.get("content-length") || ""}` : `${p}|none`;
     if (stamp !== S.boardStamp) {   // only touch the <img> when the file really changed, so the map doesn't blink
       S.boardStamp = stamp;
-      img.innerHTML = r && r.ok ? `<img alt="Board after ${esc(phaseLabel(p))}" src="${esc(`${BASE}/board/${p}.svg?v=${encodeURIComponent(stamp)}`)}">`
+      const src = `${BASE}/board/${p}.svg?v=${encodeURIComponent(stamp)}`;
+      img.innerHTML = r && r.ok ? `<div class="mapwrap"><img alt="Board after ${esc(phaseLabel(p))}" src="${esc(src)}"><svg class="ovl" id="ovl" aria-hidden="true"></svg></div><div class="legend" id="legend"></div>`
                                 : `<div class="empty">No board image for ${esc(phaseLabel(p))} yet.</div>`;
+      S.geo = r && r.ok ? parseGeo(await text(`board/${p}.svg`)) : null;
     }
+  }
+
+  // Where each province sits on the clerk's map, for the order arrows. The SVG is agent-written, so it is only
+  // parsed as data (DOMParser runs no script) and only numbers come out of it: the viewBox, and the x/y of each
+  // three-letter province label. Nothing from it is ever inserted into the page.
+  function parseGeo(t) {
+    if (!t) return null;
+    try {
+      const d = new DOMParser().parseFromString(t, "image/svg+xml"), svg = d.documentElement;
+      if (!svg || svg.nodeName !== "svg") return null;
+      const vb = String(svg.getAttribute("viewBox") || "").trim().split(/[\s,]+/).map(Number);
+      if (vb.length !== 4 || !vb.every(Number.isFinite) || vb[2] <= 0 || vb[3] <= 0) return null;
+      const pts = {};
+      for (const el of d.getElementsByTagName("text")) {
+        const k = String(el.textContent || "").trim().toUpperCase();
+        if (!/^[A-Z]{3}$/.test(k) || pts[k]) continue;
+        let x = parseFloat(el.getAttribute("x") || "0"), y = parseFloat(el.getAttribute("y") || "0"), ok = true;
+        // Some labels are placed by transform="translate(x y) rotate(..)" (Portugal is). Add up translates on the
+        // label and its groups; anything else on a group (scale, matrix...) and the position is unknown: skip it.
+        for (let n = el; n && n !== svg && ok; n = n.parentNode) {
+          for (const [, fn, args] of String(n.getAttribute?.("transform") || "").matchAll(/(\w+)\s*\(([^)]*)\)/g)) {
+            const v = args.trim().split(/[\s,]+/).map(Number);
+            if (fn === "translate" && v.every(Number.isFinite)) { x += v[0]; y += v[1] || 0; }
+            else if (!(fn === "rotate" && n === el)) ok = false;
+          }
+        }
+        if (ok && Number.isFinite(x) && Number.isFinite(y)) pts[k] = [x, y - 6];
+      }
+      return Object.keys(pts).length >= 20 ? { vb, pts } : null;
+    } catch { return null; }
+  }
+
+  // Each power's orders for the phase on view, drawn as arrows over the map: moves solid, supports dashed,
+  // convoys dotted, holds a ring. Built with DOM calls from checked province codes and coordinates only.
+  // These are the orders as written (they can still change, and can differ from the sealed intention).
+  const NS = "http://www.w3.org/2000/svg";
+  const PROV = "([A-Z]{3})(?:/[A-Z]{2})?";
+  function parseOrder(line) {
+    const m = new RegExp(`^[AF]\\s+${PROV}\\s+(.*)$`, "i").exec(line.trim());
+    if (!m) return null;
+    const src = m[1].toUpperCase(), rest = m[2].trim(); let x;
+    if ((x = new RegExp(`^-\\s*${PROV}`, "i").exec(rest))) return { kind: "move", src, dst: x[1].toUpperCase() };
+    if ((x = new RegExp(`^S\\s+[AF]\\s+${PROV}(?:\\s*-\\s*${PROV})?`, "i").exec(rest))) return { kind: "support", src, dst: (x[2] || x[1]).toUpperCase() };
+    if ((x = new RegExp(`^C\\s+A\\s+${PROV}\\s*-\\s*${PROV}`, "i").exec(rest))) return { kind: "convoy", src, dst: x[2].toUpperCase() };
+    if (/^H\b/i.test(rest)) return { kind: "hold", src };
+    if (/^B\b/i.test(rest)) return { kind: "build", src };
+    if (/^D\b/i.test(rest)) return { kind: "disband", src };
+    return null;
+  }
+  function renderMap() {
+    const ovl = $("ovl"), legend = $("legend");
+    if (!ovl || !legend) return;
+    ovl.replaceChildren();
+    const on = S.showInt && S.geo;
+    const live = S.control && S.phase === S.control.phase && !S.results;
+    legend.textContent = !S.showInt ? "" : !S.geo ? "Order arrows: this map's province positions couldn't be read."
+      : live ? "Arrows: each power's current orders as written. They can still change, and can differ from its sealed intention."
+             : "Arrows: the orders each power submitted for this phase.";
+    if (S.showInt && S.geo) legend.textContent += " Solid: move · dashed: support · dotted: convoy · ring: hold · dashed ring: build · cross: disband.";
+    if (!on) return;
+    const [vx, vy, vw, vh] = S.geo.vb, P = S.geo.pts;
+    ovl.setAttribute("viewBox", `${vx} ${vy} ${vw} ${vh}`);
+    ovl.setAttribute("preserveAspectRatio", "xMinYMin meet");
+    const el = (tag, attrs, style) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, String(v)); Object.assign(e.style, style || {}); return e; };
+    const defs = el("defs", {});
+    for (const p of POWERS) {
+      const mk = el("marker", { id: `ah-${p}`, viewBox: "0 0 10 10", refX: 8, refY: 5, markerWidth: 4, markerHeight: 4, orient: "auto-start-reverse" });
+      mk.appendChild(el("path", { d: "M0,0 L10,5 L0,10 z" }, { fill: `var(--${p})` }));
+      defs.appendChild(mk);
+    }
+    ovl.appendChild(defs);
+    for (const p of POWERS) {
+      for (const line of String(S.pending[p] || "").split("\n")) {
+        const o = parseOrder(line);
+        if (!o || !P[o.src]) continue;
+        const [x1, y1] = P[o.src];
+        if (o.kind === "hold" || o.kind === "build") {
+          const dash = o.kind === "build" ? "8 6" : "", r = o.kind === "build" ? 22 : 16;
+          ovl.appendChild(el("circle", { cx: x1, cy: y1, r, fill: "none", "stroke-width": 9, "stroke-dasharray": dash }, { stroke: "#fff" }));
+          ovl.appendChild(el("circle", { cx: x1, cy: y1, r, fill: "none", "stroke-width": 5, "stroke-dasharray": dash }, { stroke: `var(--${p})` }));
+          continue;
+        }
+        if (o.kind === "disband") {
+          for (const [a, b] of [[-1, -1], [-1, 1]]) {
+            ovl.appendChild(el("line", { x1: x1 + 16 * a, y1: y1 + 16 * b, x2: x1 - 16 * a, y2: y1 - 16 * b, "stroke-width": 9 }, { stroke: "#fff" }));
+            ovl.appendChild(el("line", { x1: x1 + 16 * a, y1: y1 + 16 * b, x2: x1 - 16 * a, y2: y1 - 16 * b, "stroke-width": 5 }, { stroke: `var(--${p})` }));
+          }
+          continue;
+        }
+        if (!P[o.dst] || o.dst === o.src) continue;
+        const [x2, y2] = P[o.dst], len = Math.hypot(x2 - x1, y2 - y1), cut = Math.min(18, len / 3);
+        const ex = x2 - (x2 - x1) * cut / len, ey = y2 - (y2 - y1) * cut / len;
+        const dash = o.kind === "support" ? "14 9" : o.kind === "convoy" ? "3 9" : "";
+        ovl.appendChild(el("line", { x1, y1, x2: ex, y2: ey, "stroke-width": 10, "stroke-linecap": "round", "stroke-dasharray": dash }, { stroke: "#fff", opacity: .85 }));
+        const ln = el("line", { x1, y1, x2: ex, y2: ey, "stroke-width": 6, "stroke-linecap": "round", "stroke-dasharray": dash }, { stroke: `var(--${p})` });
+        if (o.kind === "move") ln.setAttribute("marker-end", `url(#ah-${p})`);
+        ovl.appendChild(ln);
+      }
+    }
+  }
+
+  // The intention's "Aim:" line (or its first line of text), short, for the power card. Escaped where shown.
+  function aimOf(t) {
+    const lines = String(t || "").split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#"));
+    // Prefer the line that says what it's for (Aim, Goal, Target, Plan); never just its orders again.
+    const label = /^(aim|goal|target|plan)\s*:\s*/i;
+    const a = lines.find(l => label.test(l)) || lines.find(l => !/^orders\s*:/i.test(l)) || "";
+    const s = a.replace(label, "").replace(/~~/g, "");
+    return s.length > 140 ? s.slice(0, 139) + "…" : s;
   }
 
   function renderBar() {
@@ -308,7 +425,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
                                : (live ? `<span class="orders none">no orders written yet (holds)</span>` : ""));
       return `<button class="power ${S.sel===p?"sel":""} ${c===0&&u===0&&S.board?"out":""}" data-p="${p}">
         <span class="dot" style="background:var(--${p})"></span><span class="name">${nice(p)}</span>
-        <span class="num"><b>${c}</b> centres · ${u} units</span>${ordersHtml}</button>`;
+        <span class="num"><b>${c}</b> centres · ${u} units</span>${ordersHtml}${
+        S.showInt && S.intent?.[p] && aimOf(S.intent[p]) ? `<span class="aim"><b>Intention:</b> ${esc(aimOf(S.intent[p]))}</span>` : ""}</button>`;
     }).join("");
     $("powers").querySelectorAll(".power").forEach(el => el.onclick = () => openPower(el.dataset.p));
   }
@@ -474,7 +592,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   };
 
   function fingerprint() {
-    return JSON.stringify([S.phase, S.control, S.board, S.press.length, S.livePress.map(m => [m.from, m.to, m.n, m.phase]), S.results, S.digest, S.incidents, S.final, S.pending, S.intent, S.showInt, S.timeline.length, S.tab, S.pressFilter, S.pressOrder]);
+    return JSON.stringify([S.phase, S.control, S.board, S.press.length, S.livePress.map(m => [m.from, m.to, m.n, m.phase]), S.results, S.digest, S.incidents, S.final, S.pending, S.intent, S.showInt, S.boardStamp, !!S.geo, S.timeline.length, S.tab, S.pressFilter, S.pressOrder]);
   }
   function renderAll(force) {
     const fp = fingerprint();
@@ -482,7 +600,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     if (!force && fp === S.lastFp) return;         // nothing changed: leave the DOM alone
     S.lastFp = fp;
     const y = window.scrollY;
-    renderPowers(); renderPanel();
+    renderPowers(); renderPanel(); renderMap();
     window.scrollTo(0, y);                         // a re-render shouldn't move you
   }
   async function refresh() {

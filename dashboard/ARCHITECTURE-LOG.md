@@ -1876,6 +1876,34 @@ changes were re-applied on top.
 - The deployed page fails the "waiting for the clerk" and chip checks.
 - Standard browser check passes.
 
+## PL-046 Diplomacy map: order arrows and intention lines (owner approved both, 23:19Z)
+**What (`diplomacy.html`; a labelled fixture map):** both appear only while Show intentions is on.
+- **Order arrows over the map:** each power's orders for the phase on view, in its colour.
+  - Moves are solid arrows, supports dashed, convoys dotted; holds are rings, builds dashed rings and
+    disbands crosses.
+  - A legend says what they are. Live: "each power's current orders as written. They can still change, and
+    can differ from its sealed intention." Past phases: "the orders each power submitted".
+  - **Safety:**
+    - the board SVG is agent-written, so it is parsed with DOMParser (which runs no script) and only numbers
+      come out: its viewBox and the x/y of each three-letter province label;
+    - translate transforms are added up (Portugal's label uses one), and a label under any other transform
+      is skipped;
+    - arrows are built with DOM calls from checked codes and numbers, in an overlay with the same coordinates
+      as the image. No agent text ever reaches the overlay, and the image is still an `<img>`.
+- **Intention line on each card:** the intention's Aim, Goal, Target or Plan line (otherwise its first line
+  that isn't just its orders), up to 140 characters and escaped. Clicking the card opens the drawer with the
+  full intention.
+- **Layout fix:** the map now sits at the top of its box. The taller cards had stretched the box, and the map
+  was centred in a large blank space.
+
+**Checked:**
+- Smoke 239/239 (new: the parse-only and DOM-only markers, and the fixture map's labels).
+- Interactive check 40/40 at desktop and phone. New checks: France's 2 moves and 1 support are drawn and the
+  legend is labelled as current orders; France's card shows its escaped intention line; toggling off removes
+  arrows and lines.
+- Rendered against a copy of the live game (Fall 1901): all seven powers' arrows land on the right provinces,
+  including Portugal, which my first version drew from the map's corner. I looked at desktop and phone.
+
 ---
 
 ## Notes for other roles
