@@ -6,12 +6,26 @@ deadline), and it's replaced atomically so the clerk never reads half a file. Se
 the folder is opened without following links (as lounge.py does) and the file is written relative to it.
 Nothing is sent, pushed or counted: the clerk polls the file.
 """
-import json, os
+import json, os, re
 
 import gates as G
 import lounge as LG
 
 MAX = 64_000
+
+
+def games():
+    """Every lab game that has started (a board/control.json), oldest first, and whether it's over
+    (board/final.md). For the Diplomacy page's game list (owner, 2026-10-14). Read-only; links aren't followed."""
+    out = []
+    for name, j in sorted(G._jobs().items(), key=lambda kv: [int(t) if t.isdigit() else t for t in re.split(r"(\d+)", kv[0])]):
+        if j.get("type") != "lab":
+            continue
+        board = os.path.join(j["folder"], "board")
+        if os.path.islink(board) or not os.path.isfile(os.path.join(board, "control.json")) or os.path.islink(os.path.join(board, "control.json")):
+            continue
+        out.append({"job": name, "title": str(j.get("title") or name)[:80], "over": os.path.isfile(os.path.join(board, "final.md"))})
+    return {"games": out}
 
 
 def control(body):

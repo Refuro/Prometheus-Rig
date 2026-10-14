@@ -59,7 +59,9 @@ def main():
                        "RIG_DB": os.path.join(tmp, "unit.db"), "RIG_SNAPSHOTS": os.path.join(fx, "snapshots"),
                        "RIG_RESEARCH_DIR": os.path.join(fx, "research"), "RIG_JOBS_CONFIG": os.path.join(tmp, "jobs.json"),
                        "RIG_OPERATOR_DIR": os.path.join(tmp, "operator"), "RIG_ACTIVITY_ARCHIVE": os.path.join(tmp, "activity-unit"),
-                       "RIG_MODELS_DIR": os.path.join(fx, "models"), "RIG_BRIEFS_DIR": os.path.join(fx, "briefs")})
+                       "RIG_MODELS_DIR": os.path.join(fx, "models"), "RIG_BRIEFS_DIR": os.path.join(fx, "briefs"),
+                       # review-1: never the real repo's files or the live deploy record, whatever the caller set
+                       "RIG_REPO_DIR": fx, "RIG_DEPLOYED_MARK": os.path.join(tmp, "no-deploy", "deployed")})
     # Plain copies: the deploy runs this from read-only staging as another user (PL-030).
     shutil.copytree(os.path.join(HERE, "fixtures"), fx, copy_function=shutil.copyfile)
     os.chmod(fx, 0o755)
@@ -141,7 +143,7 @@ def main():
            "RIG_SNAPSHOTS": os.path.join(fx, "snapshots"), "RIG_RESEARCH_DIR": os.path.join(fx, "research"),
            "RIG_STATE_DIR": os.path.join(tmp, "state"), "RIG_DB": os.path.join(tmp, "console.db"),
            "RIG_JOBS_CONFIG": jobs_cfg, "RIG_MODELS_DIR": os.path.join(fx, "models"), "RIG_BRIEFS_DIR": os.path.join(fx, "briefs"), "RIG_LAUNCHES_DIR": os.path.join(tmp, "launches"), "RIG_CONSOLE_HOSTS": "mypc.tail1234.ts.net",
-           "RIG_OPERATOR_DIR": oplog}
+           "RIG_OPERATOR_DIR": oplog, "RIG_REPO_DIR": fx, "RIG_DEPLOYED_MARK": os.path.join(tmp, "no-deploy", "deployed")}
     for k in ("NTFY_TOPIC", "NTFY_CLICK"):
         env.pop(k, None)
     log = open(os.path.join(tmp, "server.log"), "w")
@@ -169,8 +171,15 @@ def main():
         check("old /index.html forwards home; Niche board lives at /research.html",
               b'location.replace("/graph.html"' in raw and b'location.replace("/"+' not in raw.replace(b" ", b"") and b"Niche board" in c.req("GET", "/research.html")[2])
         nav = c.req("GET", "/nav.js")[2]
-        check("top bar keeps four main links, Needs you (its own page) among them; the rest sit under More",
-              b'const MAIN = [["/", "Live"], ["/needs.html", "Needs you"], ["/decide.html", "Decisions"], ["/play.html", "Builds"]]' in nav and b'"/research.html"' in nav)
+        groups = re.findall(rb'\["(Now|Decide|Teams|Record|System)", \[', nav)
+        pages = re.findall(rb'\["(/[a-z]*\.?h?t?m?l?)", "', nav)
+        on_disk = {b"/" + n.encode() for n in os.listdir(DASH) if n.endswith(".html") and n not in
+                   ("graph.html", "index.html", "index.v1.html", "graph.v1.html", "graph.v2-backup.html", "m.html", "seat.html")} | {b"/"}
+        check("top bar: five groups in order (R-027), and every page sits in exactly one group; no More menu",
+              groups == [b"Now", b"Decide", b"Teams", b"Record", b"System"] and len(pages) == len(set(pages))
+              and set(pages) == on_disk and b"rcMore" not in nav, (groups, sorted(set(pages) ^ on_disk)))
+        check("the architects' faces row links each architect to their profile, names escaped",
+              b'/seat.html?seat=${encodeURIComponent(n.id)}' in nav and b"esc(short)" in nav)
         st, ms = c.json("/api/messages")
         st2, _, raw = c.req("GET", "/messages.html")
         check("Messages page and API served; the page escapes reply files and screen text (agent text), and labels screen text",
@@ -234,9 +243,47 @@ def main():
         print("Graph and alerts")
         st, g = c.json("/api/graph")
         names = {n["name"]: n for n in (g or {}).get("nodes", [])}
-        check("graph lists running seats only", st == 200 and set(names) == {"operator-agent", "demo-lead", "demo-analyst", "demo-builder", "demo-skeptic"}, sorted(names))
+        check("graph lists running seats only", st == 200 and set(names) == {"operator-agent", "demo-lead", "demo-analyst", "demo-builder", "demo-skeptic", "arch-platform"}, sorted(names))
         kinds = {a["kind"] for a in (g or {}).get("alerts", [])}
         check("approval alert for the seat at a prompt", "approval" in kinds, kinds)
+        sdir = os.path.join(fx, "snapshots")
+        keep_scr = {s: open(os.path.join(sdir, f"{s}.txt")).read() for s in ("demo-lead@demo-team", "demo-skeptic@demo-team", "operator-agent@kernel")}
+        for s in ("demo-lead@demo-team", "demo-skeptic@demo-team"):
+            open(os.path.join(sdir, f"{s}.txt"), "a").write("\nYou've hit your usage limit · resets 3am\n")
+        st, g2 = c.json("/api/graph")
+        lim = [a for a in g2.get("alerts", []) if a["kind"] == "limit"]
+        check("usage limits (R-030): one alert per provider naming its seats, kept off the phone; each seat keeps its badge",
+              len(lim) == 1 and lim[0]["text"].startswith("Claude usage limit: 2 seats stopped since") and lim[0].get("nopush") is True
+              and lim[0]["act"] is True and sorted(lim[0]["seats"]) == ["demo-lead@demo-team", "demo-skeptic@demo-team"]
+              and sum(1 for n in g2["nodes"] if n.get("alert") == "limit") == 2, lim)
+        open(os.path.join(sdir, "operator-agent@kernel.txt"), "a").write("\nYou've hit your usage limit\n")
+        st, g3 = c.json("/api/graph")
+        cod = [a for a in g3.get("alerts", []) if a["kind"] == "limit" and a.get("runtime") == "codex"]
+        check("...but when the operator's own seat is stopped, that alert still pushes (nobody else can judge it)",
+              len(cod) == 1 and not cod[0].get("nopush") and cod[0].get("push") is True, cod)
+        for s, txt in keep_scr.items():
+            open(os.path.join(sdir, f"{s}.txt"), "w").write(txt)
+        st, p = c.json("/api/seat?seat=arch-platform@architects")
+        check("an architect's profile (R-027): live state, role from ROLES.md, newest log entries first",
+              st == 200 and p["name"] == "Platform Architect" and p["now"] and p["role"]["is"].startswith("Claude Code")
+              and [e["id"] for e in p["log"]] == ["PL-002", "PL-001"], p)
+        check("...ideas are the Open items rows waiting on 'idea' (owner's rule); the rest stay open items",
+              len(p["ideas"]) == 2 and len(p["open_items"]) == 1 and p["open_items"][0]["Item"] == "Deploy PL-047"
+              and "<script>" in p["ideas"][1]["Item"], (p.get("ideas"), p.get("open_items")))
+        bad = [c.json(f"/api/seat?seat={urllib.parse.quote(s)}")[1] for s in ("demo-lead@demo-team", "../ROLES.md", "", "x@architects/../../etc")]
+        check("...only architects' seats; anything else is refused (read errors answer with an error field)",
+              all(b.get("error") == "Unknown seat" and "role" not in b for b in bad), bad)
+        pv = os.path.join(tmp, "state", "page-views.json")
+        before = (lambda v: v[sorted(v)[-1]].get("/oplog.html", 0) if v else 0)(json.load(open(pv)) if os.path.isfile(pv) else {})
+        c.req("GET", "/oplog.html?x=secret"); c.req("GET", "/oplog.html"); c.req("GET", "/nope.html"); c.req("GET", "/api/graph")
+        views = json.load(open(pv))
+        today = views[sorted(views)[-1]]
+        check("page counter (R-027): page and day only, no query strings; missing pages and API calls aren't counted",
+              today.get("/oplog.html") == before + 2 and "/nope.html" not in today and not any("?" in k or k.startswith("/api") for k in today)
+              and all(re.fullmatch(r"\d{4}-\d{2}-\d{2}", d) for d in views), today)
+        st, _, raw = c.req("GET", "/seat.html?seat=arch-platform@architects")
+        check("the profile page escapes everything it shows and is under Now",
+              st == 200 and raw.count(b"${esc(") > 20 and b"innerHTML = head" in raw and b'"/seat.html": "/"' in nav)
         b = names.get("demo-builder") or {}
         check("Codex's slow-model menu ('No action is required') is working, not an approval wait (operator, 17:44Z)",
               b.get("state") == "working" and not b.get("alert") and "slow" in (b.get("action") or "")
@@ -329,7 +376,56 @@ def main():
         st, mo = c.json("/api/models")
         mo = mo or {}
         check("model cards read from RIG_MODELS_DIR", st == 200 and len(mo.get("cards", [])) == 3, len(mo.get("cards", [])))
-        check("bad ledger lines skipped, not fatal", len(mo.get("observations", [])) == 3 and mo.get("skipped_lines") == 1, mo.get("skipped_lines"))
+        check("bad ledger lines skipped, not fatal", len(mo.get("observations", [])) == 4 and mo.get("skipped_lines") == 1, mo.get("skipped_lines"))
+        st, sn = c.json(f"/api/since?ts={int(time.time()) - 30 * 86400}")
+        check("'since you last looked' counts new decisions, to-dos, finished handoffs and the busiest teams",
+              st == 200 and sn.get("decisions_new_n", 0) >= 1 and all(k in sn for k in ("cards_new_n", "handoffs_done", "approval_waits", "busiest"))
+              and all(d["url"].startswith("/decide.html?job=") for d in sn["decisions_new"]), sn)
+        st, _, sj = c.req("GET", "/since.js")
+        check("...since.js is served, escapes team names, and the first visit only starts the clock",
+              st == 200 and b"esc(t.rig)" in sj and b"if (!at) {" in sj and b'<script src="/since.js">' in c.req("GET", "/m.html")[2])
+        bad = [c.json(f"/api/since?ts={v}")[1] for v in ("", "abc", str(int(time.time()) + 3600), "-5")]
+        check("...a missing, future or nonsense time is refused", all("error" in b for b in bad), bad)
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        with open(os.path.join(fx, "dashboard", "ARCHITECTURE-LOG.md"), "a") as f:
+            f.write(f"\n## PL-003 Shipped the digest ({today})\nText.\n")
+        st, dg = c.json("/api/digest")
+        check("the daily digest (R-026): today, two weeks of days, a headline, decisions opened, dated log entries",
+              st == 200 and dg["day"] == today and len(dg["days"]) == 14 and "decision" in dg["headline"]
+              and len(dg["decisions_opened"]) >= 1 and [e["id"] for e in dg["log_entries"]] == ["PL-003"], dg)
+        bad = [c.json(f"/api/digest?day={v}")[1] for v in ("yesterday", "2026-1-1", "../x")]
+        check("...a malformed day is refused", all("error" in b for b in bad), bad)
+        draw = c.req("GET", "/digest.html")[2]
+        check("...the digest page escapes what it shows and sits first under Record",
+              draw.count(b"esc(") > 15 and b'["/digest.html", "Digest"' in nav)
+        graw = c.req("GET", "/graph.html")[2]
+        check("graph lag (PL-054): cards replaced only when their markup changed, text measured on a canvas, no polling while hidden",
+              b"if (nodeHtml[n.id] === html) continue;" in graw and b"measureCtx.measureText" in graw and b"getComputedTextLength" not in graw
+              and b"if (!document.hidden) refresh();" in graw)
+        st, gm = c.json("/api/lab/games")
+        check("the Diplomacy game list: lab jobs with a started board, and whether each is over (a linked board isn't listed)",
+              st == 200 and [g["job"] for g in gm.get("games", [])] == ["diplomacy-1"] and gm["games"][0]["over"] is False, gm)
+        st, rv = c.json("/api/models/review?id=diplomacy-1")
+        check("a game's Model Architect report is readable by its id (Diplomacy postgame)", st == 200 and "Germany won" in (rv.get("text") or ""), rv)
+        os.makedirs(os.path.join(fx, "models", "reviews", "linked"), exist_ok=True)
+        os.symlink("/etc/hostname", os.path.join(fx, "models", "reviews", "linked", "report.md"))
+        bad = [c.json(f"/api/models/review?id={urllib.parse.quote(i)}")[1] for i in ("../cards", "diplomacy-1/../../x", "Diplomacy-1", "", "a" * 41)]
+        _, linked = c.json("/api/models/review?id=linked")
+        check("...only reviews/<id>/report.md: other paths and names refused, a planted link not followed",
+              all(b.get("error") == "Unknown review" for b in bad) and linked.get("text") is None, (bad, linked))
+        # review-1 (dev-codex@platform-dev): O_NOFOLLOW on the final file must also protect parent components.
+        outside_review = os.path.join(tmp, "outside-models-review")
+        os.makedirs(outside_review)
+        with open(os.path.join(outside_review, "report.md"), "w") as f:
+            f.write("review-1 outside-models marker")
+        os.symlink(outside_review, os.path.join(fx, "models", "reviews", "parent-link"))
+        _, parent_link = c.json("/api/models/review?id=parent-link")
+        check("review-1: a linked review directory cannot expose a report outside models",
+              parent_link.get("text") is None, parent_link)
+        mraw = c.req("GET", "/models.html")[2]
+        check("ledger lines marked duplicate_of aren't counted; they're listed dimmed, naming the original (MA-015)",
+              b"D.observations = D.observations.filter(o => !o.duplicate_of)" in mraw and b"duplicate of ${esc(o.duplicate_of)}" in mraw
+              and any(o.get("duplicate_of") == "O003" for o in mo.get("observations", [])))
         check("ledger model ids match card names (gemma4:12b -> gemma4-12b)", {o["model"] for o in mo.get("observations", [])} == {"codex", "gemma4-12b"})
         notes = mo.get("notes", [])
         check("leads' unharvested model-notes.jsonl lines listed", any("smoke test" in (n.get("what_happened") or "") for n in notes), notes)
@@ -453,6 +549,9 @@ def main():
               and b"live, unarchived until game end" in raw and b"Paused: usage limit" in raw and b"powers/${low}/intentions/" in raw)
         check("the agent-written board file is cleaned before use: real lists of strings, so a count is never the clerk's own value (review-1)",
               b"S.board = cleanBoard(S.board);" in raw and b"Array.isArray(v) ? v.filter(x => typeof x === \"string\")" in raw)
+        check("after the game: a Game over panel and tabs for final standings, chronicle and analysis, rendered by the escape-first md.js",
+              b'id="postgame"' in raw and b'data-tab="chronicle"' in raw and b'data-tab="analysis"' in raw and b'<script src="/md.js">' in raw
+              and b"${md(txt)}" in raw and b"/api/models/review?id=" in raw)
         check("a clerk still in a paused state holds the clock: no 'adjudicating' from a stale deadline (PL-045)",
               b"clerkHolds(c) && !c.paused" in raw and b"waiting for the clerk" in raw)
         check("the Press tab has an oldest/newest order, remembered per browser",
@@ -743,6 +842,35 @@ def main():
     check("the item's summary names the prompt showing when it's sent, matching its body",
           len(made) == 4 and "journalctl" in made[3][1] and "journalctl" in made[3][2], made[-1][1] if made else None)
     check("the id is deterministic, so a retry can't duplicate it", EP.episode_id("s", 5, "a") == EP.episode_id("s", 5, "a"))
+    # R-030: one operator item per provider outage, and zero phone pushes for it.
+    import features as F
+    out = []
+    mk = lambda q, s, b: out.append((q, s, b)) or True
+    six = {"kind": "limit", "runtime": "claude-code", "since": t0, "text": "Claude usage limit: 6 seats stopped since 01:20",
+           "seats": [f"s{i}@team" for i in range(6)]}
+    EP.track_outages([six], mk, now=t0 + 30)
+    check("an outage under a minute sends nothing yet", out == [], out)
+    EP.track_outages([six], mk, now=t0 + 70); EP.track_outages([six], mk, now=t0 + 400)
+    check("6 seats hit the limit: one operator item, naming them, never repeated during the outage",
+          len(out) == 1 and "s5@team" in out[0][2] and out[0][0].startswith("qitem-") and "6 seats" in out[0][1], out)
+    EP.track_outages([], mk, now=t0 + 500)
+    EP.track_outages([{**six, "since": t0 + 600}], mk, now=t0 + 700)
+    check("cleared, then back: a new outage, a new item with a new id", len(out) == 2 and out[1][0] != out[0][0], [o[0] for o in out])
+    pushed, saved_push, saved_topic = [], F.push_now, os.environ.get("NTFY_TOPIC")
+    try:
+        F.push_now = lambda *a, **k: pushed.append(a)
+        os.environ["NTFY_TOPIC"] = "smoke-test-never-sent"
+        al = [{**six, "key": "limit:provider:claude-code", "notify": "Stopped: usage limit", "nopush": True},
+              {"kind": "gate", "key": "gate:x", "notify": "Decision needed", "text": "Pick one"}]
+        F._pending.update({a["key"]: time.time() - 60 for a in al})
+        F.push_alerts(al)
+        check("...and zero phone pushes for it, while a decision still pushes", len(pushed) == 1 and "Pick one" in pushed[0][0], pushed)
+    finally:
+        F.push_now = saved_push
+        if saved_topic is None:
+            os.environ.pop("NTFY_TOPIC", None)
+        else:
+            os.environ["NTFY_TOPIC"] = saved_topic
     # PL-047: the same prompt line again right after the operator approved (arch-rig, 23:31Z and 23:58Z).
     EP.track([], screen, create, idle, now=t0 + 300)
     edit = {**seat, "action": "Needs your OK: ../lab/diplomacy/agents/clerk/guidance/role.md"}
@@ -855,6 +983,30 @@ def main():
           f"[msg {op}]" in txt and os.path.join(CV.REPLIES, op) + ".json" in txt and "Message from the owner" in txt and "\n" not in txt, txt)
     txt = SV._delivered("build-a@bridge-prod", op, "hi")
     check("a team seat's message carries the id but no file path (it replies on screen)", f"[msg {op}]" in txt and ".json" not in txt, txt)
+
+    print("Which commit is live, and is a newer one waiting (System page; in-process)")
+    dmark, frepo = os.path.join(tmp, "dep", "deployed"), os.path.join(tmp, "fakerepo")
+    os.makedirs(os.path.dirname(dmark)); os.makedirs(os.path.join(frepo, ".git", "refs", "heads"))
+    live_c, new_c = "a" * 40, "b" * 40
+    open(dmark, "w").write(live_c + "\n")
+    open(dmark + ".json", "w").write(json.dumps({"commit": live_c, "subject": "Ship it", "at": "2026-10-14T07:00:00Z", "smoke": "256/256 passed"}))
+    open(os.path.join(frepo, ".git", "HEAD"), "w").write("ref: refs/heads/main\n")
+    open(os.path.join(frepo, ".git", "refs", "heads", "main"), "w").write(live_c + "\n")
+    saved_repo, saved_mark = SV.PR.REPO, os.environ.get("RIG_DEPLOYED_MARK")
+    os.environ["RIG_DEPLOYED_MARK"] = dmark
+    try:
+        SV.PR.REPO = frepo
+        d = SV.deploy_status()
+        check("live commit, subject, time and smoke come from the deploy record; repo HEAD matches, so nothing waits",
+              d["commit"] == live_c and d["smoke"] == "256/256 passed" and d["newer_in_repo"] is False, d)
+        os.remove(os.path.join(frepo, ".git", "refs", "heads", "main"))
+        open(os.path.join(frepo, ".git", "packed-refs"), "w").write(f"# pack-refs\n{new_c} refs/heads/main\n")
+        d = SV.deploy_status()
+        check("a newer commit in the repo (read from packed-refs) is flagged as not live", d["repo_head"] == new_c and d["newer_in_repo"] is True, d)
+        open(os.path.join(frepo, ".git", "HEAD"), "w").write("ref: refs/heads/../../../etc/passwd\n")
+        check("a planted HEAD ref path isn't followed", SV.deploy_status()["repo_head"] is None)
+    finally:
+        SV.PR.REPO = saved_repo; os.environ["RIG_DEPLOYED_MARK"] = saved_mark   # back to the pinned temp path
 
     print("Resume wakes the game's clerk at once (PL-045; in-process, fake ps and send)")
     saved = (SV.LAB.control, SV._load, SV.G._jobs, SV.G.team_of, SV._console_send)
@@ -986,6 +1138,81 @@ def main():
 
     print("Tests never touch the live console's folders (PL-038)")
     import outbox as OB, oplog as OL, store as S
+    # review-1 (dev-codex@platform-dev): the digest's UTC day must include its start and exclude the next midnight.
+    saved_db_path, saved_conn = S.DB_PATH, S._conn
+    S.DB_PATH, S._conn = os.path.join(tmp, "review-1-boundary.db"), None
+    try:
+        day_start = datetime(2026, 10, 14, tzinfo=timezone.utc).timestamp()
+        db = S.db()
+        db.execute("INSERT INTO events(ts, kind, rig, text) VALUES (?, 'done', 'start-day', 'done')", (day_start,))
+        db.execute("INSERT INTO events(ts, kind, rig, text) VALUES (?, 'done', 'next-day', 'done')", (day_start + 86400,))
+        db.commit()
+        boundary = S.since_summary(day_start, day_start + 86400)
+        check("review-1: digest activity includes this midnight and excludes the next midnight",
+              [t["rig"] for t in boundary["busiest"]] == ["start-day"], boundary)
+        check("...while 'since you last looked' stays strictly after its time (an event exactly then isn't new)",
+              "start-day" not in [t["rig"] for t in S.since_summary(day_start)["busiest"]]
+              and "start-day" in [t["rig"] for t in S.since_summary(day_start - 1)["busiest"]], S.since_summary(day_start))
+    finally:
+        if S._conn is not None:
+            S._conn.close()
+        S.DB_PATH, S._conn = saved_db_path, saved_conn
+    from unittest.mock import patch
+    from contextlib import ExitStack
+    import digest as DG
+    with ExitStack() as patches:
+        decided = {"title": "UTC boundary", "job": "demo", "id": "g1", "created": day_start,
+                   "decision": {"decided_at": "2026-10-13T18:30:00-07:00"}}
+        for obj, attr, value in (
+            (DG.G, "list_gates", lambda n: {"open": [], "decided": [decided]}),
+            (DG.G, "list_tasks", lambda: []), (DG.PR, "_read", lambda rel: ""),
+            (DG.OL, "read", lambda month: {"days": []}), (DG.LG, "posts", lambda: []),
+            (DG.S, "since_summary", lambda start, end: {"handoffs_done": 0, "approval_waits": 0, "busiest": [], "new_jobs": []}),
+        ):
+            patches.enter_context(patch.object(obj, attr, value))
+        utc_day, local_day = DG.build("2026-10-14"), DG.build("2026-10-13")
+        check("review-1: digest assigns offset decision timestamps to their UTC day",
+              len(utc_day["decisions_decided"]) == 1 and not local_day["decisions_decided"],
+              (utc_day["decisions_decided"], local_day["decisions_decided"]))
+    # review-2 (dev-codex@platform-dev): a FIFO or a directory planted where a file is read must be refused at
+    # once, without blocking and without leaking a descriptor. An alarm turns a regression into a failure, not a hang.
+    import signal, stat as _stat
+    import models as MDm, seatprofile as SPm
+    sp_root = os.path.join(tmp, "special"); os.makedirs(os.path.join(sp_root, "reviews", "fifo"))
+    os.makedirs(os.path.join(sp_root, "reviews", "adir", "report.md"))
+    os.mkfifo(os.path.join(sp_root, "reviews", "fifo", "report.md")); os.mkfifo(os.path.join(sp_root, "ROLES.md"))
+    os.makedirs(os.path.join(sp_root, "DIRFILE.md"))
+    saved = (MDm.DIR, SPm.REPO)
+    def _alarm(*_):
+        raise TimeoutError("blocked on a special file")
+    old_handler = signal.signal(signal.SIGALRM, _alarm)
+    try:
+        MDm.DIR, SPm.REPO = sp_root, sp_root
+        signal.alarm(5)
+        fifo_ok = MDm.review("fifo")["text"] is None and SPm._read("ROLES.md") is None
+        signal.alarm(0)
+        before = len(os.listdir("/proc/self/fd"))
+        dir_ok = all(MDm.review("adir")["text"] is None and SPm._read("DIRFILE.md") is None for _ in range(10))
+        leaked = len(os.listdir("/proc/self/fd")) - before
+    except TimeoutError as e:
+        fifo_ok, dir_ok, leaked = False, False, str(e)
+    finally:
+        signal.alarm(0); signal.signal(signal.SIGALRM, old_handler)
+        MDm.DIR, SPm.REPO = saved
+    check("review-2: a FIFO planted as a report or repo file is refused at once, not waited on", fifo_ok)
+    check("review-2: a directory in a file's place is refused, ten times, without leaking a descriptor",
+          dir_ok and leaked == 0, leaked)
+    # Profiles read repo files without following a link at any step (same hole as review-1 finding 2).
+    saved_repo = PR_mod.REPO if (PR_mod := __import__("seatprofile")) else None
+    try:
+        fake = os.path.join(tmp, "fake-repo"); os.makedirs(os.path.join(fake, "architects"))
+        outside = os.path.join(tmp, "outside-handoffs"); os.makedirs(outside)
+        open(os.path.join(outside, "platform-architect.md"), "w").write("## 3. Open items\n| Item | Waiting on |\n|---|---|\n| secret | idea |\n")
+        os.symlink(outside, os.path.join(fake, "architects", "handoffs"))
+        PR_mod.REPO = fake
+        check("profiles don't follow a linked handoffs folder out of the repo", PR_mod.open_items("platform-architect") == (None, []))
+    finally:
+        PR_mod.REPO = saved_repo
     paths = {"gates.STATE_DIR": G.STATE_DIR, "gates.STATE": G.STATE, "gates.LAUNCHES": G.LAUNCHES, "features.STATE": F.STATE,
              "convo.STATE": CV.STATE, "escalate.STATE": EP.STATE, "outbox.STATE": OB.STATE, "lounge.MINE": LG.MINE,
              "oplog.DIR": OL.DIR, "store.DB_PATH": S.DB_PATH}

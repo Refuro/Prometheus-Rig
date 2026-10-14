@@ -1986,6 +1986,195 @@ results, labelled; a deliberately chosen Spring 1901 shows "Digest of Spring 190
   - no note.
 - Smoke 246/246, including the release command's repo-path fill-in and the deploy command installing it.
 
+## PL-050 Phone pushes: consultation answered for Rig (owner via the operator, 2026-10-14, design only)
+Answered in `scratch/platform/push-consult.md`, and sent to Rig as queue item qitem-20261014022533. Nothing
+changed.
+- **What pushes today:**
+  - decisions, urgent cards, "console can't see agents", team routing changes, approval waits over 10
+    minutes and the operator's notes;
+  - usage limits, one push per seat. That's the spam.
+- **One notice per provider:** feasible, because each seat carries its runtime.
+- **The trap:** membership of `NOTIFY` also decides the Needs you "must act" list and the desktop
+  notifications. Any change has to be a separate push switch, not a removal from `NOTIFY`.
+- **Keep automatic:** "console blind", the operator's own stop, the 10-minute approval backstop, gates and
+  urgent cards.
+- Waiting on Rig's recommendation and the owner's yes.
+
+## PL-051 Console reorganisation, phase 1: five groups and architect profiles (R-027, owner)
+**What:**
+- **Top bar (`nav.js`):** five groups, by what you're doing.
+  - The groups are Now, Decide, Teams, Record and System. Every page is in exactly one group. "More" is gone.
+  - A second row shows the current group's pages. On Now it shows the architects' faces instead.
+  - Decide carries one badge (open Needs you cards plus open decisions); its second row splits the two counts.
+- **Faces row:** one face per architect seat, from the console's graph, with a status ring: working pulses,
+  amber is waiting on you, red is blocked or at a usage limit. The pulse is off with reduced motion. Each face
+  opens that architect's profile.
+- **Profiles (`seat.html`, `/api/seat`, `seatprofile.py`):**
+  - **Live:** the seat's state and current action.
+  - **Work:** working on, up next, waiting on you and waiting on others, from the Docket's own queue rows,
+    gates and cards.
+  - **Ideas:** rows of the handoff's "Open items" table whose "Waiting on" says idea (the owner's answer on
+    Rig's card). The other rows are listed as open items.
+  - **Context:**
+    - the latest log entry headings;
+    - the Model Architect's assessment;
+    - your last messages to the seat;
+    - their Lounge posts;
+    - their role, from ROLES.md.
+  - **Sources:** read-only, size-capped, from the repo folder the Models page already reads
+    (`RIG_MODELS_DIR`'s parent, or `RIG_REPO_DIR`).
+  - **Limits:** only `<name>@architects` seats are served. Everything is escaped on the page.
+  - **Ways in:** the faces row; a new "Open <name>'s profile" link in an architect's panel on the live graph;
+    the phone footer.
+- **Phone (`m.html`):** the footer lists every page under the same five headings, plus the four profiles.
+  Diplomacy was missing from it and is added.
+- **Browser check:** a 1093 px width (a 1366 px screen at 125% zoom) is added, and it fails on sideways scroll.
+
+**Checked:**
+- Smoke 251/251. New checks:
+  - five groups in order, every page in exactly one group, no More menu;
+  - faces link to profiles, with names escaped;
+  - a profile's state, role and log order;
+  - ideas split from open items, with a planted `<script>` kept as data;
+  - non-architect, path-like or empty seats refused;
+  - the page escapes what it shows.
+- Browser check: every page at 1366, 1093 and 390 px with no errors and no sideways scroll, plus the profile.
+- I looked at the profile, Needs you, the graph and the phone page.
+
+**Also in this batch:**
+- **Models page (MA-015):** ledger lines marked `duplicate_of` are left out of every count on the page, and
+  listed dimmed at the end of the ledger as "duplicate of O0xx". The API still returns them.
+- **Page-use counter:** `state/page-views.json` records page and day only. It keeps no addresses, times or
+  query strings, counts only the console's own pages (not missing ones or API calls), and keeps 60 days. It
+  never fails a request. Phase 2 uses it.
+
+**Checked:** smoke now 253/253, including the counter and the Models markers.
+
+**Not done:** retiring the Niche board's checkpoint picker. The research briefs don't say whether checkpoints
+now go through gates, so I asked Rig (qitem-20261014044150). It stays until Rig says.
+
+## PL-052 Diplomacy: the postgame writeups on the page (owner via the operator, 2026-10-14)
+**Why:** game 1 ended at the brief's 1908 limit (final standings say so, with the failed five-way draw), but
+the page didn't point anywhere after the game, so the owner couldn't find the chronicle or the analysis.
+
+**What:**
+- **Game over panel:** once `board/final.md` exists, a "Game over" panel sits under the bar.
+- **Three new tabs, also linked from the panel:**
+  - Final standings (`board/final.md`);
+  - Chronicle (`chronicle/chronicle.md`, from the game folder through `/job/`);
+  - Model Architect's analysis.
+- **Rendering:** the writeups use the console's escape-first Markdown reader (`md.js`, as on the job pages),
+  so tables and headings show, but no raw HTML from agents does. Each loads once, on first open.
+- **The analysis (`/api/models/review?id=<id>`, `models.review`):** it returns `models/reviews/<id>/report.md`
+  and nothing else.
+  - The id must be lowercase letters, digits and hyphens, up to 40 characters.
+  - The file is opened without following a link.
+  - No other file in `models/reviews/` is exposed.
+
+**Checked:**
+- Smoke 256/256. New checks: the report is readable by id; five bad ids are refused; a planted symlink isn't
+  followed; the page markers.
+- Browser 54/54 at desktop and phone. New checks: the panel and tabs appear at game over; the chronicle opens
+  with a planted `<img onerror>` kept as text; the analysis opens; the standings render as a table.
+- Not checked: rendering the real 12 KB chronicle and 9 KB report against a copy of the live game. The
+  fixtures exercise the same paths.
+
+## PL-053 Daily digest, layer 1 (R-026, owner approved 2026-10-14)
+**What (`digest.py`, `/api/digest`, `digest.html`, first under Record):**
+- **One page per UTC day,** with chips for 14 days. It shows:
+  - decisions opened and decided;
+  - new to-dos;
+  - architects' log entries whose heading names that day;
+  - the operator log counted by kind, with `held` and `incident` lines quoted;
+  - handoffs done, approval waits, the busiest teams and new teams;
+  - Lounge posts.
+- **Headline:** a one-line summary. The phone page shows it ("TODAY …"); on desktop the Now row has a
+  "Today's digest" link.
+- **Sources and safety:** everything comes from existing readers, read-only. All text is escaped. A
+  malformed day is refused.
+- **Not included:** usage, alerts over time and milestones. The console doesn't keep them by day yet. Layer 2
+  (a seat writes ten lines) comes after a week.
+
+## PL-054 Graph lag with many seats (small fix, owner approved)
+**Measured** with 67 seats (`scratch/platform/graph-perf.mjs`): `/api/graph` took about 9 ms, but each
+redraw took about 200 ms.
+- Every redraw rebuilt every card.
+- The text trimming measured rendered SVG text one character at a time, forcing layout each time.
+
+**Fix (`graph.html`):**
+- Teams and edges are rebuilt each time; each card is replaced only when its own markup changed.
+- Trimming uses a binary search over canvas text widths, with each element's own font and SVG's whitespace
+  rule. All widths are read before any text is written.
+- Polling stops while the tab is hidden, and catches up when it's shown.
+
+**After:** a redraw with nothing changed takes 0.7 ms; with 5 of 67 cards changed, about 2.5 ms. Trimmed
+names match the old rendering (screenshot checked).
+
+## PL-055 Owner-approved ideas: since you last looked, Diplomacy game list, deploy status (2026-10-14)
+- **Since you last looked (`since.js`, `/api/since`):**
+  - shows new decisions (linked), new to-dos, handoffs done, approval waits and the busiest teams, since you
+    last tapped Seen in that browser;
+  - it sits on Now's second row and on the phone page;
+  - the first visit only starts the clock.
+- **Diplomacy game list (`/api/lab/games`, `lab.games`):**
+  - every lab game with a started board, marked "(over)" once `final.md` exists;
+  - with no `?job=`, the page opens the game being played, or else the newest one;
+  - a game picker appears when there are two or more;
+  - a linked board isn't listed.
+- **Deploy status (`/api/deploy`, System page "Console version"):**
+  - shows the live commit, its subject, when it went live and the smoke result;
+  - `rig-console-deploy` now writes this to `/var/lib/rig-console/deployed.json`;
+  - it flags when the repo has a newer commit that isn't live (last night's PL-046 miss);
+  - it reads plain files only: `.git/HEAD`, ref files and packed-refs, never running git, and never follows a
+    ref outside `refs/heads/`.
+
+## PL-056 Queue message bodies kept (R-025)
+**What (`setup/rig-snapshots.sh`):** each round, any queue item not yet recorded is appended to
+`snapshots/_queue_bodies.jsonl`, keyed by id: its body (capped at 20,000 characters), summary, sender,
+receiver and tags.
+- Active items come from the existing snapshot.
+- Items opened and closed between two rounds are fetched with `rig queue show`: at most 3 a round, only if
+  created in the last 2 hours, and never recovery rows.
+- **Needs:** a logger restart (`sudo systemctl restart rig-snapshots`).
+
+**Checked (`scratch/platform/release/test_bodies.py`, 4/4):**
+- the active item is kept, with its body capped;
+- missed items are fetched 3 a round, skipping old and recovery rows;
+- nothing is written twice over three rounds;
+- a damaged line doesn't stop it.
+
+**All of the above:**
+- Smoke 267/267.
+- The browser check passes at 1366, 1093 and 390 px. It includes "Since you last looked" on Now and the phone,
+  and the digest page.
+- Diplomacy check 60/60, including the game picker.
+
+## PL-057 The operator judges phone pushes; usage limits grouped per provider (R-030, owner approved)
+Built as Rig and I recommended (`scratch/rig/push-recommendation.md`, `scratch/platform/push-consult.md`).
+
+**What:**
+- **Per-provider limit alert (`serve.py`):** usage limits are now one alert per provider, from each seat's
+  runtime: "Claude usage limit: 2 seats stopped since 14:05", naming the seats. Each seat keeps its own
+  badge on the graph.
+- **The push switch:** `NO_PUSH = {limit, jobrig}` marks those alerts `nopush`. This is a separate switch
+  from `NOTIFY`, so the dashboard, Needs you's "must act" list and desktop notices don't change.
+- **Exception:** a limit on the operator's own seat (kernel) still pushes, because nobody else can judge it.
+- **Operator item (`escalate.track_outages`):** one item per provider outage, sent once it has lasted a
+  minute.
+  - It uses the R-020 episode pattern: a deterministic id from provider and start time, kept in
+    `state/limit-outages.json`.
+  - When the outage clears and comes back, that's a new item.
+  - It goes through the existing helper verb, so no install change is needed.
+  - Any reset time stays the seats' own screen text; nothing acts on it.
+- **Docs:** `JOBS.md` §3c now lists what pushes by itself and what's left to the operator.
+
+**Checked:** smoke 273/273. New checks:
+- two Claude seats at a limit give one alert, not pushed, with both badges;
+- the operator's own seat at a limit still pushes;
+- six seats give one operator item, never repeated during the outage;
+- clearing and returning gives a new item with a new id;
+- a limit alert sends zero phone pushes while a decision still pushes.
+
 ## PL-058 Security fix from the Codex developer's first review: Diplomacy board injection (2026-10-14)
 **Found by** dev-codex@platform-dev (review-1, `scratch/platform/dev/out/review-1.md`), and confirmed by me.
 
@@ -2010,6 +2199,39 @@ to be a plain list of strings, with no markup. Diplomacy game 1 is over.
 
 The review's other three findings (a review-folder link, two digest day boundaries) are in the next batch,
 which isn't deployed yet. They're fixed there.
+
+---
+
+## PL-059 Fixes from the Codex developer's first review, in the batch (review-1, 2026-10-14)
+Found by dev-codex@platform-dev and confirmed by me. Its three regression tests are ported unchanged.
+
+- **High, Diplomacy board injection:** a fake `length` in the agent-written board reached the page. Fixed by
+  `cleanBoard()`. It shipped first, on its own, as PL-058 (commit 4af8f7e, live 2026-10-14 19:13Z).
+- **High, a link at `reviews/` or `reviews/<id>/`** let `/api/models/review` read a `report.md` outside
+  `models/`. Every step is now opened without following links, and only a regular file is read.
+  - The same fix went into `seatprofile._read`, which reads ROLES.md, the handoffs and the logs. The review
+    didn't flag it, but it had the same hole; there's a new test for a linked handoffs folder.
+- **Medium, digest decisions on the wrong UTC day:** `decided_at` is local time with an offset, and the digest
+  compared its first ten characters. It now compares instants.
+- **Medium, the midnight boundary:** a day's activity now runs from midnight inclusive to the next midnight
+  exclusive, as decisions and to-dos do. "Since you last looked" stays strictly after its time, with a check
+  for that too.
+- **Test isolation:** smoke now pins `RIG_REPO_DIR` and `RIG_DEPLOYED_MARK` to temporary paths. The deploy
+  test restores the pin afterwards instead of removing it.
+
+**Checked:** smoke 279/279. The developer's 3 failing tests now pass, plus 2 of mine.
+
+**Process:** the developer worked only in its own folder. The shared-folder comparison for the task window
+showed only the usual two OpenRig background files.
+
+**Review-2** (the developer reviewing these fixes) found two more, both medium, in my two new readers
+(`models.review`, `seatprofile._read`):
+- a FIFO planted in a file's place blocked the open before my regular-file check could run;
+- a directory in a file's place made `fdopen` raise and leak a descriptor.
+
+Now both open with `O_NONBLOCK`, check the type on the raw descriptor, and close it on every refusal. Its
+probe no longer reproduces the block, and 2 new smoke checks guard both: a FIFO under a 5-second alarm, and
+ten directory reads with no descriptor growth. It found nothing else in the other five items. Smoke 281/281.
 
 ---
 

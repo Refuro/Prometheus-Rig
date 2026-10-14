@@ -60,5 +60,15 @@
   "agentActivity": {
    "state": "unknown"
   }
+ },
+ {
+  "canonicalSessionName": "arch-platform@architects",
+  "rigName": "architects",
+  "runtime": "claude-code",
+  "sessionStatus": "running",
+  "lifecycleState": "run",
+  "agentActivity": {
+   "state": "running"
+  }
  }
 ]

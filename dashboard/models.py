@@ -53,6 +53,43 @@ def _observations():
     return out, skipped
 
 
+REVIEW_RE = __import__("re").compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+
+
+def review(rid):
+    """The Model Architect's report for one game or run: models/reviews/<rid>/report.md and nothing else
+    (owner, 2026-10-14: make the Diplomacy analysis findable without exposing the rest of models/)."""
+    if not REVIEW_RE.match(str(rid or "")):
+        raise ValueError("Unknown review")
+    # Every step is opened without following links: a link at reviews/ or reviews/<id>/ could otherwise point
+    # anywhere the console can read (review-1 finding 2). Folders are opened O_PATH, so a pass-through folder
+    # still works (PL-040).
+    fds = []
+    try:
+        fds.append(os.open(DIR, os.O_PATH | os.O_DIRECTORY))
+        for part in ("reviews", rid):
+            fds.append(os.open(part, os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fds[-1]))
+        # O_NONBLOCK: a FIFO planted as report.md would otherwise block this open until a writer came (review-2).
+        fd = os.open("report.md", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fds[-1])
+    except OSError:
+        return {"id": rid, "text": None}
+    finally:
+        for d in fds:
+            os.close(d)
+    # Check the raw descriptor first, and close it on every refusal: a directory used to make fdopen raise
+    # and leak it (review-2).
+    try:
+        if not __import__("stat").S_ISREG(os.fstat(fd).st_mode):
+            os.close(fd)
+            return {"id": rid, "text": None}
+        f = os.fdopen(fd, "rb")
+    except OSError:
+        os.close(fd)
+        return {"id": rid, "text": None}
+    with f:
+        return {"id": rid, "text": f.read(MAX_BYTES).decode("utf-8", errors="replace")}
+
+
 def _metrics():
     text = _read(os.path.join(DIR, "metrics.csv"))
     if not text:

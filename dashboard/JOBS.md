@@ -83,6 +83,16 @@ The operator can send the owner a note. Write `~/openrig/launches/notify/<id>.js
   A note disappears 24 h after it was written, or when the owner dismisses it.
 - **No receipt within a minute?** The console may be down or not yet updated. Don't write another id; tell
   the owner through the usual route.
+- **What the console pushes by itself, and what it leaves to you** (R-030, owner approved 2026-10-14):
+  - **Pushed automatically:** decisions (gates, and decision files the console didn't write), urgent Needs
+    you cards, "the console can't see the agents", an approval wait over 10 minutes, and a usage limit on
+    your own seat.
+  - **Not pushed, yours to judge:**
+    - usage limits on other seats. You get one queue item per provider outage ("Claude usage limit: N seats
+      stopped since HH:MM"), not one per seat;
+    - "team routing changed".
+
+    If the owner should know, write a note here. Both still show on the dashboard and as desktop notices.
 - Only the operator writes here. Team seats never do (`SHARED-RULES.md` §1: nobody else writes in
   `~/openrig/launches/`).
 

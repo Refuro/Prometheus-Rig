@@ -289,6 +289,7 @@ const TRACE = [
 
 // ---------- State
 let view = "system", sel = null, step = -1, playing = null, live = {}, problems = [];
+let DEP = null;   // /api/deploy: which reviewed commit is live (System page "Console version")
 const V = () => view === "system" ? SYSTEM : PEOPLE;
 const wide = () => matchMedia("(min-width: 861px)").matches;
 
@@ -392,6 +393,9 @@ function panel(){
     <div class="sub">${people ? "Every file has one owner. Roles ask each other through you." : "Agents work, the console watches their files, and you decide."}</div>
     ${people ? "" : `<div class="sec" style="margin-top:6px">${problems.length ? problems.map(p => `<button class="prob" data-id="${p.id}" type="button"><b>${esc(p.t)}</b><span>${esc(p.s)}</span></button>`).join("")
       : `<div class="allclear"><i></i>All the plumbing is running.</div>`}</div>
+    ${DEP ? `<div class="sec"><h3>Console version</h3><p class="say" style="font-size:13.5px">${DEP.commit
+        ? `Live: <code>${esc(String(DEP.commit).slice(0, 7))}</code>${DEP.subject ? ` ${esc(DEP.subject)}` : ""}${DEP.at ? `<br><span style="color:var(--muted)">deployed ${esc(DEP.at.replace("T", " ").replace("Z", " UTC"))}${DEP.smoke ? ` · smoke ${esc(DEP.smoke)}` : ""}</span>` : ""}`
+        : "No deploy recorded yet."}${DEP.newer_in_repo ? `<br><b style="color:var(--signal)">A newer commit (${esc(String(DEP.repo_head).slice(0, 7))}) is in the repo but not live: run rig-console-deploy.</b>` : ""}</p></div>` : ""}
     <div class="sec"><button class="cta" id="pTrace" type="button"><span class="pl">▶</span><span><b>Trace an alert to your phone</b><span>8 steps, played on the map</span></span></button></div>`}
     <div class="sec"><h3>Reading the map</h3><div class="legend">
       <span><i style="background:var(--ok)"></i>Running</span><span><i style="background:var(--signal)"></i>Busy</span>
@@ -461,8 +465,9 @@ $("trace").onclick = () => step >= 0 ? stopTrace() : startTrace();
 // ---------- Live status. Read-only: the same GET APIs the other pages use.
 const get = async p => { try { const r = await fetch(p, {cache: "no-store"}); return r.ok ? await r.json() : null; } catch { return null; } };
 async function load(){
-  const [health, graph, gates, builds, jobs, ev] = await Promise.all(
-    ["/api/health", "/api/graph", "/api/gates", "/api/builds", "/api/jobs", "/api/events?limit=1"].map(get));
+  const [health, graph, gates, builds, jobs, ev, dep] = await Promise.all(
+    ["/api/health", "/api/graph", "/api/gates", "/api/builds", "/api/jobs", "/api/events?limit=1", "/api/deploy"].map(get));
+  DEP = dep && !dep.error ? dep : null;
   const L = {}, P = [];
   if (!health && !graph) {
     L.pages = {cls: "bad", line: "Not answering"};

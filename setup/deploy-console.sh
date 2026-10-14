@@ -119,6 +119,9 @@ $SUDO install -o root -g root -m 755 "$WORK/deploy" "$SELF"
 $SUDO install -o root -g root -m 755 "$STAGE/setup/rig-owner" /usr/local/lib/rig-console/rig-owner
 install_release
 echo "$COMMIT" | $SUDO tee "$MARK" >/dev/null
+# What the System page shows about this deploy: the commit, its subject, when, and the smoke result.
+/usr/bin/python3 -I -c 'import json, sys; print(json.dumps({"commit": sys.argv[1], "subject": sys.argv[2][:160], "at": sys.argv[3], "smoke": sys.argv[4][:80]}))' \
+  "$COMMIT" "$(G log -1 --format=%s "$COMMIT")" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(tail -1 "$WORK/smoke.log")" | $SUDO tee "$MARK.json" >/dev/null
 $SUDO systemctl restart rig-dashboard
 sleep 2
 systemctl --no-pager --lines=3 status rig-dashboard | head -5

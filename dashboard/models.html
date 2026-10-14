@@ -309,7 +309,10 @@ function evidence(){
       <input class="search" id="q" type="search" placeholder="Search notes, seats, files…" value="${esc(filt.q)}"></div>
     <ul class="feed">${list.map(o => `<li><button data-id="${esc(o.id)}" class="${sel === "obs:" + o.id ? "sel" : ""}" type="button"><i class="k ${esc(o.kind)}"></i>
       <span class="tx">${esc(o.what_happened)}</span>
-      <span class="mt"><b>${esc(o.model)} · ${esc(o.role)}</b> · ${esc(o.rig)} · ${esc(o.id)}${o.n > 1 ? ` · seen ${o.n}×` : ""}${o.status ? ` · <span class="st ${/not yet reviewed|seat-written/i.test(o.status) ? "unrev" : ""}">${esc(statusShort(o.status))}</span>` : ""}</span></button></li>`).join("") || `<li class="empty" style="border:0">Nothing matches.</li>`}</ul>`;
+      <span class="mt"><b>${esc(o.model)} · ${esc(o.role)}</b> · ${esc(o.rig)} · ${esc(o.id)}${o.n > 1 ? ` · seen ${o.n}×` : ""}${o.status ? ` · <span class="st ${/not yet reviewed|seat-written/i.test(o.status) ? "unrev" : ""}">${esc(statusShort(o.status))}</span>` : ""}</span></button></li>`).join("") || `<li class="empty" style="border:0">Nothing matches.</li>`}</ul>
+    ${(D.dupes || []).length ? `<div class="sect">Not counted: duplicates · ${D.dupes.length}</div><ul class="feed" style="opacity:.55">${D.dupes.map(o =>
+      `<li><button data-id="${esc(o.id)}" type="button"><i class="k ${esc(o.kind)}"></i><span class="tx">${esc(o.what_happened)}</span>
+      <span class="mt">${esc(o.id)} · duplicate of ${esc(o.duplicate_of)}</span></button></li>`).join("")}</ul>` : ""}`;
   $("main").querySelectorAll(".fchip").forEach(b => b.onclick = () => { filt[b.dataset.f] = b.dataset.v; evidence(); });
   const qi = $("q"); qi.oninput = () => { filt.q = qi.value; const pos = qi.selectionStart; evidence(); const n = $("q"); n.focus(); n.setSelectionRange(pos, pos); };
   $("main").querySelectorAll("[data-id]").forEach(b => b.onclick = () => select("obs:" + b.dataset.id));
@@ -357,7 +360,7 @@ function panel(){
   const done = () => { const x = $("px"); if (x) x.onclick = () => select(null); wireRefs(); };
   if (!D) { P.innerHTML = ""; return; }
   if (sel && sel.startsWith("obs:")) {
-    const o = D.observations.find(x => x.id === sel.slice(4));
+    const o = D.observations.find(x => x.id === sel.slice(4)) || (D.dupes || []).find(x => x.id === sel.slice(4));
     if (o) {
       P.innerHTML = `${back}<h2>${esc(o.id)}</h2><div class="sub"><span style="text-transform:capitalize">${esc(o.model)} · ${esc(o.role)}</span> · ${esc(o.rig)} · ${esc(o.date)}</div>
         ${o.status && /not yet reviewed|seat-written/i.test(o.status) ? `<div class="note">Not reviewed yet: ${esc(o.status)}</div>` : ""}
@@ -466,6 +469,12 @@ document.querySelectorAll(".seg .btn").forEach(b => b.onclick = () => { view = b
 async function load(){
   try { D = await (await fetch("/api/models", {cache: "no-store"})).json(); }
   catch { $("main").innerHTML = `<div class="empty">Couldn't reach the dashboard.</div>`; return; }
+  // Ledger lines marked duplicate_of another line aren't counted anywhere (MA-015); the ledger shows them
+  // dimmed at the end, saying which line they duplicate.
+  if (D && Array.isArray(D.observations)) {
+    D.dupes = D.observations.filter(o => o.duplicate_of);
+    D.observations = D.observations.filter(o => !o.duplicate_of);
+  }
   if (D && !D.missing && !D.error) {
     const days = [...new Set(D.observations.map(o => o.date).filter(Boolean))].sort();
     $("cCount").textContent = `${D.observations.length} notes${days.length ? ` · ${days[0].slice(5)} to ${days.at(-1).slice(5)}` : ""}`;

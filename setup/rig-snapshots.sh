@@ -99,6 +99,51 @@ while true; do
   # Active items with their summaries, for the console's Docket tab (R-023); the compact list leaves summaries out.
   t "$STEP_TIMEOUT" "rig queue list active" rig queue list -A --full --limit 300 --json > "$OUT/_queue_active.tmp" 2>&1 \
     && mv -f "$OUT/_queue_active.tmp" "$OUT/_queue_active.json"
+  # R-025: keep every queue item's body, append-only by id, so seat-to-seat messages stay readable after the
+  # item closes. Active items come from the snapshot above; items opened and closed between two rounds are
+  # fetched with one `rig queue show` each, at most 3 a round, only if created in the last 2 hours.
+  python3 -I - "$OUT/_queue_active.json" "$OUT/_queue.json" "$OUT/_queue_bodies.jsonl" "$STEP_TIMEOUT" <<'PY' || true
+import json, os, subprocess, sys, time
+from datetime import datetime
+active_p, all_p, out_p, step = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4])
+def rows(p):
+    try:
+        d = json.load(open(p))
+    except (OSError, ValueError):
+        return []
+    if isinstance(d, dict):
+        d = d.get("items") or d.get("rows") or []
+    return [r for r in d if isinstance(r, dict) and r.get("qitemId")]
+seen = set()
+try:
+    with open(out_p) as f:
+        for ln in f:
+            try: seen.add(json.loads(ln)["id"])
+            except (ValueError, KeyError, TypeError): pass
+except OSError:
+    pass
+keep = ("qitemId", "tsCreated", "sourceSession", "destinationSession", "summary", "body", "tags")
+new = [r for r in rows(active_p) if r["qitemId"] not in seen]
+def created(r):
+    try: return datetime.fromisoformat(str(r.get("tsCreated")).replace("Z", "+00:00")).timestamp()
+    except ValueError: return 0
+missed = [r["qitemId"] for r in rows(all_p) if r["qitemId"] not in seen and r["qitemId"] not in {x["qitemId"] for x in new}
+          and time.time() - created(r) < 7200 and not str(r["qitemId"]).startswith("qitem-recovery")][:3]
+for qid in missed:
+    try:
+        p = subprocess.run(["rig", "queue", "show", qid, "--full", "--json"], capture_output=True, text=True, timeout=step)
+        r = json.loads(p.stdout)
+        if isinstance(r, dict) and r.get("qitemId") == qid:
+            new.append(r)
+    except (subprocess.SubprocessError, ValueError, OSError):
+        pass
+if new:
+    with open(out_p, "a") as f:
+        for r in new:
+            line = {("id" if k == "qitemId" else k): r.get(k) for k in keep}
+            line["body"] = str(line.get("body") or "")[:20000]
+            f.write(json.dumps(line) + "\n")
+PY
   t "$STEP_TIMEOUT" "rig ps ctx" rig ps --nodes -A --json --fields rigName,canonicalSessionName,contextUsage > "$OUT/_ctx.tmp" 2>&1 && mv -f "$OUT/_ctx.tmp" "$OUT/_ctx.json"
   # Log the daemon's own activity state (includes needs_input, which the text table hides).
   python3 - "$OUT/_ps.json" "$now" >> "$LOG" <<'PY' || echo "$ps_out" | awk -v ts="$now" 'NR>1 && NF>=5 {print ts","$1","$2","$3","$4","$5}' >> "$LOG"

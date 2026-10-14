@@ -358,6 +358,26 @@ def events(since=0, limit=60):
     return {"events": rs, "last_id": last}
 
 
+def since_summary(ts, until=None):
+    """What happened after ts (and before `until`), in epoch seconds, counted: for "Since you last looked" on
+    Now and the daily digest (owner, 2026-10-14). Handoffs finished, seats that went to waiting, the busiest
+    teams by recorded activity, and teams first seen in the window."""
+    # A day window (until given) is [start, end): midnight belongs to the day it starts, as the digest's
+    # decisions and to-dos count it (review-1 finding 4). "Since you last looked" is strictly after ts.
+    day = until is not None
+    ts, until = float(ts), float(until) if day else time.time() + 60
+    lo = ">=" if day else ">"
+    win = f"ts {lo} ? AND ts < ?"
+    with _lock:
+        c = db()
+        done = c.execute(f"SELECT COUNT(*) FROM events WHERE kind='done' AND {win}", (ts, until)).fetchone()[0]
+        waits = c.execute(f"SELECT COUNT(*) FROM events WHERE kind='state' AND text='blocked' AND {win}", (ts, until)).fetchone()[0]
+        teams = _rows(c.execute(f"""SELECT rig, COUNT(*) AS n FROM events WHERE {win} AND rig IS NOT NULL AND kind != 'state'
+                                   GROUP BY rig ORDER BY n DESC LIMIT 4""", (ts, until)))
+        new_jobs = [r["name"] for r in _rows(c.execute(f"SELECT name FROM jobs WHERE first_seen {lo} ? AND first_seen < ? ORDER BY first_seen", (ts, until)))]
+    return {"handoffs_done": done, "approval_waits": waits, "busiest": teams, "new_jobs": new_jobs[:10]}
+
+
 def replay(rig, run=None, max_rows=20000):
     """Everything involving one team, oldest first, for the replay player."""
     like = f"%@{rig}"

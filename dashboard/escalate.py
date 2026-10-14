@@ -112,3 +112,51 @@ def track(nodes, screen_of, create, idle_on_screen=lambda seat: False, now=None,
         if changed:
             _save(eps)
         return eps
+
+
+# ---------- Usage-limit outages (R-030): one operator item per provider outage, not one per seat.
+OUTAGES = os.path.join(STATE, "limit-outages.json")
+OUTAGE_AFTER_S = int(os.environ.get("RIG_OUTAGE_AFTER_S", "60"))
+
+
+def track_outages(alerts, create, now=None):
+    """alerts: the graph's alerts; the per-provider "limit" ones carry runtime, seats and since.
+    create(qid, summary, body_text) -> bool, as for approvals. One item per provider per outage, sent once it
+    has lasted OUTAGE_AFTER_S; a new outage after it clears is a new item. Returns the episodes (for tests)."""
+    now = now or time.time()
+    with _lock:
+        try:
+            with open(OUTAGES) as f:
+                eps = json.load(f)
+            eps = eps if isinstance(eps, dict) else {}
+        except (OSError, ValueError):
+            eps = {}
+        live = {a["runtime"]: a for a in alerts if a.get("kind") == "limit" and a.get("runtime")}
+        changed = False
+        for rt in [r for r in eps if r not in live]:      # the outage cleared: the next one is new
+            del eps[rt]
+            changed = True
+        for rt, a in live.items():
+            ep = eps.get(rt)
+            if not ep:
+                eps[rt] = ep = {"start": a.get("since") or now, "sent": None}
+                changed = True
+            if ep["sent"] or now - ep["start"] < OUTAGE_AFTER_S:
+                continue
+            qid = episode_id("provider:" + rt, ep["start"], "usage-limit")
+            seats = a.get("seats") or []
+            body = "\n".join([a["text"] + ".", "Seats stopped: " + ", ".join(seats) + ".",
+                "",
+                "Rig Console sent this once for this outage (R-030) instead of phone pushes per seat. You decide whether",
+                "to tell the owner (JOBS.md 3c). The seats continue on their own when the limit resets; any reset time",
+                "on their screens is the agents' screen text, not something to act on."]) + "\n"
+            if create(qid, a["text"][:160], body):
+                ep["sent"] = {"id": qid, "at": now}
+                changed = True
+        if changed:
+            os.makedirs(STATE, exist_ok=True)
+            tmp = OUTAGES + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(eps, f, indent=1)
+            os.replace(tmp, OUTAGES)
+        return eps

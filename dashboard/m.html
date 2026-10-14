@@ -109,7 +109,9 @@ details.other .alert{background:var(--surface);border-color:var(--line)}
 .empty{color:var(--faint);font-size:13.5px;padding:12px 14px}
 @keyframes feedIn{from{opacity:0;background:color-mix(in srgb,var(--signal) 16%,transparent)}to{opacity:1}}
 
-footer{display:flex;flex-wrap:wrap;gap:8px 16px;justify-content:center;padding:6px 12px 24px;font-size:13px}
+footer{display:flex;flex-direction:column;gap:6px;padding:6px 16px 24px;font-size:13px}
+footer .fg{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 14px;border-top:1px solid var(--line);padding-top:6px}
+footer .fg b{flex-basis:100%;font:700 11px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
 footer a{color:var(--muted);text-decoration:none;font-weight:600;padding:6px 2px}
 .sys{margin:4px 4px 0}
 .sys summary{cursor:pointer;font-size:12.5px;color:var(--faint);list-style:none}
@@ -156,6 +158,18 @@ textarea{width:100%;min-height:84px;resize:vertical;background:var(--raised);col
 @media (min-width:760px){main,header > *{max-width:720px;margin-left:auto;margin-right:auto}}
 </style>
 <script src="/health.js"></script>
+<script src="/since.js"></script>
+<style>
+.rcsince{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin:8px 0 2px;padding:9px 12px;border-radius:12px;background:var(--raised);border:1px solid var(--line);font-size:13px;color:var(--muted)}
+.rcsince[hidden],.rctoday[hidden]{display:none}
+.rctoday{margin:8px 0 0;font-size:13px}
+.rctoday a{color:var(--ink);text-decoration:none;font-weight:600}
+.rctoday .lbl{font:700 11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.05em;color:var(--faint);margin-right:4px}
+.rcsince .lbl{font:700 11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.05em;color:var(--faint);flex-basis:100%}
+.rcsince a{color:var(--ink);font-weight:650}
+.rcsince .rcbits{flex:1}
+.rcseen{all:unset;cursor:pointer;font:700 12px var(--font,inherit);color:var(--ink);padding:4px 11px;border:1px solid var(--line);border-radius:999px}
+</style>
 </head>
 <body>
 <header>
@@ -165,6 +179,8 @@ textarea{width:100%;min-height:84px;resize:vertical;background:var(--raised);col
     <span class="pill" id="pNeed"><i></i>0</span>
   </div>
   <div class="sub"><span id="upd">Connecting…</span></div>
+  <div class="rctoday" id="rcToday" hidden></div>
+  <div class="rcsince" id="rcSince" hidden></div>
   <nav class="tabs" role="tablist">
     <button role="tab" id="tNow" aria-selected="true" type="button">Now</button>
     <button role="tab" id="tFeed" aria-selected="false" type="button">Activity</button>
@@ -183,19 +199,16 @@ textarea{width:100%;min-height:84px;resize:vertical;background:var(--raised);col
     <ol class="feed" id="feed"><li class="empty">Loading…</li></ol>
   </section>
 </main>
+<!-- All pages, in the desktop bar's five groups (R-027): the same place on every device. -->
 <footer>
-  <a href="/needs.html">Needs you</a>
-  <a href="/messages.html">Messages</a>
-  <a href="/job.html">Jobs</a>
-  <a href="/?desktop=1" id="lGraph">Live graph</a>
-  <a href="/research.html?desktop=1" id="lBoard">Niche board</a>
-  <a href="/runs.html">Run report</a>
-  <a href="/decide.html">Decisions</a>
-  <a href="/play.html">Play builds</a>
-  <a href="/models.html">Models</a>
-  <a href="/lounge.html">Lounge</a>
-  <a href="/oplog.html">Operator log</a>
-  <a href="/system.html">System</a>
+  <div class="fg"><b>Now</b><a href="/?desktop=1" id="lGraph">Live graph</a>
+    <a href="/seat.html?seat=arch-platform@architects">Platform</a><a href="/seat.html?seat=arch-rig@architects">Rig</a>
+    <a href="/seat.html?seat=arch-studio@architects">Studio</a><a href="/seat.html?seat=arch-model@architects">Model</a></div>
+  <div class="fg"><b>Decide</b><a href="/needs.html">Needs you</a><a href="/decide.html">Decisions</a><a href="/messages.html">Messages</a></div>
+  <div class="fg"><b>Teams</b><a href="/job.html">Jobs</a><a href="/play.html">Play builds</a><a href="/diplomacy.html">Diplomacy</a>
+    <a href="/research.html?desktop=1" id="lBoard">Niche board</a><a href="/runs.html">Run report</a></div>
+  <div class="fg"><b>Record</b><a href="/digest.html">Digest</a><a href="/oplog.html">Operator log</a><a href="/lounge.html">Lounge</a><a href="/models.html">Models</a></div>
+  <div class="fg"><b>System</b><a href="/system.html">System</a></div>
 </footer>
 
 <div class="scrim" id="scrim"></div>
@@ -441,6 +454,8 @@ pollFeed();
 setInterval(() => { if (!document.hidden) poll(); }, 5000);
 setInterval(() => { if (!document.hidden) pollFeed(); }, 4000);
 setInterval(fresh, 5000);
+if (window.rcSince) window.rcSince(document.getElementById("rcSince"));   // "Since you last looked" (since.js)
+if (window.rcToday) window.rcToday(document.getElementById("rcToday"));   // today's digest headline (R-026)
 document.addEventListener("visibilitychange", () => { if (!document.hidden){ poll(); pollFeed(); } });
 </script>
 </body>

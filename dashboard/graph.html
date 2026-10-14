@@ -155,6 +155,8 @@ aside *{overflow-wrap:anywhere}
 .alert.warn{background:var(--signal-soft);border-color:color-mix(in srgb,var(--signal) 45%,transparent)}
 .alert.warn b{color:var(--signal)}
 .hist{display:inline-block;margin-top:8px;font-size:12.5px;color:var(--muted)}
+.profile{display:block;margin:10px 0 2px;padding:8px 12px;border-radius:10px;border:1px solid var(--signal);color:var(--ink);font-weight:700;font-size:13.5px;text-decoration:none}
+.profile:hover{background:var(--raised)}
 .asec{margin:10px 0 5px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .asec:first-child{margin-top:0}
 .alert .lbl{display:block;font-style:normal;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:1px}
@@ -356,7 +358,31 @@ function draw(){
     s += `<path class="edge ${cls}" d="${c.d}" ${ends}><title>${esc(label)}</title></path>`;
     if (e.total > 1) s += `<circle class="countbg" cx="${c.mx}" cy="${c.my}" r="9"/><text class="count" x="${c.mx}" y="${c.my}">${e.total}</text>`;
   }
+  // Teams, markers and edges are few: rebuilt every time. Agent cards are many (about 36 shapes each), so each
+  // is replaced only when its own markup changed. Rebuilding all of them took ~200 ms at 67 seats (the
+  // owner's "graph lags with many seats", PL-054).
+  const g = $("g");
+  let lt = g.querySelector(":scope > #lTop"), ln = g.querySelector(":scope > #lNodes");
+  if (!lt || !ln){ g.innerHTML = `<g id="lTop"></g><g id="lNodes"></g>`; lt = g.firstChild; ln = g.lastChild; nodeHtml = {}; }
+  lt.innerHTML = s;
+  const want = new Set();
   for (const n of data.nodes){
+    want.add(n.id);
+    const html = nodeMarkup(n);
+    if (nodeHtml[n.id] === html) continue;
+    nodeHtml[n.id] = html;
+    const tpl = document.createElementNS(NS, "g"); tpl.innerHTML = html;
+    const fresh = tpl.firstElementChild, old = [...ln.children].find(c => c.dataset.id === n.id);
+    old ? old.replaceWith(fresh) : ln.appendChild(fresh);
+  }
+  for (const c of [...ln.children]) if (!want.has(c.dataset.id)) { delete nodeHtml[c.dataset.id]; c.remove(); }
+  fxLayer();
+  draw_after();
+}
+let nodeHtml = {};
+function nodeMarkup(n){
+  let s = "";
+  {
     const p = pos[n.id], st = stateOf(n), x = p.x - W/2, y = p.y - H/2;
     const act = st === "idle" ? "Idle" : trunc((n.action || "Working") + (n.elapsed && st === "working" ? `, ${mm(n.elapsed)}` : ""), 80);
     const hist = (n.history || []), bw = (W - 28) / 30;
@@ -369,20 +395,37 @@ function draw(){
       <g class="hist" aria-hidden="true">${Array.from({length:30}, (_,i) => `<rect class="${hist[i] || ""}" x="${x+14+i*bw}" y="${y+H-9}" width="${Math.max(1, bw-1.2)}" height="3" rx="1"/>`).join("")}</g>
     </g>`;
   }
-  $("g").innerHTML = s;
-  fxLayer();
-  lastSig = "";
-  fitText();
+  return s;
 }
-// Trim card text by its real rendered width, so nothing spills past the card edge.
+function draw_after(){ lastSig = ""; fitText(); }
+// Trim card text by its real rendered width, so nothing spills past the card edge. Only cards replaced since
+// the last trim are measured (each trim forces layout), and the cut is a binary search, not one character
+// at a time.
+// Widths come from a canvas with each text's computed font, so trimming never forces the page to lay out
+// again (measuring the SVG text did, once per character per card).
+// Each element's own font (a blocked card's action is bolder than a working one's); SVG collapses runs of
+// spaces, so the measured string does too.
+const measureCtx = document.createElement("canvas").getContext("2d");
+function textWidth(t, s){
+  const cs = getComputedStyle(t);
+  measureCtx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  return measureCtx.measureText(String(s).replace(/\s+/g, " ")).width;
+}
 function fitText(){
-  $("g").querySelectorAll(".node").forEach(el => {
+  const todo = [...$("g").querySelectorAll(".node:not([data-fit])")];
+  const cuts = todo.map(el => {
     const nm = el.querySelector(".nm"), rtx = el.querySelector(".rt"), act = el.querySelector(".act");
-    const room = (t, w) => { if (!t) return; let s = t.textContent; if (t.getComputedTextLength() <= w) return;
-      while (s.length > 1 && t.getComputedTextLength() > w){ s = s.slice(0, -1); t.textContent = s.trimEnd() + "…"; } };
-    room(nm, W - 31 - 14 - (rtx ? rtx.getComputedTextLength() + 10 : 0));
-    room(act, W - 28);
+    const room = (t, w) => {
+      if (!t) return null;
+      const full = t.textContent;
+      if (textWidth(t, full) <= w) return null;
+      let lo = 1, hi = full.length;
+      while (lo < hi){ const mid = (lo + hi + 1) >> 1; if (textWidth(t, full.slice(0, mid).trimEnd() + "…") <= w) lo = mid; else hi = mid - 1; }
+      return [t, full.slice(0, lo).trimEnd() + "…"];
+    };
+    return [el, room(nm, W - 31 - 14 - (rtx ? textWidth(rtx, rtx.textContent) + 10 : 0)), room(act, W - 28)];
   });
+  for (const [el, a, b] of cuts){ el.setAttribute("data-fit", "1"); if (a) a[0].textContent = a[1]; if (b) b[0].textContent = b[1]; }   // write after all reads
 }
 
 // ---------- Side panel
@@ -415,7 +458,9 @@ function side(){
   const n = data.nodes.find(x => x.id === selected) || data.nodes.find(x => stateOf(x) === "blocked") || data.nodes.find(x => stateOf(x) === "working") || data.nodes[0];
   if (!n){ $("detail").innerHTML = ""; return; }
   const st = stateOf(n);
+  // Architects have a full profile page (R-027): what they're working on, waiting on, their ideas and log.
   $("detail").innerHTML = `<h2>${esc(n.name)}</h2><div class="sub">${esc(n.rig)} team, ${esc(rt(n.runtime))}${n.model ? ` (${esc(n.model)})` : ""}</div>
+    ${n.rig === "architects" ? `<a class="profile" href="/seat.html?seat=${encodeURIComponent(n.id)}">Open ${esc(n.name)}'s profile →</a>` : ""}
     <div class="state ${st}"><i></i>${esc(stateText(n))}</div>
     <div class="now ${st === "blocked" ? "blocked" : ""}">${esc(n.action || "Nothing on screen yet")}${n.elapsed && st === "working" ? `<div class="el">Working for ${esc(mm(n.elapsed))}</div>` : ""}</div>
     ${n.ctx ? `<div class="sec"><h3>Context window</h3><div class="ctxbar"><i style="width:${Math.min(100, n.ctx.percent)}%" class="${n.ctx.percent >= 80 ? "hot" : ""}"></i></div><div class="axis"><span>${Math.round(n.ctx.percent)}% used</span><span>${n.ctx.percent >= 80 ? "near the limit" : ""}</span></div></div>` : ""}
@@ -800,7 +845,9 @@ function wireReplay(){
 }
 
 wire(); wireReplay(); renderFeed(); refresh(); pollEvents();
-setInterval(refresh, 5000); setInterval(pollEvents, 3000);
+// Nothing to draw while the tab is hidden: skip those rounds, and catch up the moment it's shown (PL-054).
+setInterval(() => { if (!document.hidden) refresh(); }, 5000); setInterval(() => { if (!document.hidden) pollEvents(); }, 3000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden){ refresh(); pollEvents(); } });
 </script>
 </body>
 </html>

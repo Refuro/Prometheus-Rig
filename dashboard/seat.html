@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f17" media="(prefers-color-scheme: dark)">
+<title>Architect · Rig Console</title>
+<link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<script src="/notify.js"></script>
+<script src="/health.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Architect profile (R-027, PL-050): one architect, what they're doing and why, from sources that already
+     exist (/api/seat). Opened from the faces row under "Now" and from an architect's node on the live graph.
+     Read-only. Everything shown is the architects' own text or queue data: escaped, never rendered. -->
+<style>
+:root{
+  --paper:#eef1f4; --surface:#f7f9fb; --raised:#fff; --ink:#152033; --muted:#5d687a; --faint:#8a94a4;
+  --line:#d7dde5; --signal:#c98200; --signal-soft:#fbf0d9; --cut:#c2412b; --ok:#2e9d62;
+  --font:"Schibsted Grotesk",ui-sans-serif,system-ui,"Segoe UI",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0a0f17; --surface:#0f1621; --raised:#141d2a; --ink:#e3e8ef; --muted:#8e9aac; --faint:#5d6a7e;
+  --line:#212c3c; --signal:#f0b23c; --signal-soft:#2f2511; --cut:#f0765c; --ok:#3cb371;
+}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:14.5px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+main{max-width:1180px;margin:0 auto;padding:22px 16px 60px}
+.hero{display:flex;gap:16px;align-items:center;margin-bottom:18px}
+.av{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;font:800 22px var(--font);background:var(--raised);box-shadow:0 0 0 3px var(--faint);flex:none}
+.av.working{box-shadow:0 0 0 3px var(--ok);animation:pulse 1.6s ease-in-out infinite}
+.av.waiting{box-shadow:0 0 0 3px var(--signal)} .av.blocked{box-shadow:0 0 0 3px var(--cut)}
+@keyframes pulse{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--ok) 35%,transparent)}}
+@media (prefers-reduced-motion:reduce){.av.working{animation:none}}
+h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em}
+.who{color:var(--muted);font-size:13.5px}
+.state{font:12.5px/1.5 var(--mono);color:var(--muted);margin-top:2px;overflow-wrap:anywhere}
+.state b{color:var(--ink);font-weight:700}
+.grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
+@media (max-width:860px){.grid{grid-template-columns:1fr}}
+.card{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:14px}
+h2{margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);display:flex;gap:8px;align-items:baseline}
+h2 .c{font:600 11.5px var(--mono);color:var(--faint);letter-spacing:0}
+.row{padding:7px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row .id{font:11.5px var(--mono);color:var(--faint);overflow-wrap:anywhere}
+.row .t{overflow-wrap:anywhere}
+.row .m{font-size:12.5px;color:var(--muted)}
+.tag{display:inline-block;font:700 10.5px var(--font);letter-spacing:.04em;text-transform:uppercase;padding:1px 7px;border-radius:999px;background:var(--surface);color:var(--muted);margin-left:6px}
+.tag.warn{color:var(--cut)}
+.none{color:var(--faint);font-size:13px}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13.5px}
+.kv dt{color:var(--muted);font-weight:600}.kv dd{margin:0;overflow-wrap:anywhere}
+.path{font:12px var(--mono);color:var(--faint);overflow-wrap:anywhere}
+a{color:inherit}
+.err{color:var(--cut)}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<main id="main"><div class="none">Loading…</div></main>
+<script>
+(() => {
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const seat = new URLSearchParams(location.search).get("seat") || "";
+  const ago = s => s == null ? "" : s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)}m` : s < 172800 ? `${Math.round(s / 3600)}h` : `${Math.round(s / 86400)}d`;
+  const ring = (now) => !now ? "" : now.alert === "limit" ? "blocked" : /^needs_input/.test(now.state || "") ? "waiting" : /^(working|running)/.test(now.state || "") ? "working" : "";
+  const card = (title, count, body) => `<section class="card"><h2>${esc(title)}${count != null ? `<span class="c">${count}</span>` : ""}</h2>${body}</section>`;
+  const list = (items, fn, empty) => items && items.length ? items.map(fn).join("") : `<div class="none">${esc(empty)}</div>`;
+  const qline = l => `<div class="row"><div class="t">${esc(l.summary || "(no summary)")}${l.stalled ? '<span class="tag warn">stalled</span>' : ""}${l.not_delivered ? '<span class="tag warn">not delivered</span>' : ""}</div>
+    <div class="id">${esc(l.id)} · ${esc(ago(l.age_s))}${l.peer ? ` · with ${esc(l.peer)}` : ""}${l.blocked_on ? ` · on ${esc(l.blocked_on)}` : ""}</div></div>`;
+  const tableRow = r => `<div class="row">${Object.entries(r).map(([k, v], i) => i === 0 ? `<div class="t"><b>${esc(v)}</b></div>` : v ? `<div class="m">${esc(k)}: ${esc(v)}</div>` : "").join("")}</div>`;
+  async function load() {
+    const M = document.getElementById("main");
+    let p;
+    try { const r = await fetch(`/api/seat?seat=${encodeURIComponent(seat)}`, {cache: "no-store"}); p = await r.json(); if (!r.ok || p.error) throw new Error(p.error || r.status); }
+    catch (e) { M.innerHTML = `<div class="card err">Couldn't load this profile: ${esc(e.message)}. Pick an architect from the row under Now.</div>`; return; }
+    document.title = `${p.name} · Rig Console`;
+    const w = p.work || {}, n = p.now;
+    const head = `<div class="hero"><div class="av ${ring(n)}" aria-hidden="true">${esc(String(p.member).replace(/^arch-/, "").charAt(0).toUpperCase())}</div>
+      <div><h1>${esc(p.name)}</h1><div class="who">${esc(p.seat)}${p.role ? ` · ${esc(p.role.is)}` : ""}${n && n.model ? ` · ${esc(n.model)}` : ""}</div>
+      <div class="state">${n ? `<b>${esc(n.state || "unknown")}</b>${n.action ? ` · ${esc(n.action)}` : ""}${n.elapsed ? ` · ${esc(n.elapsed)}` : ""}` : "Not running right now."}</div></div></div>`;
+    const left = card("Working on", (w.working || []).length, list(w.working, qline, "Nothing in progress."))
+      + card("Up next", (w.next || []).length, list(w.next, qline, "Nothing queued."))
+      + card("Waiting on you", (w.waiting_owner || []).length, list(w.waiting_owner, x => `<div class="row"><div class="t"><a href="${esc(x.url)}">${esc(x.title)}</a><span class="tag">${esc(x.kind)}</span></div></div>`, "Nothing waits on you."))
+      + card("Waiting on others", (w.waiting_others || []).length, list(w.waiting_others, qline, "Nothing."))
+      + card("Ideas", (p.ideas || []).length, list(p.ideas, tableRow, "No ideas marked yet.")
+          + (p.ideas_source ? `<div class="path" style="margin-top:6px">From the Open items table in ${esc(p.ideas_source)}: rows whose "Waiting on" says idea.</div>` : ""))
+      + card("Open items", (p.open_items || []).length, p.open_items == null ? `<div class="none">No Open items table in the handoff.</div>` : list(p.open_items, tableRow, "None."));
+    const right = card("Latest log entries", null, list(p.log, e => `<div class="row"><span class="id">${esc(e.id)}</span> <span class="t">${esc(e.title)}</span></div>`, "No log entries found.")
+          + (p.log_file ? `<div class="path" style="margin-top:6px">${esc(p.log_file)}</div>` : ""))
+      + card("Model Architect's assessment", null, p.grade ? `<div class="t" style="white-space:pre-wrap">${esc(p.grade.summary)}</div><div class="path" style="margin-top:6px">${esc(p.grade.file)}</div>` : `<div class="none">No assessment of this role yet.</div>`)
+      + card("Your messages", (p.messages || []).length, list(p.messages, m => `<div class="row"><div class="t">${esc(m.question)}</div><div class="id">${esc(m.asked_at)} · ${esc(m.status)}</div></div>`, "None yet.")
+          + `<div style="margin-top:6px"><a href="/messages.html">All messages</a></div>`)
+      + card("In the Lounge", null, list(p.lounge, x => `<div class="row"><div class="t">${esc(x.text)}</div><div class="id">${esc(x.at)}</div></div>`, "No posts."))
+      + (p.role ? card("Role", null, `<dl class="kv"><dt>Owns</dt><dd>${esc(p.role.owns)}</dd><dt>Does</dt><dd>${esc(p.role.does)}</dd></dl>`
+          + (p.handoff ? `<div class="path" style="margin-top:8px">Handoff: ${esc(p.handoff)}</div>` : "")) : "");
+    M.innerHTML = head + `<div class="grid"><div>${left}</div><div>${right}</div></div>`;
+  }
+  load(); setInterval(() => { if (!document.hidden) load(); }, 30000);
+})();
+</script>
+</body>
+</html>

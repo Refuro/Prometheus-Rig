@@ -8,7 +8,7 @@ Reads (never writes):
   ../snapshots/activity-log.csv                 written by rig-snapshots.sh
 """
 import traceback
-import csv, glob, hmac, html, http.cookies, http.server, io, json, os, posixpath, re, shutil, subprocess, time, urllib.parse
+import csv, glob, hmac, html, http.cookies, http.server, io, json, os, posixpath, re, shutil, subprocess, threading, time, urllib.parse
 from datetime import datetime
 import features as F
 import store as S
@@ -21,6 +21,8 @@ import jobpage as JP
 import lab as LAB
 import escalate as EP
 import convo as CV
+import seatprofile as PR
+import digest as DG
 
 DASH = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.expanduser(os.environ.get("RIG_RESEARCH_DIR", "~/openrig/research"))
@@ -387,6 +389,12 @@ NOTIFY = {
 # "Needs you" sections (R-018): Decide (choices), Do (hands-on, stays until answered), FYI (operator notes).
 # Alerts not in NOTIFY go under "Other signals", collapsed: diagnostics, nothing to do.
 SECTION = {"gate": "decide", "decision": "decide", "operator": "fyi"}   # other NOTIFY kinds: "do"
+# Which NOTIFY kinds stay off the phone (R-030, owner approved 2026-10-14): the operator judges them and pushes
+# through JOBS.md 3c if needed. NOTIFY itself, Needs you's "must act" list and desktop notices don't change.
+# An alert with "push": True (the operator's own seat at a limit) still pushes.
+NO_PUSH = {"limit", "jobrig"}
+PROVIDER = {"claude-code": "Claude", "claude": "Claude", "codex": "Codex"}
+_limit_since = {}   # seat -> when this server first saw it at a usage limit
 _alert_seen = {}   # alert key -> when this server first saw it, while it lasts
 
 
@@ -409,6 +417,7 @@ def graph():
     queue = _load("_queue.json")
     runs = {r["run"]: r for r in list_runs() if "error" not in r}
     nodes, alerts = [], []
+    limited = {}   # runtime -> [(seat, rig, stopped since)] (R-030)
     hist = history()
     ctx = {}
     for c in _load("_ctx.json"):
@@ -463,8 +472,8 @@ def graph():
         if re.search(r"usage limit reached|rate limit reached|You've hit your (usage )?limit|out of (usage|credits)", tail_txt, re.I):
             node["alert"] = "limit"
             node["action"] = "Hit its usage limit and stopped"
-            alerts.append({"kind": "limit", "node": sess, "text": f"{node['name']} hit its usage limit and stopped",
-                           "detail": "It won't continue until the limit resets. Consider pausing the team."})
+            # One alert per provider, not per seat (R-030): collected here, added after the loop.
+            limited.setdefault(node.get("runtime") or "unknown", []).append((sess, node.get("rig"), _limit_since.setdefault(sess, time.time())))
         elif st.startswith("needs_input"):
             node["alert"] = "approval"
             alerts.append({"kind": "approval", "node": sess,
@@ -485,6 +494,20 @@ def graph():
                            "text": f"{node['name']} has been busy for {streak}+ min straight",
                            "detail": "Fine for real work. If it's just monitoring or polling, it's spending usage for nothing."})
         nodes.append(node)
+    # Usage limits, one alert per provider (R-030): "Claude usage limit: 6 seats stopped since 01:20". Each
+    # seat still shows its own badge on the graph. It doesn't push to the phone; the operator gets one queue
+    # item per outage (escalate.track_outages) and decides. If the operator's own seat (kernel) is stopped,
+    # nobody else can judge, so that alert still pushes.
+    for s in [s for s in _limit_since if not any(s == x[0] for xs in limited.values() for x in xs)]:
+        del _limit_since[s]
+    for runtime, xs in sorted(limited.items()):
+        since = min(t for _, _, t in xs)
+        names = ", ".join(sorted(s.split("@")[0] for s, _, _ in xs))
+        alerts.append({"kind": "limit", "node": f"provider:{runtime}",
+                       "text": f"{PROVIDER.get(runtime, runtime)} usage limit: {len(xs)} seat{'s' if len(xs) != 1 else ''} stopped since {datetime.fromtimestamp(since).strftime('%H:%M')}",
+                       "detail": f"Stopped: {names}. They continue when the limit resets. The operator decides what to tell you.",
+                       "runtime": runtime, "seats": [s for s, _, _ in xs], "since": since,
+                       "push": any(rig in EP.SKIP_RIGS for _, rig, _ in xs)})
     # Fill in each seat's model from the operator's launch record when OpenRig doesn't report one (MA-010).
     try:
         launched = G.launched_seats()
@@ -616,6 +639,8 @@ def graph():
         keys.add(al["key"])
         al["dismissed"] = al["key"] in dis
         al["notify"] = _notify_title(al, now - _alert_seen.setdefault(al["key"], now))
+        if al["kind"] in NO_PUSH and not al.get("push"):
+            al["nopush"] = True    # still on the dashboard and desktop; the phone push is the operator's call (R-030)
         # Task cards live on their own page (needs.html, R-018 08:10Z correction). Their alert exists only so an
         # urgent card can push once; the graph and phone panels leave section "inbox" out.
         al["act"] = al["kind"] in NOTIFY and al["kind"] != "task"   # the panel's "must act" list; the rest are "Other signals"
@@ -746,6 +771,78 @@ def _console_send(seat, text):
 
 
 SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}@[A-Za-z0-9._-]{1,64}$")   # seat@rig; within what setup/rig-owner accepts
+
+
+def deploy_status():
+    """Which reviewed commit is live (written by rig-console-deploy), and whether the repo has a newer one.
+    Plain file reads only: the console never runs git in the agents' repo."""
+    mark = os.environ.get("RIG_DEPLOYED_MARK", "/var/lib/rig-console/deployed")
+    out = {"commit": None}
+    try:
+        with open(mark + ".json") as f:
+            d = json.load(f)
+        if isinstance(d, dict):
+            out.update({k: str(d.get(k) or "")[:160] for k in ("commit", "subject", "at", "smoke")})
+    except (OSError, ValueError):
+        try:
+            with open(mark) as f:
+                out["commit"] = f.read().strip()[:40] or None
+        except OSError:
+            pass
+    head = None
+    try:   # the repo's HEAD commit: .git/HEAD -> a ref file, or packed-refs
+        git = os.path.join(PR.REPO, ".git")
+        with open(os.path.join(git, "HEAD")) as f:
+            h = f.read().strip()
+        if h.startswith("ref: "):
+            ref = h[5:]
+            if re.fullmatch(r"refs/heads/[A-Za-z0-9._/-]{1,100}", ref) and ".." not in ref:
+                try:
+                    with open(os.path.join(git, ref)) as f:
+                        head = f.read().strip()
+                except OSError:
+                    with open(os.path.join(git, "packed-refs")) as f:
+                        head = next((ln.split()[0] for ln in f if ln.strip().endswith(" " + ref)), None)
+        else:
+            head = h
+    except OSError:
+        pass
+    head = head if head and re.fullmatch(r"[0-9a-f]{40}", head) else None
+    out["repo_head"] = head
+    out["newer_in_repo"] = bool(head and out["commit"] and head != out["commit"])
+    return out
+
+
+PAGE_VIEWS = os.path.join(G.STATE_DIR, "page-views.json")
+PAGE_RE = re.compile(r"^/(?:[a-z0-9-]+\.html)?$")
+_views_lock = threading.Lock()
+
+
+def _count_page(path, today=None):
+    """Which pages get opened, for phase 2 of the reorganisation (R-027): page and day only. No addresses, no
+    times, no query strings. Only the console's own pages count; 60 days are kept. Never fails a request."""
+    if not PAGE_RE.match(path) or not os.path.isfile(os.path.join(DASH, path.lstrip("/") or "graph.html")):
+        return
+    day = today or datetime.now().strftime("%Y-%m-%d")
+    try:
+        with _views_lock:
+            try:
+                with open(PAGE_VIEWS) as f:
+                    d = json.load(f)
+                d = d if isinstance(d, dict) else {}
+            except (OSError, ValueError):
+                d = {}
+            page = d.setdefault(day, {})
+            page[path or "/"] = page.get(path or "/", 0) + 1
+            for k in sorted(d)[:-60]:
+                del d[k]
+            os.makedirs(G.STATE_DIR, exist_ok=True)
+            tmp = PAGE_VIEWS + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(d, f)
+            os.replace(tmp, PAGE_VIEWS)
+    except Exception:
+        pass
 
 
 def _clerk_for(job):
@@ -1054,6 +1151,24 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 return self.send_json(G.list_builds())
             if path == "/api/models":
                 return self.send_json(MD.load())
+            if path == "/api/since":   # "Since you last looked" on Now: counts after ?ts= (epoch s), read-only
+                ts = float(arg("ts") or 0)
+                if not (0 < ts <= time.time() + 60):
+                    raise ValueError("ts must be a past time in epoch seconds")
+                gates_new = [g for g in G.list_gates(0)["open"] if g.get("created", 0) > ts]
+                cards_new = [t for t in G.list_tasks() if not t.get("error") and t.get("created", 0) > ts]
+                return self.send_json({**S.since_summary(ts),
+                                       "decisions_new": [{"title": str(g.get("title") or "")[:120], "url": f"/decide.html?job={g['job']}&gate={g['id']}"} for g in gates_new][:5],
+                                       "decisions_new_n": len(gates_new),
+                                       "cards_new": [str(t.get("title") or "")[:100] for t in cards_new][:5], "cards_new_n": len(cards_new)})
+            if path == "/api/digest":   # the daily digest (R-026), read-only; ?day=YYYY-MM-DD (UTC), default today
+                return self.send_json(DG.build(arg("day") or None))
+            if path == "/api/lab/games":   # the Diplomacy games, for the page's game list
+                return self.send_json(LAB.games())
+            if path == "/api/deploy":   # which commit is live, and whether a newer one waits in the repo
+                return self.send_json(deploy_status())
+            if path == "/api/models/review":   # one review's report.md, read-only (Diplomacy postgame, 2026-10-14)
+                return self.send_json(MD.review(arg("id")))
             if path == "/api/jobs":
                 return self.send_json(S.jobs_list())
             if path == "/api/replay_rigs":
@@ -1115,6 +1230,18 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 return self.send_json(JP.docket(_load("_ps.json"), full, _load("_queue.json"),
                                                 os.path.getmtime(qp) if os.path.isfile(qp) else None,
                                                 [t for t in G.list_tasks() if not t.get("error")]))
+            if path == "/api/seat":     # an architect's profile (R-027), read-only, from existing sources
+                seat = arg("seat") or ""
+                if not PR.SEAT_RE.match(seat):
+                    raise ValueError("Unknown seat")
+                qa = os.path.join(SNAP, "_queue_active.json")
+                full = _load("_queue_active.json") if os.path.isfile(qa) else None
+                qp = qa if full is not None else os.path.join(SNAP, "_queue.json")
+                dk = JP.docket(_load("_ps.json"), full, _load("_queue.json"), os.path.getmtime(qp) if os.path.isfile(qp) else None,
+                               [t for t in G.list_tasks() if not t.get("error")])
+                node = next((n for n in graph()["nodes"] if n.get("id") == seat), None)
+                return self.send_json(PR.profile(seat, node, next((s for s in dk.get("seats", []) if s["seat"] == seat), None),
+                                                 LG.posts(), CV.history(seat)))
             if path == "/api/oplog":    # the operator's log, read-only (R-022)
                 q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
                 return self.send_json(OL.read((q.get("month") or [""])[0]))
@@ -1133,6 +1260,7 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                                        "prompt": kind, "reply": last_reply(lines[-200:])})
         except Exception as e:
             return self.send_json({"error": str(e)})
+        _count_page(path)
         return super().do_GET()
 
     def do_POST(self):
@@ -1375,6 +1503,7 @@ def _watch():
                        lambda text: _console_send(OB.RECEIPT_TO, text), set(_dismissed()))
             EP.track(g["nodes"], lambda s: screen_prompt(s)[2], _approval_item,
                      idle_on_screen=lambda s: screen_prompt(s)[0] == "idle", open_ids=_open_qitem_ids())
+            EP.track_outages(g["alerts"], _approval_item)   # one operator item per provider usage-limit outage (R-030)
             CV.capture(g["nodes"], lambda s: _screen_tail(s, 400), lambda s: screen_prompt(s)[0] == "idle",
                        G.folder_of_rig(CV.ARCHITECTS_RIG))
             NEEDS["count"] = sum(1 for a in g["alerts"] if a["kind"] == "task")   # open cards on the Needs you page

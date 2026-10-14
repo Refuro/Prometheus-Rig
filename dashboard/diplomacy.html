@@ -77,6 +77,17 @@ button:focus-visible,select:focus-visible{outline:2px solid var(--signal);outlin
 .power .orders.none{font-style:italic}
 .power .orders .live{font:700 10.5px var(--font);color:var(--signal);text-transform:uppercase;letter-spacing:.04em;margin-left:6px}
 .tabs{display:flex;gap:6px;margin-top:18px;flex-wrap:wrap}
+.postgame{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-top:12px;padding:12px 14px;border-radius:14px;background:var(--ok-soft);border:1px solid var(--ok)}
+.postgame b{color:var(--ok)}
+.postgame .pgl{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.postgame .pgl button{padding:6px 12px;font-size:13.5px}
+.mdr{overflow-wrap:anywhere;line-height:1.6}
+.mdr h2,.mdr h3,.mdr h4{text-transform:none;letter-spacing:0;color:var(--ink);font-size:16px;margin:16px 0 6px}
+.mdr .tbl{overflow-x:auto}
+.mdr table{border-collapse:collapse;font-size:13.5px}
+.mdr th,.mdr td{border:1px solid var(--line);padding:4px 8px;text-align:left;vertical-align:top}
+.mdr code{font:12.5px ui-monospace,monospace;background:var(--surface);padding:1px 4px;border-radius:4px}
+.mdr .fref{font:12.5px ui-monospace,monospace;color:var(--muted)}
 .tabs button{padding:6px 12px;font-size:13.5px}
 .tabs button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .panel{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:10px}
@@ -135,6 +146,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
 </head>
 <body>
 <script src="/nav.js"></script>
+<script src="/md.js"></script>
 <main>
   <h1>Diplomacy</h1>
   <div class="sub" id="sub">Seven agent powers, one clerk, one board. You watch; you can pause.</div>
@@ -144,6 +156,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     <span class="state" id="state">loading</span>
     <span class="clock" id="clock"></span>
     <span class="grow"></span>
+    <label id="gameBox" style="font-size:13px;color:var(--muted)" hidden>Game <select id="gameSel"></select></label>
     <label style="font-size:13px;color:var(--muted)">Phase <select id="phaseSel"></select></label>
     <button id="btnLive" hidden title="Follow the phase being played">Back to live</button>
     <label style="font-size:13px;color:var(--muted);display:flex;gap:5px;align-items:center" title="Each power's sealed intention, written before press. Turn off to avoid spoilers.">
@@ -151,6 +164,12 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     <button id="btnPause" class="primary" title="The clerk stops the clock and tells every power">Pause</button>
     <button id="btnResume" hidden>Resume</button>
     <button id="btnStop" class="danger" title="Ends the game after this phase">Stop</button>
+  </div>
+
+  <!-- After the game (owner, 2026-10-14): where the writeups are. Shown once board/final.md exists. -->
+  <div class="postgame" id="postgame" hidden>
+    <b>Game over.</b> <span>Why it ended and who won are in the final standings; the story and the analysis are here too.</span>
+    <span class="pgl"><button data-go="final">Final standings</button><button data-go="chronicle">Chronicle</button><button data-go="analysis">Model Architect's analysis</button></span>
   </div>
 
   <div class="layout">
@@ -165,6 +184,9 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     <button data-tab="results">Results</button>
     <button data-tab="chart">Centres over time</button>
     <button data-tab="incidents">Incidents</button>
+    <button data-tab="final" class="post" hidden>Final standings</button>
+    <button data-tab="chronicle" class="post" hidden>Chronicle</button>
+    <button data-tab="analysis" class="post" hidden>Model Architect's analysis</button>
   </div>
   <div class="panel" id="panel"></div>
   <div class="note" id="note"></div>
@@ -176,6 +198,20 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
 (() => {
   const q = new URLSearchParams(location.search);
   const JOB = (q.get("job") || "diplomacy-1").replace(/[^A-Za-z0-9._-]/g, "");
+  // Every game stays one click away (owner, 2026-10-14). With no ?job=, open the game being played, or the
+  // newest finished one, rather than always game 1.
+  fetch("/api/lab/games", {cache: "no-store"}).then(r => r.json()).then(({games = []}) => {
+    if (!q.get("job") && games.length) {
+      const pick = (games.find(g => !g.over) || games[games.length - 1]).job;
+      if (pick !== JOB) { location.replace(`?job=${encodeURIComponent(pick)}`); return; }
+    }
+    if (games.length < 2) return;
+    const sel = document.getElementById("gameSel");
+    sel.innerHTML = games.map(g => `<option value="${g.job.replace(/[^A-Za-z0-9._-]/g, "")}">${String(g.title).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}${g.over ? " (over)" : ""}</option>`).join("");
+    sel.value = JOB;
+    sel.onchange = () => { location.href = `?job=${encodeURIComponent(sel.value)}`; };
+    document.getElementById("gameBox").hidden = false;
+  }).catch(() => {});
   // Always the job's own sandboxed folder. (The draft's ?base= let a crafted link point the page anywhere; PL-039.)
   const BASE = `/job/${JOB}`;
   const POWERS = ["AUSTRIA","ENGLAND","FRANCE","GERMANY","ITALY","RUSSIA","TURKEY"];
@@ -191,6 +227,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   const S = { control:null, index:null, phase:null, board:null, timeline:[], press:[], livePress:[], results:"", digest:"", incidents:"", pending:{}, final:false, sel:null, tab:"digest", orders:{}, intentions:{} };
   // Sealed intentions are shown live during the game (owner, 2026-10-13, R-028), behind a per-browser toggle.
   const INT_KEY = "dip.showIntentions";
+  S.post = {};   // postgame writeups, loaded on first open
   S.showInt = (() => { try { return localStorage.getItem(INT_KEY) !== "off"; } catch { return true; } })();
   // The Press tab's order (owner, 2026-10-13): oldest first by default, remembered per browser.
   const ORDER_KEY = "dip.pressOrder";
@@ -420,6 +457,9 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     else st.textContent = c.state || "waiting for clerk";
     $("btnPause").hidden = !!c.paused || S.final; $("btnResume").hidden = !c.paused || S.final;
     $("btnStop").disabled = S.final || !!c.stop;
+    // Game over: point at the writeups, and show their tabs.
+    $("postgame").hidden = !S.final;
+    document.querySelectorAll("#tabs .post").forEach(b => b.hidden = !S.final);
     const history = !!S.live && S.phase !== S.live;   // looking at an earlier phase: say so, and offer the way back
     $("btnLive").hidden = !history;
     if (history) $("btnLive").textContent = `Back to live: ${phaseLabel(S.live)}`;
@@ -493,6 +533,23 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
       };
     } else if (t === "compare") {
       P.innerHTML = compareHtml();
+    } else if (t === "final" || t === "chronicle" || t === "analysis") {
+      // The postgame writeups, rendered with the console's escape-first Markdown reader (md.js): no raw HTML
+      // from agents reaches the page. Chronicle from the game folder (/job/), the analysis from the one
+      // read-only review endpoint. Loaded once, on first open.
+      const src = { final: ["Final standings, written by the clerk", "board/final.md"],
+                    chronicle: ["The chronicle, written by the game's chronicler", "chronicle/chronicle.md"],
+                    analysis: ["The Model Architect's analysis of the game", `models/reviews/${JOB}/report.md`] }[t];
+      const show = txt => { if (S.tab === t) P.innerHTML = txt == null ? `<div class="empty">Not written yet (${esc(src[1])}).</div>`
+        : `<div class="filters">${esc(src[0])} · <span style="font-family:ui-monospace,monospace">${esc(src[1])}</span></div><div class="mdr">${md(txt)}</div>`; };
+      if (t in S.post) show(S.post[t]);
+      else {
+        P.innerHTML = `<div class="empty">Loading…</div>`;
+        (t === "final" ? text("board/final.md")
+          : t === "chronicle" ? text("chronicle/chronicle.md")
+          : fetch(`/api/models/review?id=${encodeURIComponent(JOB)}`, {cache: "no-store"}).then(r => r.json()).then(j => j.text ?? null).catch(() => null))
+          .then(txt => { S.post[t] = txt; show(txt); });
+      }
     } else if (t === "digest") {
       P.innerHTML = S.digest ? `<div class="filters">Digest of ${esc(phaseLabel(S.phase))}</div><div class="digest">${esc(S.digest)}</div>`
         : S.prev?.digest ? `<div class="filters"><b>Latest digest: ${esc(phaseLabel(S.prev.phase))}</b> · ${esc(phaseLabel(S.phase))} gets its own when the clerk adjudicates it.</div><div class="digest">${esc(S.prev.digest)}</div>`
@@ -610,6 +667,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   $("phaseSel").onchange = async e => { S.phase = e.target.value; S.follow = S.phase === S.live; await loadPhase(); renderAll(true); };
   $("btnLive").onclick = async () => { S.follow = true; S.phase = S.live; $("phaseSel").value = S.phase; await loadPhase(); renderAll(true); };
   $("tabs").querySelectorAll("button").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; renderAll(true); });
+  $("postgame").querySelectorAll("[data-go]").forEach(b => b.onclick = () => {
+    S.tab = b.dataset.go; renderAll(true); $("tabs").scrollIntoView({behavior: "smooth", block: "start"}); });
   $("intToggle").checked = S.showInt;
   $("intToggle").onchange = async e => {
     S.showInt = e.target.checked;
