@@ -2233,6 +2233,68 @@ Now both open with `O_NONBLOCK`, check the type on the raw descriptor, and close
 probe no longer reproduces the block, and 2 new smoke checks guard both: a FIFO under a 5-second alarm, and
 ten directory reads with no descriptor growth. It found nothing else in the other five items. Smoke 281/281.
 
+**Live:** commit fed7097, deployed by the owner at 20:08Z, with the logger restarted at 20:09Z. Verified
+read-only: `diff -rq` of `/opt/rig-console` against `dashboard/` differs only in the runtime `state/` folder.
+
+## PL-060 rig-console-release couldn't release a deleted file (found while preparing audit H)
+- **Bug:** before committing, the release command checks that each file is still what you were shown. It
+  fingerprinted every listed file with `git hash-object`, which fails for a file that no longer exists. Once
+  the deletion was staged, the index had no entry to compare against. So any release that deleted a file
+  stopped with "A file changed after you were shown it". That message is wrong, though nothing was ever
+  committed.
+- **Fix (`setup/release-console.sh`):**
+  - A missing file is recorded as `deleted` when you're shown the release.
+  - After staging, each path is compared again: its staged object, or `deleted` when it's gone from the
+    index.
+  - A file deleted after you were shown its edit still counts as a change, and it stops.
+- **Order:** the installed command is the old one, and the deploy installs the new one from the commit it
+  deploys. So this ships on its own card first, and audit H (PL-061) follows with the new command.
+
+**Checked:** the release harness (throwaway repos, `scratch/platform/release/test_release.py`) passes 26/26.
+Two cases are new:
+- a release with a deletion and an edit commits both and deploys;
+- a file deleted after review stops the release and unstages.
+
+The first failed on the old script with the misleading message.
+
+**Review-4** (the developer) confirmed the deletion fix: 26/26, plus 11 adversarial probes, including a
+deleted path replaced by a directory, by a symlink, or by a recreated file. It also found one gap that
+predates this fix, rated high:
+- **The gap:** the check compared contents only, never file types. A symlink hashes its target text, so a
+  file swapped after review for a symlink whose target text was the reviewed bytes got committed as a
+  symlink. The deploy refuses committed symlinks, so it couldn't reach the live console. But it broke the
+  promise that what you review is what gets committed.
+- **Fix:** a symlink is recorded as `symlink` when you're shown the release. After staging, anything that
+  isn't a regular file (mode 100644 or 100755) is recorded as `not-a-regular-file`, so it can't match.
+- **Test:** the harness has the developer's case, and passes 27/27.
+
+**Recheck-4** confirmed the symlink fix. It also found that a staged gitlink is refused and that deletions
+are unchanged. One more pre-existing gap, rated medium: an executable bit set after review was committed
+without being shown, because only contents were compared.
+- **Fix, simpler than patching each case:** before you're asked, the listed files are staged into a throwaway
+  copy of the index. That records exactly what git would commit, mode and content. The real staging must then
+  match it entry for entry. Anything that isn't a regular file gets a different label when you're shown it
+  than when it's staged, so it never matches. The copy is deleted afterwards; the real index is untouched
+  until you say y.
+- **Harness: 30/30.** New cases:
+  - the executable bit after review stops it;
+  - a mode change you were shown is committed as shown;
+  - saying n leaves the real index untouched.
+
+## PL-061 Old page copies deleted (audit H, owner approved qitem-20261014192418) — held until PL-060 is live
+- **To delete:** `index.v1.html`, `graph.v1.html` and `graph.v2-backup.html`. They're old copies of the
+  home page and the graph, still served but in no menu. Nothing in `dashboard/` or `setup/` links to them.
+- **Smoke:** they come out of the nav test's exclusions, and a new check requires all three to return 404.
+- **Deploy:** copies the committed tree with `rsync --delete`, so it removes them from `/opt/rig-console` too.
+
+**Checked:** smoke 282/282 with the pages deleted. The developer's review-3 was clean: a restored page fails
+the new check, and the deploy's rsync options delete the pages. Its one low finding, a stale handoff row, is
+fixed.
+
+The change is held in `scratch/platform/held-h/` and the repo has the pages back, because the installed release
+command can't release a deletion (PL-060). When PL-060 is live, I'll re-apply it with `git rm` (unstaged, as
+the release command requires) and the saved `smoke.py`.
+
 ---
 
 ## Notes for other roles

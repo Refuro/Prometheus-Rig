@@ -96,9 +96,27 @@ view() {
     fi
   done <<<"$LISTED"
 }
-# What you're shown is what gets committed: note each file's content now, and check the staged copies match.
-snapshot() { while IFS= read -r f; do printf '%s %s\n' "$(safe_git hash-object -- "$f")" "$f"; done <<<"$LISTED"; }
-SEEN="$(snapshot)"
+# What you're shown is what gets committed. Before you're asked, the listed files are staged into a throwaway copy
+# of the index, which records exactly what git would commit: mode and content, or nothing for a deletion. The real
+# staging must then match it entry for entry, so a later edit, deletion, executable bit (recheck-4) or file type
+# (review-4: a symlink hashes its target text) stops the release. Anything that isn't a regular file never
+# matches: it gets a different label when shown than when staged.
+mapfile -t PATHS <<<"$LISTED"
+entries() { while IFS= read -r f; do
+  entry="$(safe_git ls-files -s -- "$f")"
+  case "$entry" in
+    "") printf 'deleted %s\n' "$f" ;;
+    100644\ *|100755\ *) printf '%s %s\n' "$(awk '{print $1":"$2}' <<<"$entry")" "$f" ;;
+    *) printf '%s %s\n' "$1" "$f" ;;
+  esac
+done <<<"$LISTED"; }
+snapshot() {
+  local idx; idx="$(mktemp)"
+  cp -- "$(safe_git rev-parse --path-format=absolute --git-path index)" "$idx"
+  GIT_INDEX_FILE="$idx" safe_git add -- "${PATHS[@]}" && GIT_INDEX_FILE="$idx" entries not-regular-when-shown
+  local rc=$?; rm -f -- "$idx"; return $rc
+}
+SEEN="$(snapshot)" || stop "Couldn't read the listed files to note what you're shown."
 while true; do
   read -rp "d shows every changed line (q leaves the viewer). Commit these $N files? [y/N/d] " A || A=n
   case "$A" in
@@ -109,12 +127,10 @@ while true; do
 done
 
 # 4. Commit exactly these paths.
-mapfile -t PATHS <<<"$LISTED"
 safe_git add -- "${PATHS[@]}"
 STAGED="$(safe_git diff --cached --name-only | sort)"
 [ "$STAGED" = "$LISTED" ] || { safe_git restore --staged -- "${PATHS[@]}" || true; stop "Staging didn't match the note; unstaged again."; }
-STAGED_IDS="$(safe_git ls-files -s -- "${PATHS[@]}" | awk '{print $2" "$4}' | sort -k2)"
-[ "$STAGED_IDS" = "$(sort -k2 <<<"$SEEN")" ] || { safe_git restore --staged -- "${PATHS[@]}" || true
+[ "$(entries not-a-regular-file)" = "$SEEN" ] || { safe_git restore --staged -- "${PATHS[@]}" || true
   stop "A file changed after you were shown it (something edited it meanwhile). Unstaged again; run this again to see the new version."; }
 safe_git commit --quiet --no-verify -m "$MSG"
 COMMIT="$(safe_git rev-parse --short HEAD)"
