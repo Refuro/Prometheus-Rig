@@ -2281,7 +2281,9 @@ without being shown, because only contents were compared.
   - a mode change you were shown is committed as shown;
   - saying n leaves the real index untouched.
 
-## PL-061 Old page copies deleted (audit H, owner approved qitem-20261014192418) — held until PL-060 is live
+## PL-061 Old page copies deleted (audit H, owner approved qitem-20261014192418)
+**PL-060 is live** (commit e1b31a7). The installed `rig-console-release` matches the repo apart from its REPO line;
+it's root-owned and was installed at 21:34Z. So H is re-applied below, with the fixed command able to release it.
 - **To delete:** `index.v1.html`, `graph.v1.html` and `graph.v2-backup.html`. They're old copies of the
   home page and the graph, still served but in no menu. Nothing in `dashboard/` or `setup/` links to them.
 - **Smoke:** they come out of the nav test's exclusions, and a new check requires all three to return 404.
@@ -2291,9 +2293,8 @@ without being shown, because only contents were compared.
 the new check, and the deploy's rsync options delete the pages. Its one low finding, a stale handoff row, is
 fixed.
 
-The change is held in `scratch/platform/held-h/` and the repo has the pages back, because the installed release
-command can't release a deletion (PL-060). When PL-060 is live, I'll re-apply it with `git rm` (unstaged, as
-the release command requires) and the saved `smoke.py`.
+It was held in `scratch/platform/held-h/` until PL-060 was live. It's now re-applied: `git rm`, then unstaged
+(the release refuses anything already staged), and the reviewed `smoke.py` copied back.
 
 ---
 

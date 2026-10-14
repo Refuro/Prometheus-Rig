@@ -174,7 +174,9 @@ def main():
         groups = re.findall(rb'\["(Now|Decide|Teams|Record|System)", \[', nav)
         pages = re.findall(rb'\["(/[a-z]*\.?h?t?m?l?)", "', nav)
         on_disk = {b"/" + n.encode() for n in os.listdir(DASH) if n.endswith(".html") and n not in
-                   ("graph.html", "index.html", "index.v1.html", "graph.v1.html", "graph.v2-backup.html", "m.html", "seat.html")} | {b"/"}
+                   ("graph.html", "index.html", "m.html", "seat.html")} | {b"/"}
+        check("old page copies are gone (audit H): index.v1, graph.v1 and graph.v2-backup are not served",
+              all(c.req("GET", p)[0] == 404 for p in ("/index.v1.html", "/graph.v1.html", "/graph.v2-backup.html")))
         check("top bar: five groups in order (R-027), and every page sits in exactly one group; no More menu",
               groups == [b"Now", b"Decide", b"Teams", b"Record", b"System"] and len(pages) == len(set(pages))
               and set(pages) == on_disk and b"rcMore" not in nav, (groups, sorted(set(pages) ^ on_disk)))
