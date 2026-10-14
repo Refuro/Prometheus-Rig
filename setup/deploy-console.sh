@@ -118,6 +118,12 @@ grep -q "^REPO=\"$REPO\"" "$WORK/deploy" || { echo "Couldn't fill in the repo pa
 $SUDO install -o root -g root -m 755 "$WORK/deploy" "$SELF"
 $SUDO install -o root -g root -m 755 "$STAGE/setup/rig-owner" /usr/local/lib/rig-console/rig-owner
 install_release
+# rig-platform-check (PD-033): Platform's fixed checks, root-owned so no seat can change what an exact permission
+# rule runs. From the same staged, smoke-tested commit; its hash is printed for the owner's card check.
+if [ -f "$STAGE/setup/rig-platform-check" ]; then
+  $SUDO install -o root -g root -m 755 "$STAGE/setup/rig-platform-check" /usr/local/sbin/rig-platform-check
+  echo "Installed rig-platform-check: $(sha256sum /usr/local/sbin/rig-platform-check | cut -d' ' -f1)"
+fi
 echo "$COMMIT" | $SUDO tee "$MARK" >/dev/null
 # What the System page shows about this deploy: the commit, its subject, when, and the smoke result.
 /usr/bin/python3 -I -c 'import json, sys; print(json.dumps({"commit": sys.argv[1], "subject": sys.argv[2][:160], "at": sys.argv[3], "smoke": sys.argv[4][:80]}))' \

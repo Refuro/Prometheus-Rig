@@ -1,0 +1,103 @@
+#!/usr/bin/python3 -I
+"""rig-platform-check: Platform's fixed checks, one subcommand each, nothing else (DRAFT, not installed).
+
+Intended install (owner, like rig-console-release): root-owned, mode 755, at /usr/local/sbin/rig-platform-check,
+from a reviewed commit. Invocation is exactly `/usr/local/sbin/rig-platform-check <subcommand>`: no other
+arguments, no options, no environment taken from the caller.
+
+Each subcommand runs one fixed argument list (never a shell) with a fixed, minimal environment (no NTFY_*,
+no RIG_* folders, no GIT_*). The full output goes to a fixed log; the screen gets the failures and the summary.
+
+Limit to state plainly (for the Model Architect's S3): the runner fixes WHAT is invoked, not the code that
+runs. smoke.py, the browser checks, the release harness and node itself are files Platform can edit, so
+smoke/pages/dip/release-harness still run Platform-written code as Platform's user. deployed-diff and
+logger-state run only system binaries on fixed paths. git-status and git-log run the system git, but git reads
+the repo's own config, which a seat can edit. That config could name a filter driver (a program git runs on file
+contents), so these two refuse to run if any filter.* setting exists (MA-031 F-d); the worktree's
+.gitattributes is ignored as well.
+"""
+import errno, os, signal, subprocess, sys
+
+REPO = "/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig"
+SCRATCH = "/home/you/openrig/scratch/platform"
+CANDIDATE = SCRATCH + "/candidate"          # the one fixed place a scratch copy of the repo is tested
+LOGS = SCRATCH + "/check-logs"
+NODE = "/home/you/.nvm/versions/node/v22.23.3/bin/node"
+EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"   # attributes read from here: no worktree .gitattributes
+GIT = ["/usr/bin/git", "--attr-source=" + EMPTY_TREE, "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null",
+       "-c", "core.pager=cat", "-c", "diff.external=", "--no-pager", "-C", REPO]
+
+ENV = {"PATH": "/usr/bin:/bin", "HOME": "/home/you", "LANG": "C.UTF-8"}
+
+# name: (argument list, working folder, timeout in seconds, lines worth showing besides the last one)
+# The smoke runs use -s so the user's site-packages (and any usercustomize.py) don't load (MA-031 F-b); not -I,
+# which would drop the script's own folder from sys.path.
+CHECKS = {
+    "smoke-repo": (["/usr/bin/python3", "-s", REPO + "/dashboard/tests/smoke.py"], REPO, 600, ("FAIL",)),
+    "smoke-candidate": (["/usr/bin/python3", "-s", CANDIDATE + "/dashboard/tests/smoke.py"], CANDIDATE, 600, ("FAIL",)),
+    "pages": ([NODE, SCRATCH + "/page-check.mjs"], SCRATCH, 600, ("FAIL",)),
+    "dip": ([NODE, SCRATCH + "/dip-check.mjs"], SCRATCH, 600, ("FAIL",)),
+    "release-harness": (["/usr/bin/python3", "-I", SCRATCH + "/release/test_release.py"], SCRATCH + "/release", 600, ("FAIL",)),
+    "deployed-diff": (["/usr/bin/diff", "-rq", "--exclude=tests", "--exclude=__pycache__", "--exclude=*.md", "--exclude=state",
+                       REPO + "/dashboard", "/opt/rig-console"], "/", 120, None),
+    "logger-state": (["/usr/bin/systemctl", "show", "rig-snapshots", "-p", "ActiveState", "-p", "SubState",
+                      "-p", "ActiveEnterTimestamp"], "/", 30, None),
+    "git-status": (GIT + ["status", "--short", "--", "dashboard", "setup"], "/", 60, None),
+    "git-log": (GIT + ["log", "--oneline", "-5"], "/", 60, None),
+}
+
+
+def main(argv):
+    if len(argv) != 2 or argv[1] not in CHECKS:
+        sys.exit("usage: rig-platform-check <" + "|".join(CHECKS) + ">  (exactly one, nothing else)")
+    name = argv[1]
+    args, cwd, timeout, show = CHECKS[name]
+    if name.startswith("git-"):
+        filters = subprocess.run(GIT + ["config", "--get-regexp", r"^filter\."], env=ENV, stdin=subprocess.DEVNULL,
+                                 capture_output=True, text=True).stdout.strip()
+        if filters:
+            sys.exit(f"{name}: refused, because git config defines a filter driver, which git could run:\n{filters}")
+    # Its own process group, so a timeout kills everything it started (Chromium under node), not just the child
+    # (MA-031 F-a).
+    try:
+        p = subprocess.Popen(args, cwd=cwd, env=ENV, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT, start_new_session=True)
+    except OSError as e:
+        out, rc = f"[could not start: {e.__class__.__name__}]", 127
+    else:
+        try:
+            raw, _ = p.communicate(timeout=timeout)
+            out, rc = raw.decode("utf-8", "replace"), p.returncode
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            raw, _ = p.communicate()
+            out, rc = raw.decode("utf-8", "replace") + f"\n[timed out after {timeout} s; its process group was killed]", 124
+    # The full output goes to this check's fixed log, readable only by its user (MA-031 F-c). Neither the log
+    # folder nor the log file may be a link.
+    if os.path.islink(LOGS):
+        sys.exit(f"{name}: refused to write its log: {LOGS} is a link. Output not saved.\n" + out[-2000:])
+    os.makedirs(LOGS, mode=0o700, exist_ok=True)
+    try:
+        fd = os.open(f"{LOGS}/{name}.log", os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    except OSError as e:
+        if e.errno != errno.ELOOP:
+            raise
+        sys.exit(f"{name}: refused to write its log: {LOGS}/{name}.log is a link. Output not saved.\n" + out[-2000:])
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(out)
+    lines = out.rstrip("\n").splitlines()
+    if show is None:
+        shown = lines[-200:]                                    # read-only checks are short: show them whole
+    else:
+        shown = [l for l in lines[:-1] if l.lstrip().startswith(show)][:50] + lines[-1:]
+    print("\n".join(shown) if shown else "(no output)")
+    print(f"[{name}: exit {rc}; full output in {LOGS}/{name}.log]")
+    return rc
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

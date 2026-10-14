@@ -2296,6 +2296,32 @@ fixed.
 It was held in `scratch/platform/held-h/` until PL-060 was live. It's now re-applied: `git rm`, then unstaged
 (the release refuses anything already staged), and the reviewed `smoke.py` copied back.
 
+## PL-062 rig-platform-check: Platform's fixed checks, root-owned (PD-033 option A, owner approved 21:32Z)
+- **What it is:** `setup/rig-platform-check`, the runner reviewed by the Model Architect (MA-031). It takes
+  exactly one of nine fixed subcommands and refuses anything else:
+  - smoke-repo, smoke-candidate, pages, dip, release-harness;
+  - deployed-diff, logger-state, git-status, git-log.
+- **How each check runs:**
+  - a fixed argument list, never through a shell;
+  - a fixed environment, with stdin closed;
+  - in its own process group, so a timeout kills everything it started;
+  - smoke runs use `python3 -s`.
+- **Output:** failures and the summary on screen, everything else in `scratch/platform/check-logs/<name>.log`
+  (mode 600, links refused). The git checks refuse if git config defines a filter driver.
+- **Installed by the deploy:** after the smoke test, the deploy copies the runner from the same staged commit to
+  `/usr/local/sbin/rig-platform-check`, root:root, mode 755, and prints its sha256. The owner's card checks that
+  hash against the reviewed one.
+- **What it doesn't change:** five subcommands still run Platform's current test code, as Platform's user.
+  MA-031 accepted that as no worse than today's rules. Narrowing who can edit that code is condition C1, at the
+  next relaunch.
+- **After it's installed:** the operator installs Rig's 9 exact rules and retires the ones they replace (C2).
+  Then one fresh start of my seat, and one probe per subcommand (PD-033 steps 3–4).
+
+**Checked:**
+- the runner's offline tests: 19/19;
+- smoke 284/284, with 2 new checks: the deploy installs the runner from the staged commit, root-owned, with its
+  hash printed; and the runner has exactly the nine subcommands and refuses anything else.
+
 ---
 
 ## Notes for other roles

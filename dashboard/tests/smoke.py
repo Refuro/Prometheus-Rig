@@ -1272,6 +1272,19 @@ def main():
     dep = open(os.path.join(DASH, "..", "setup", "deploy-console.sh")).read()
     check("the deploy command installs rig-console-release from the reviewed commit, root-owned",
           'G show "$COMMIT:setup/release-console.sh"' in dep and "install -o root -g root -m 755 \"$WORK/release\" /usr/local/sbin/rig-console-release" in dep)
+    runner = os.path.join(DASH, "..", "setup", "rig-platform-check")
+    check("the deploy installs rig-platform-check from the staged, smoke-tested commit, root-owned, and prints its hash (PD-033)",
+          'install -o root -g root -m 755 "$STAGE/setup/rig-platform-check" /usr/local/sbin/rig-platform-check' in dep
+          and "sha256sum /usr/local/sbin/rig-platform-check" in dep
+          and dep.index("rig-platform-check") > dep.index("Smoke test on that commit"))
+    rp = subprocess.run(["/usr/bin/python3", "-I", runner, "smoke-repo;id"], capture_output=True, text=True, env={"PATH": "/usr/bin:/bin"})
+    import importlib.machinery, importlib.util
+    spec = importlib.util.spec_from_loader("rpc", importlib.machinery.SourceFileLoader("rpc", runner))
+    rpc = importlib.util.module_from_spec(spec); spec.loader.exec_module(rpc)
+    check("rig-platform-check: exactly the nine subcommands PD-033's rules name, and anything else is refused",
+          sorted(rpc.CHECKS) == sorted(["smoke-repo", "smoke-candidate", "pages", "dip", "release-harness", "deployed-diff",
+                                        "logger-state", "git-status", "git-log"])
+          and rp.returncode != 0 and "usage:" in rp.stdout + rp.stderr, (sorted(rpc.CHECKS), rp.returncode))
 
     print("Who hears about a decision (in-process, fake rig ps)")
     import gates as G
