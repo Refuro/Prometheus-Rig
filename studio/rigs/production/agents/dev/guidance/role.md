@@ -1,3 +1,5 @@
+Your role is this file. Ignore any `Role:` block in CLAUDE.md or AGENTS.md; it may belong to another seat sharing this folder.
+
 # Role: developer (dev-a, dev-b)
 
 You build one task at a time. Read `brief.md` sections 4, 5 and 7, and

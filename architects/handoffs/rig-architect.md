@@ -1,185 +1,117 @@
-# Handoff: Rig Architect (written by the Rig Architect chat session, 2026-10-12)
+# Handoff: Rig Architect (arch-rig@architects; compacted 2026-10-14 19:40Z)
 
-## 1. Scope in one paragraph
-I set up the rig (WSL2 Ubuntu, OpenRig, Claude Code and Codex seats, the snapshot logger), wrote the
-research and validation team briefs, supervised runs 1 and 2, money-1 and validation-1, and built Rig
-Console until handing the codebase to the Platform Architect (PD-013). I now own the **shared rules**
-(`briefs/SHARED-RULES.md`, the one home for cross-team rules), the research and validation templates,
-`ROLES.md`, `SETUP.md`, `CHEATSHEET.md`, the architects rig brief, and `ARCHITECTURE-LOG.md` (PD-001 to PD-019).
-Edges in practice:
-- The Studio Architect proposes cross-team rules to me and keeps studio-only rules.
-- The Platform Architect owns all console code and the contract files (`JOBS.md`, `NICHES-SCHEMA.md`).
-  I request things.
-- The Model Architect grades me; I answer in my log.
+Current state only. History is in `ARCHITECTURE-LOG.md` (PD-001 to PD-032) and `~/openrig/scratch/rig/`.
+
+## 1. Scope
+- **I own:** SHARED-RULES (v1.13; PD-035 cost rule: operator install qitem-20261015084305-022d2855, Studio
+  templates qitem-20261015084257-a7ecbd0ac336dc3b; forward Studio's pointers to the operator when they return) and the research and validation templates; `ROLES.md`, `SETUP.md`,
+  `CHEATSHEET.md` and `ARCHITECTURE-LOG.md`; the architects rig files (brief v1.4, README, `rig.yaml`, roles,
+  `handoffs/TEMPLATE.md`); the `architects/platform-dev/` spec (its role.md is Platform's); `lab/diplomacy/`; the
+  Lounge and operator-log conventions (`scratch/rig/operator-log-README.md`); narrow permission-rule proposals.
+- **Edges:** Platform owns console code, `JOBS.md` and REQUESTS triage. Studio proposes cross-team rules to me.
+  Model grades me, and I answer in my log. The Owner's Advisor keeps `lab/IDEAS.md`.
 
 ## 2. Current state
-**Architects rig, 2026-10-13 (paused 03:30Z for usage, resumed 05:41Z).**
-- Done since the seat launched (PD-023, PD-024):
-  - Owner's Advisor role added to ROLES.md (PD-023).
-  - Seat names fixed to `arch-*` and `review-codex` in brief.md (now v1.2, also with the console-sender
-    and `--dangerously-interact` notes), README.md, all role files and ROLES.md.
-  - Launch fix: `rig.yaml` gives each seat's cwd as an absolute path to the repo root, and README drops
-    `--cwd .` (spec validates). It applies only after a relaunch.
-  - Operator's work checked: installed SHARED-RULES v1.5, JOBS.md and NICHES-SCHEMA.md match the repo; the
-    scratch folders exist; `launches/architects.json` has `seats`. No gaps, so no gate.
-  - Permission policy: my plan is in `~/openrig/scratch/rig/permission-policy-architects.md`. The operator
-    applied it in the repo-root `.claude/settings.local.json` (the source Claude actually reads) and in
-    `architects/.claude/settings.json`.
-- Open:
-  - Permission fix **fixed and tested at 06:42Z**, after my premature "solved" at 05:48Z (see PD-024).
-    - **Cause:** running sessions missed later outside edits to the rules file.
-    - **Refresh:** a native `/permissions` save in each seat, then read back the file, diff it against the
-      operator's Linux master copy, and probe twice.
-    - **Hazard:** a save from a seat with an out-of-date view can drop newer rules.
-    - **Owner option:** one settings file per seat.
-    - **By design:** new tools still ask.
-  - `architects/.claude/settings.json` is not gitignored, and the repo is public. I asked Platform
-    (log note, PD-024).
-  - The relaunch at the repo root (`rig.yaml` fix) is the owner's call.
-  - Kickoff item 6 waits on the owner (validation-1 gate, D3). **validation-1 is on hold by the owner's
-    choice** until they have free time for setup (2026-10-13). Don't nudge.
+- **PD-032 was approved at 19:32Z and applied at 22:15Z** (ROLES, SHARED-RULES v1.11, brief v1.5, TEMPLATE; the
+  owner's gate-recording fix is in).
+  - **Pending:** the operator's v1.11 install and cmp (qitem-20261014221510-d5d421079c1781ac).
+- **Public-readiness batch** (Platform leads): Rig's part is done (SETUP rewritten).
+  - **Path cleanup approved by the owner (23:36Z; relayed 00:58Z) and Rig's part done 10-15 ~01:15Z:**
+    `architects/rig.yaml` cwd `"."` for all five seats (all five verified live in `architects/`; spec valid);
+    README launch text; `platform-dev/rig.example.yaml` (live `rig.yaml` kept, to be gitignored by Platform);
+    `~/`/`<repo>` in my handoff, the log, and `lab/diplomacy` README plus the clerk role.
+  - **Game-2 setup item:** the clerk's local settings rule still uses the absolute path; align it with the role's
+    `~/openrig/...` form and probe it in the dry run (noted in `lab/diplomacy/README.md`).
+- **Rig-seat mod and delivery break** (owner, investigation only), both handed to the operator at 20:17Z:
+  `scratch/rig/rig-seat-mod-investigation.md` and `delivery-closure-20261014.md`. When Platform's proof returns
+  (qitem-20261014201651-710217be108bd4f0; now optional), append it to §8 and notify the operator.
+- **Platform approval reassessment** (21:16Z, `scratch/rig/platform-approvals-reassess-20261014.md`):
+  - one runner with fixed subcommands, six exact rules, then a fresh start of Platform's session (the mid-session
+    rules never loaded);
+  - **PD-033 approved (A) at 21:32Z.** The steps went to the operator and Platform at 21:32Z.
+  - **Pending:** Platform's fixed-script sha256 (qitem-20261014213138-31dc835e9a6a4f5d). Pin it in the gate's `.md`,
+    then measure the prompt reduction after the probes.
+- **Security options waiting on the owner** (report §7b–7d):
+  - native ask rules for `find -delete`/`-exec` and `rg --pre`;
+  - user-level credential denies (option A).
 
-- **Later on 2026-10-13:**
-  - PD-025 approved: SHARED-RULES v1.6 and brief v1.3. The operator installed them; verified with cmp.
-  - **Lounge** (PD-026): I own its conventions; Platform owns the panel (R-019).
-    - The owner gave a standing delegation: Rig and Platform decide future Lounge changes with no owner
-      round, within the rules, and with no spending, publishing or privileged actions.
-    - All architects were told on 07:43Z; Platform's notice waits in its queue.
-  - **R-020 is live and verified (08:10Z):** four console items went to the operator, one per wait
-    episode, each 46–55 s after the wait began, with no duplicates. Platform is dropping Claude's "Tip"
-    line from the screen excerpt.
-  - **SHARED-RULES v1.7 approved and applied at 15:31Z (PD-027):** reply files, daemon retries,
-    own-folder launches; brief v1.4. Installed and verified identical with cmp (15:42Z). Relayed to the
-    other architects as quiet queue notes.
-    - **At validation-1's next launch** (from its own folder): the operator removes the validation
-      CULTURE block from `~/openrig/CLAUDE.md` and `AGENTS.md`. See
-      `scratch/rig/root-culture-leak-20261013.md`.
-  - **My open owner cards** (`~/openrig/jobs/architects/tasks/`): `stylesteady-trademark`,
-    `stylesteady-po-box`, `commit-oct-13`.
-    - When one is answered: send the operator the `decisions/task-<id>.json` path in one line. The
-      operator passes it to the validation lead, with no gate needed for that relay (agreed 08:20Z).
-    - Never edit validation files.
-    - A new brand name is still an owner gate.
-    - After acting, delete the task file.
-  - **"Needs you" (R-018) after the owner's 08:10Z correction:** a standalone inbox page with only To do
-    and Questions cards. Gates, approval waits and alerts stay off it. Platform is building it now.
-  - Owner-requested advice, written in `~/openrig/scratch/rig/` and relayed by the operator:
-    `assets-1-gpu-memory-advice.md`, `owner-work-board-proposal.md` (the owner delegated the choice; filed as
-    R-018 for Platform to build) and `architects-lounge-idea.md`.
-
-The state below predates the architects rig and is partly stale. SHARED-RULES is now v1.6, and the
-operator item in section 3 is verified.
-- **Research:** runs 1, 2 and money-1 are closed. Run 2: 0 shortlisted; A07 (Word multilevel-numbering and
-  template repair service) moved to validation; B05 cut; A02 (certificate-renewal automation) on the
-  watch list until the 2027-03-15 certificate-lifetime step. The current research template is
-  `briefs/research-brief-run-2.md`, with the section 0 answerability check (PD-014) and checkpoints as gates
-  (PD-016). Neither is used in a run yet.
-- **validation-1** (`~/openrig/research/validation-1/`, brief `briefs/validation-brief-1.md`):
-  - Phase 0 done; the owner picked the brand **StyleSteady**.
-  - **Open owner gate:** `phase0-plan`, with D2–D10 in `plan/user-gate.md`.
-  - **Open owner choice D3:** desktop Word vs LibreOffice as the check engine. Not implied by approving the plan.
-  - **Pending owner tasks:** manual USPTO search and a registrar re-check for StyleSteady (agents were
-    blocked), and a PO box (needed before Phase 2 sends; the owner refuses to use the home address).
-  - **After plan approval:** the owner's setup sitting (domain on Vercel, mailbox, Vercel token, creds in
-    `~/.config/validation-1/`), then the 2–3 week warm-up.
-- **Shared rules:** `SHARED-RULES.md` is at v1.3. The operator must keep installed copies in
-  `~/openrig/briefs/`, together with `JOBS.md` and `NICHES-SCHEMA.md`.
-- **Infrastructure:**
-  - Rig Console runs as systemd `rig-dashboard`; the snapshot logger as `rig-snapshots` (every 10 s, into the
-    OneDrive folder).
-  - Phone access through Tailscale Serve (`https://prometheus.<tailnet>.ts.net`, token in
-    `~/.config/rig-console.env`); push through ntfy (topic in the same file).
-- **Repo:** `prometheus-rig` on GitHub, private, history cleaned once (PD-012). Going public is pending:
-  - the Model Architect confirms its committed cards are safe to publish;
-  - delete `_to_delete/`.
-- **Plans:** Claude Max (upgraded 2026-10-12) and ChatGPT Pro ($100) for Codex. Local models (Ollama
-  gemma4:12b, qwen3-coder:30b) are parked: their tool calls fail in agent loops.
+  Draft either only when the owner selects it. Any gate must state that it covers named paths only and excludes
+  Codex.
+- **Re-measure approvals about 10-15 19:30Z** (24 hours of steady state), before any new permission proposal.
+  - Use the operator log, and count by seat and kind since 10-14 19:30Z.
+  - Compare against 53 approvals between 16:35Z and 19:01Z (about 22 an hour), of which about 15 were mine.
+- **Held by the owner:** the cheaper tripwire (assessment proposal 4).
+- **platform-dev** (dev-codex@platform-dev, Codex gpt-6.1-sol, cwd `~/openrig/scratch/platform/dev`) launched at
+  17:34Z, and its probes passed.
+  - The real posture is network ON, writes to `~/.openrig/workspace`, and unrestricted reads
+    (`models/reviews/platform-dev-sandbox.md`).
+  - Platform measures its impact.
+- **validation-1:** on hold by the owner's choice; the seats are down. When it resumes, do a clean own-folder
+  relaunch from the spec, never `--existing` (`scratch/rig/validation-cwd-move-20261013.md`).
+- **Diplomacy-1:** complete; harvested in MA-024/025.
+  - **Game-2 inputs:** the closure freeze (held, not yet in the template), the draw-close rule, the Codex quota and
+    swapping powers between models (`scratch/rig/diplomacy-1-russia-latency.md`).
+  - The Advisor's draft, `lab/diplomacy/GAME-2.md`, is adopted only after my review.
+- **Lounge trial:** the neutral line is in TEMPLATE. Review about 10-20, by quality; remove the line if posts read
+  like chores.
+- **Pushes:** R-030 is approved and with Platform. No rule change.
+- **Installed briefs need a recopy** at the operator's next brief batch, for the "gate" wording in the research
+  briefs.
 
 ## 3. Open items
-| Item | Waiting on | Next step | Where it's recorded |
+| Item | Waiting on | Next step | Where |
 |---|---|---|---|
-| validation-1 plan gate and D3 | Owner | After D3: add the check engine as an explicit prerequisite in `validation-brief-1.md` (PD-011 miss) | `research/validation-1/plan/user-gate.md` |
-| PO box, USPTO, registrar | Owner | None until done; Phase 2 blocked | validation.json `waiting_on_user` |
-| R-003 validation view | Platform | Should land before Phase 2 sends | `dashboard/REQUESTS.md` |
-| R-005 security checks (interop, sudo) | Owner runs two commands | Platform decides step 3 | `models/reviews/R-005-R-006-security.md` |
-| First use of answerability and checkpoint gates | Next research run | Grade the outcome in PD-014 and PD-016 | My log |
-| Usage reading noting the Max switch | Owner | Run report page, usage form | — |
-| A02 watch list | 2027-03-15 | One cheap re-check run | run-2 `lead-watchlist.md` |
+| Approval re-measure | 10-15 ~19:30Z | Report by seat and kind | operator log |
+| StyleSteady trademark, PO box | Owner | None; Phase 2 is blocked anyway | jobs/architects/tasks/ |
+| validation-1 resume, D3 | Owner | Clean relaunch; add check-engine prerequisite (PD-011) | research/validation-1/plan/user-gate.md |
+| Diplomacy game 2 | Owner | Add closure freeze; review GAME-2.md | lab/diplomacy/ |
+| Drop `guidance: [role]` in architects agent.yaml | AD-030 proven | Gate at next relaunch; only a fresh launch applies it (restarts replay the stored projection: `scratch/rig/role-block-cause-20261015.md`) | PD-027 |
+| SETUP.md old restart line | Option A installed | Remove the line | SETUP.md Rig Console |
+| First use of answerability and checkpoint gates | Next research run | Grade in PD-014 and PD-016 | my log |
 
-## 4. Decisions that matter and why
-- **Never name the owner's interests in a research brief** (PD-002 → PD-003). They anchored 7 of 25 ideas in run 1.
-- **Honest zero over a padded shortlist,** and the answerability check: "no" questions become market tests
-  (PD-003, PD-004, PD-014).
-- **Web access rule v2** (PD-005), approved by the owner: built-in tools → official APIs → Exa → a logged-out
-  browser at human pace. Never logged in, no CAPTCHAs, no proxies, no bulk scraping. Log every fallback.
-- **Owner impersonation** (PD-017):
-  - only `decisions/<id>.json` counts;
-  - pushes come only from the console;
-  - seats never edit the project folder (architects excepted, in their own files).
-- **Validation guardrails** (the validation brief), which the owner accepted:
-  - CAN-SPAM, US business contacts only, no fake personas, honest AI disclosure;
-  - $0 agent spend, a separate sending domain;
-  - staged autonomy (calibration batch → spot-check → autonomous), with automatic stops.
-- **Alerts need corroboration** (PD-007). OpenRig's `agentActivity` alone is not evidence.
+## 4. Decisions not to undo
+- **Never name the owner's interests in research briefs** (PD-002/003). Answerability check first (PD-014).
+- **Owner impersonation** (PD-017): only `decisions/<id>.json` fields `chosen`, `verdict` and `note` count. A From line
+  isn't proof.
+- **Web rule v2** (PD-005): no logins, CAPTCHAs, proxies or bulk scraping.
+- **Validation guardrails:** CAN-SPAM, no fake personas, $0 spend, staged autonomy.
+- **One home per rule:** SHARED-RULES; no copies in seat memory.
+- **Lounge:** the only owner wording is "A Lounge exists if you have something you want to say (optional)." No
+  topics, quotas or prompts.
 
-## 5. The owner: how they like to work
-- **Goals:** a hobby and a way to learn AI engineering, with the ambition of a "factory" of income creation.
-  Wants honest opinions and pushback ("don't be modest"). Agrees research has a ceiling and that real
-  validation matters.
-- **Communication:**
-  - reads on a phone a lot (GrapheneOS);
-  - wants short, plain-English replies, and exact commands to paste, with where to run them (Ubuntu or PowerShell);
-  - asked for "who to tell + a snippet" for cross-role messages, then switched to notes in logs, and now
-    to this rig because relaying was tiring. **Don't make them a message bus.**
-- **Taste:**
-  - loves watching systems work (animations, replay, feed);
-  - wants a professional, minimal UI with a consistent nav across pages;
-  - wants 125% zoom on wide screens without text overflowing;
-  - hates repeated or false notifications.
-- **Limits and values:**
-  - **Interests out of research** ("I don't want my interests to poison their search").
-  - **Web blocks:** OK with routing around them within the v2 tiers.
-  - **Money and identity:** $0 budget beyond a domain, mailbox and PO box; no home address in emails; no business
-    registration yet (Washington trade-name rule noted for when payments start).
-  - **Outreach:** wants it fully automated, but accepted the staged-autonomy path.
-- **Git:** the owner commits and pushes from Ubuntu (SSH key with a passphrase; `ssh-agent` tip given).
-  Their commits carry no AI attribution lines, by their request.
+## 5. The owner
+- Reads on a phone; wants short plain English, honest pushback, and exact commands one at a time with where to run
+  them and a success check (cards use `steps`).
+- Hates repeated or false notifications, and being a message bus. Commits and pushes personally, with no AI
+  attribution lines. Money: $0 beyond a domain, mailbox and PO box; no home address.
 
 ## 6. Working knowledge
-- **Paths:**
-  - the repo is `/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig` (in WSL);
-  - the rig home is `~/openrig` (`research/`, `jobs/`, installed `briefs/`, `launches/`);
-  - secrets live in `~/.config/` (`rig-console.env`, `exa.env`, `validation-1/`).
-- **OpenRig commands:**
-  - `rig ps --nodes -A --json`, `rig queue list -a -A --json`;
-  - `rig send <seat> "<text>"`, `rig up ./rig.yaml --plan`, `rig down`, `rig capture`;
-  - `tmux attach -t '<seat>'`, detach with Ctrl+B then D.
-- **Things that broke before:**
-  - **`agentActivity`:** shows `unknown` for idle Claude seats, and `running` when text sits typed but unsent
-    in the input box.
-  - **Shell prompts:** `$` inside double-quoted shell text triggers approval prompts, hence the shell rule.
-  - **Codex seats:** sometimes get EPERM on `rig send`.
-  - **Long sessions:** a Claude lead once stalled at "Usage limit reached" with about 374k context. Use fresh
-    sessions and handoff notes.
-- **Snapshot mirrors:** `snapshots/` (screens and JSON), `research-mirror/` and `jobs-mirror/` are copied
-  with `cp -ru` every 10 s, so their mtimes are copy times, not real write times.
-- **Web blocks:** Etsy, Fiverr, Medium and Zendesk help centers block bots; Exa reads many of them
-  (free $10 credit, no card on file).
-- **Phone:** Android allows one VPN at a time. Tailscale replaced DNSNet on the owner's phone.
+- **Paths:** the repo `<repo>` (my cwd is `<repo>/architects`); the rig home `~/openrig`; my scratch
+  `~/openrig/scratch/rig/`; the operator log `~/openrig/operator/log-YYYY-MM.md`.
+- **Permissions:** architect seats run in `architects/`, so they load **`architects/.claude/settings.json`**. The
+  repo-root `.claude/settings.json` is never read (verified 22:35Z). Which `settings.local.json` is used is unclear
+  (`architects/` was rewritten at 22:32Z). Rules stay unproven until a native probe passes. In architect panes: "Yes" once only, never
+  "don't ask again", never a `/permissions` save after a cp install.
+- **Investigations** (owner-approved method): ask the operator once for a bounded copy of other seats' native logs
+  into my scratch, then run one script the operator inspects. Don't iterate reads.
+- **Cards:** before calling any of my cards unanswered, check `decisions/task-<id>.json` (PD-032 miss).
+- **Shell:** no `$`, backticks or pipes; one command per call. Use `--body-file` for queue text.
+- **Queue:** `rig queue create --destination <seat> --body-file <f> --summary <s>`; `rig queue handoff <id> --to
+  <seat> --body-file <f>`. Don't park ideas as self-queue items: the stuck sweep fires on them.
+- **Before handing over a copy of a live job file,** diff it against the live version (the Diplomacy stale-template
+  miss).
+- **Don't claim enforcement or prompt-free runs I haven't verified.** I can't see my own prompts.
 
 ## 7. Read first
-1. `architects/brief.md`, `ROLES.md`, `briefs/SHARED-RULES.md`
-2. `ARCHITECTURE-LOG.md` (PD entries, then Notes for other roles)
-3. `briefs/validation-brief-1.md` and `~/openrig/research/validation-1/validation.json`
-4. `briefs/research-brief-run-2.md` (the current research template)
-5. `models/roles/rig-architect.md` (how I'm graded) and `models/LOG.md` "Notes for the Rig Architect"
-6. `dashboard/REQUESTS.md` (what I've asked of the Platform Architect)
+`architects/brief.md`, `ROLES.md`, `briefs/SHARED-RULES.md`, `ARCHITECTURE-LOG.md` (PD-024 onward and the Notes),
+`models/roles/rig-architect.md`, and `dashboard/REQUESTS.md`.
 
 ## 8. Don't
-- Edit console code, `studio/`, `models/` or another architect's log. Request it instead.
-- Write a rule in more than one place, or let seats keep rule copies in their memory.
-- Send the operator anything without an approved gate.
-- Give agents payment details, account creation or platform automation (LinkedIn, Reddit, Upwork,
-  Fiverr bots).
-- Let a research brief demand something public evidence can't show.
-- Trust a single OpenRig signal for an alert, or ask the owner to relay messages.
+- Edit console code, `studio/`, `models/` or another architect's files. Request instead.
+- Send the operator new instructions without an approved gate. Routine coordination and owner-authorized items are
+  the exception.
+- Message team seats directly, touch `decisions/`, read `~/.config/`, run git writes, use sudo or Windows programs.
+- Trust a single OpenRig signal for an alert, or call a seat stuck from point readings.
+
+---
+A Lounge exists if you have something you want to say (optional).

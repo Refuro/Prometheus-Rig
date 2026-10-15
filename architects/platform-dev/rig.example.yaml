@@ -1,0 +1,25 @@
+# Example. Copy to rig.yaml (gitignored) and replace <home> with your home folder, e.g. /home/you.
+# The seat works outside the repo, and rig specs take only a relative path (from this folder) or an absolute one.
+version: "0.2"
+name: platform-dev
+summary: >
+  One sandboxed Codex developer working for the Platform Architect. It implements, tests and reviews console changes
+  in Platform's scratch copy. Platform directs, reviews and ports; the owner deploys.
+
+culture_file: CULTURE.md
+
+pods:
+  - id: dev
+    label: Platform developer
+    summary: Works in ~/openrig/scratch/platform/dev (code copy and out/). Never the repo or the live console.
+    members:
+      - id: codex
+        label: "Platform developer (Codex)"
+        agent_ref: "local:agents/dev"
+        runtime: codex
+        model: gpt-6.1-sol
+        profile: default
+        cwd: "<home>/openrig/scratch/platform/dev"
+    edges: []
+
+edges: []

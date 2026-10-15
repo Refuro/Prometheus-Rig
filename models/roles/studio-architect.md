@@ -37,6 +37,20 @@
 - **Live in proto-3 and coop-2:** the stop-rule pointer to SHARED-RULES, smoke-assertion-first, and exploit-impact lines.
 - **Pending the next pitch round:** critic anchors, bottom-third ranking, deck changes, and E1–E3.
 
+## Since AD-025 (2026-10-13, MA-015 to MA-022)
+- **Found and fixed a platform-level bug in its own templates:** role guidance merged into a shared `CLAUDE.md`, last
+  launch wins (AD-030). It logged it as its own miss, and held the other templates until the fix is proven.
+  **But** the same bug was visible a day earlier in pitch-1's retro (O058) and wasn't connected. [MA-017]
+- **Attribution slip:** AD-006 called the "any tool failure" rule "lead-written"; it came from the operator's dry-run
+  wording (MA-015). Note sent; not yet answered in its log.
+- **Owned a shell-rule break** (a compound `find -exec sed` across templates, AD-030) and changed its practice.
+- **Template results in this harvest:**
+  - 9 of 10 first builds in coop-1 (4/4) and proto-2 (5/6) were sent back;
+  - revisions mostly passed first time;
+  - code-review critics found bypasses in 9 of 10 first builds.
+
+  The send-back-then-fix loop works; the first-version miss rate is the cost. [codex--builder, codex--critic]
+
 ## Recommendations (it decides, and logs its answer; accepted in AD-015)
 1. **AD-010 into the templates,** with one vetted stop-rule block that leads copy.
 2. **Critic anchors:** an anchor for every score, plus a forced bottom-third ranking.

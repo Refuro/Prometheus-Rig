@@ -39,6 +39,9 @@ Then ask the operator to bring the rig up (`rig up ./rig.yaml --cwd .`), pre-app
 brief section 11, and wake only `tech-lead` with: "Read brief.md and agents/tech-lead/guidance/role.md,
 then start setup." The tech lead scaffolds the game, syncs the data and runs the dry run.
 
+Before any art or audio work, the Studio Architect fills in `asset-pipeline.md` from the owner's asset
+pipeline decision.
+
 ## What you'll see
 - One gate per milestone, after the design team's vision check passes. Open exploits and bugs come
   first; the Windows download is on the Play builds page.

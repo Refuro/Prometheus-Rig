@@ -110,7 +110,8 @@ All in `~/openrig/research/run-1/`:
 ## 8. Limits and stop rules
 - Never: spend money, create accounts, sign up for anything, post publicly,
   or contact people.
-- Stop at the checkpoint in section 9 and wait for my approval.
+- Stop at the checkpoint in section 9 and wait for my approval, which comes as a gate (`SHARED-RULES.md` §1,
+  format in `JOBS.md` §4).
 - Effort cap: the longlist and screen happen in one working session. If the
   work can't finish within the cap, stop and report what's missing instead of
   pushing on.

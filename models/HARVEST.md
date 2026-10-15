@@ -26,6 +26,8 @@ Column meanings are in `README.md`. Leave a cell blank rather than guess. Use `u
 ## How it is harvested
 `python3 models/tools/harvest.py` (run by the Model Architect, from the repo root):
 1. **Finds the files:** looks for `model-notes.jsonl` and `model-metrics.csv` in `jobs-mirror/*/` and `research-mirror/*/`. With `--live`, it reads `~/openrig/jobs/*/` and `~/openrig/research/*/` directly; the mirrors go stale. Ledger paths keep the mirror names, and the hash is the same either way.
+   - **Also seats' own folders,** one or two levels down (e.g. a lab game's `clerk/` and `powers/<nation>/`), since
+     MA-024. `harvested_from` then includes that subfolder; `harvest_hash` is unchanged (job name plus line).
 2. **Validates and imports:**
    - validates each line;
    - adds `rig`, `id` and `harvested_from`;

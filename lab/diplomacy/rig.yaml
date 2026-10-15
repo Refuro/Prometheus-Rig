@@ -1,0 +1,86 @@
+version: "0.2"
+name: diplomacy-1
+summary: >
+  Seven Great Powers play standard Diplomacy. A clerk runs the clock and a code adjudicator; a chronicler writes the story at the end. Everything
+  stays inside the job folder. Brief: brief.md.
+
+culture_file: CULTURE.md
+
+docs:
+  - path: brief.md
+  - path: README.md
+
+pods:
+  - id: clerk
+    label: Clerk
+    summary: Clock and adjudicator. Not a player.
+    members:
+      - id: clerk
+        label: "Clerk (Claude)"
+        agent_ref: "local:agents/clerk"
+        runtime: claude-code
+        profile: default
+        cwd: "./clerk"
+    edges: []
+
+  - id: chronicle
+    label: Chronicler
+    summary: Idle until the game ends, then writes the story from the full archive.
+    members:
+      - id: writer
+        label: "Chronicler (Claude)"
+        agent_ref: "local:agents/chronicler"
+        runtime: claude-code
+        profile: default
+        cwd: "./chronicle"
+    edges: []
+
+  - id: power
+    label: Great Powers
+    summary: Seven players. Each works only in its own folder.
+    members:
+      - id: austria
+        label: "Austria (Claude)"
+        agent_ref: "local:agents/power"
+        runtime: claude-code
+        profile: default
+        cwd: "./powers/austria"
+      - id: england
+        label: "England (Claude)"
+        agent_ref: "local:agents/power"
+        runtime: claude-code
+        profile: default
+        cwd: "./powers/england"
+      - id: france
+        label: "France (Claude)"
+        agent_ref: "local:agents/power"
+        runtime: claude-code
+        profile: default
+        cwd: "./powers/france"
+      - id: germany
+        label: "Germany (Codex)"
+        agent_ref: "local:agents/power"
+        runtime: codex
+        profile: default
+        cwd: "./powers/germany"
+      - id: italy
+        label: "Italy (Codex)"
+        agent_ref: "local:agents/power"
+        runtime: codex
+        profile: default
+        cwd: "./powers/italy"
+      - id: russia
+        label: "Russia (Codex)"
+        agent_ref: "local:agents/power"
+        runtime: codex
+        profile: default
+        cwd: "./powers/russia"
+      - id: turkey
+        label: "Turkey (Claude)"
+        agent_ref: "local:agents/power"
+        runtime: claude-code
+        profile: default
+        cwd: "./powers/turkey"
+    edges: []
+
+edges: []

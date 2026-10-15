@@ -16,7 +16,7 @@ profiles:
   default:
     uses:
       skills: []
-      guidance: [role]
+      guidance: []
       subagents: []
       plugins: [openrig-core]
       runtime_resources: []

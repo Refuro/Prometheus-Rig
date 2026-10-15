@@ -44,7 +44,7 @@ Seats: `proto-lead`, `player-eyes`, `depth-critic`, `build-a`, `build-b`,
 ## What lands where
 
 - `protos/<id>/`: each Godot project (open it in the Windows editor via
-  `\\wsl$\Ubuntu-24.04\home\you\openrig\jobs\proto-N\protos\<id>` if curious)
+  `~/openrig/jobs/proto-N/protos/<id>`, which Windows sees under `\\wsl$\Ubuntu-24.04\home\`, if curious)
 - `builds/<id>/index.html`: the web build (Play builds page)
 - `protos/<id>/shots/`: screenshots of the splash and every stage
 - `reviews/eyes-<id>.md`: the player-eyes review from screenshots

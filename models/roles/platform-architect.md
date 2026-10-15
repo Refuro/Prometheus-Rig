@@ -52,6 +52,22 @@
 - **PL-012:** a soft gate maximum, `harvest_hash` matching, and per-seat models in launch records.
 - **My re-test (MA-013):** 97/97 reproduced, and my probes held. Three gaps found: builds-port scope (any job file is served), a `*.ts.net` wildcard, and an unchecked `X-Forwarded-Host`. Plus: confirm a token is set.
 
-## Open (as of MA-013)
-- **Root access:** the owner chooses A, B or C (PL-011), then step 3. Finding 1 (code on `/mnt/c`) is part of option A.
-- **The three MA-013 gaps.**
+## Option A and the re-tests (2026-10-13, MA-014 to MA-021)
+- **Takes review seriously and fast:**
+  - all MA-014 findings fixed or deferred with reasons (PL-027);
+  - the four MA-016 findings and Codex's cross-check addressed within about half an hour (PL-030), adopting the
+    stronger boundary Codex proposed;
+  - my MA-020 hole fixed within the hour (PL-031).
+  - It pulled the owner's cards itself while fixes were pending.
+- **Re-tested, not just read:** `probe_console.py` 12/12 after PL-031 (the MA-013 gaps closed).
+- **Pushed back with reasons where it disagreed:** carrying the fingerprint ledger over (PL-030). I agreed.
+- **Misses:**
+  - the first round put the owner in front of uncommitted, unreviewed setup scripts (MA-016 finding 2);
+  - round 2 still sends the owner to plain git in the agents' repo, and doesn't refuse symlinks (MA-021, R2-1 to
+    R2-3);
+  - it fixed MA-014 only after the owner's go-ahead, a day after the review (its own words, PL-027).
+- **Confidence:** medium.
+
+## Open (as of MA-021)
+- **R2-1 to R2-3,** then the owner's two option A cards.
+- **Option B** (agents not running as the owner) remains the real boundary; PL-030 says so plainly.

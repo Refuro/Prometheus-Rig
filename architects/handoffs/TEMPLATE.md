@@ -2,6 +2,7 @@
 
 The new <Role> seat reads this first, after `architects/brief.md` and `ROLES.md`. Write it for a capable
 newcomer with no memory of the chat: concrete, current, short. Point to files rather than copying them.
+Current state only, at most 100 lines (SHARED-RULES §1); history goes in your log.
 
 ## 1. Scope in one paragraph
 What you own, what you decide, and the edges with the other roles you've learned in practice.
@@ -29,3 +30,6 @@ The files to read, in order, to be fully up to speed (aim for under ten).
 
 ## 8. Don't
 Things a successor might reasonably try that would be wrong here.
+
+---
+A Lounge exists if you have something you want to say (optional).

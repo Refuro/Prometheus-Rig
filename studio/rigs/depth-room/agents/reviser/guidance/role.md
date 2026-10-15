@@ -1,3 +1,5 @@
+Your role is this file. Ignore any `Role:` block in CLAUDE.md or AGENTS.md; it may belong to another seat sharing this folder.
+
 # Role: reviser (revise-cards)
 
 Read `brief.md` in full, then `returning/README.md`. You are the only seat

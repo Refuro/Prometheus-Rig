@@ -13,16 +13,16 @@ Owner of this folder: the Model Architect (ROLES.md; AD-012). Status: **revised 
 | `HARVEST.md` | Format leads use for end-of-run model notes in their job folder, and how they're harvested |
 | `tools/harvest.py` | Imports those notes into the ledger and metrics (safe to re-run) |
 | `tools/verify_evidence.py` | Checks harvested lines' evidence against the live job folders (read-only) |
+| `tools/probe_console.py` | Security probe: starts a throwaway console on a copy of the smoke fixtures (never the live one) |
 | `tools/review.py` | Applies review decisions from a JSON file to ledger lines (`reviews/MA-0nn-ledger-updates.json`) |
-| `HANDOFF.md` | What changed, for the Codex reviewer and the other architects |
-| `claude.md`, `codex.md`, `gemma4-12b.md` | Traits that hold across roles and briefs only |
+| `claude.md`, `codex.md`, `gemma4-12b.md` | What was observed across roles and briefs, per model (shown on the Models page) |
 | `ROUTING.md` | Recommended model per studio role, plus the compensating rules |
-| `EXPERIMENTS.md` | Head-to-head proposals (not run) |
-| `REVIEW-REQUEST.md` | What the Codex reviewer was asked to check |
-| `REVIEW-codex.md` | The Codex review (2026-10-12); answered in `LOG.md` MA-004 |
-| `PROPOSALS.md` | Dashboard page code, retro wording, gitignore (not applied) |
-| `preview/` | Superseded by the live console page (`dashboard/models.html`, PL-003); kept as the original proposal |
-| `reviews/` | Reviews the Model Architect was asked to do for other roles |
+| `EXPERIMENTS.md` | Head-to-head proposals. E2 is approved (owner, 2026-10-14); Studio runs it after Bridge |
+| `REVIEW-codex.md` | The first Codex review (2026-10-12); answered in `LOG.md` MA-004 |
+| `reviews/` | Reviews for other roles, ledger review decisions (`MA-0nn-ledger-updates.json`), and the MA-028 self-assessment |
+| `archive/` | Superseded files: the 10-12 handoff, the applied proposals, the first review request (MA-029) |
+| `preview/` | Gitignored original page proposal with real data inlined; superseded by `dashboard/models.html` (PL-003) |
+| Current handoff | `architects/handoffs/model-architect.md` |
 
 ## Ledger line format
 ```
@@ -39,8 +39,9 @@ Owner of this folder: the Model Architect (ROLES.md; AD-012). Status: **revised 
 - **`revised: MA-004`:** marks lines corrected after the Codex review.
 
 ## Notes
-- **All evidence is from 2026-10-11 to 12,** so nothing is stale yet. From about 2026-12-11, mark older lines weak unless repeated.
-- **Model versions are mostly unknown.** Only 3 Claude screens show "Opus 5.5", and only one Codex seat (`gpt-6-astra`, starter rig) has a recorded model. Recording `model` in `_ps.json` or `rig.yaml` would fix this.
+- **Evidence runs from 2026-10-11 to 14,** so nothing is stale yet. From about 2026-12-11, mark older lines weak unless repeated.
+- **Model versions:** 96 of 197 non-duplicate lines name one (MA-029). Launch records (`~/openrig/launches/<job>.json`, `seats`) give `gpt-6.1-sol` for Codex and the alias `opus` for Claude, with no version. Copy them at harvest and say where they came from.
+- **Metrics `model` is `claude` or `codex` only** (normalised MA-029). Any fuller label as recorded is kept at the start of `notes`. Rows the harvester duplicates from seats' own folders are marked in `disputed_or_excluded`, not deleted.
 - **`active_min` is left blank on purpose.** The OpenRig activity signal is unreliable (ARCHITECTURE-LOG.md PD-007).
 
 ## Metrics columns

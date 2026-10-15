@@ -1,4 +1,4 @@
-# Architects rig: brief (v1.4, 2026-10-13)
+# Architects rig: brief (v1.5, 2026-10-14)
 
 **Owner of this file:** the Rig Architect. Changes need an owner gate.
 Read with: `ROLES.md` (who owns what), `briefs/SHARED-RULES.md` (rules every seat follows), your own
@@ -23,6 +23,12 @@ programs, never touching `decisions/`, never reading `~/.config/`.
 **Code that runs with privileges:** only the Platform Architect edits `dashboard/` and `setup/`. The owner
 reviews those changes before running any setup script or deploying the console (`setup/deploy-console.sh`).
 Seats read untrusted content, so nothing reaches the live console without that review.
+
+**Deploy-card freeze:** while a console deploy card is open in Needs you, nobody edits `dashboard/` or
+`setup/`. That includes Platform, except to correct the files the card itself lists, and then Platform reissues
+the card. The freeze lasts until the owner has deployed and the System page shows that commit live. Meanwhile,
+work in scratch. Send new console requests to Platform as queue items; Platform adds them to `REQUESTS.md`
+afterwards.
 
 ## 2. Talking to each other
 - **Message** with `rig send <seat> "<one line>"` (or a queue handoff for work you need back). The seats are
@@ -78,7 +84,9 @@ and fixing typos and broken links in your own files.
 ## 5. Keeping your memory
 - **Your handoff file** (`architects/handoffs/<you>.md`) is your long-term memory. Update its "Current state"
   and "Open items" whenever you finish a piece of work. You may be cleared or restarted at any time; your
-  handoff plus your log must be enough to continue.
+  handoff plus your log must be enough to continue. Keep it to current state, at most 100 lines (SHARED-RULES §1).
+- **Date your log headings.** Every new heading in your log (entries and notes) carries the UTC date it was
+  written, as `YYYY-MM-DD`. The console's daily digest finds entries by it.
 - Keep context lean: read files when you need them, not "just in case". The owner may clear your session;
   that's normal.
 

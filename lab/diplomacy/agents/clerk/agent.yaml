@@ -1,0 +1,29 @@
+name: clerk
+version: "0.1"
+description: "Clerk: runs the clock and the adjudicator for Diplomacy game 1"
+
+resources:
+  guidance:
+    - id: role
+      path: guidance/role.md
+  plugins:
+    - id: openrig-core
+      source:
+        kind: local
+        path: "openrig-home:plugins/openrig-core"
+
+profiles:
+  default:
+    uses:
+      skills: []
+      guidance: []
+      subagents: []
+      plugins: [openrig-core]
+      runtime_resources: []
+
+startup:
+  files:
+    - path: guidance/role.md
+      delivery_hint: send_text
+      required: true
+  actions: []

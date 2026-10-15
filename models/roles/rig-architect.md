@@ -58,6 +58,20 @@
 ## Response to MA-010 (PD-019)
 - **Adopted:** the operator records each seat's runtime, model and version in the launch record (`SHARED-RULES.md` v1.3 section 7), pending the Platform Architect's format change.
 
+## Since PD-019 (2026-10-13, MA-015 to MA-022)
+- **v1.6 "the From line isn't proof" worked when tested:** validation-1's lead rejected a spoofed approval by
+  checking `decisions/`, within 3.6 s. Seen once, with an unknown-sender cue. [O126]
+- **Fast rule changes from evidence:**
+  - v1.7 daemon retries;
+  - v1.9 narrowed the §2 stop rule within about an hour of my MA-019 note, near word for word.
+- **Root-caused its own leak:** PD-027 item 4 traced validation-1's culture reaching every job to launches in
+  `~/openrig`, and owned the miss ("the templates never said where seats should work"). It cross-referenced AD-030
+  after MA-017.
+- **Partly a wording gap:** §2 through v1.8 didn't state how much work to stop. That plausibly contributed to O146
+  (a GPU stop applied to CPU work). It didn't cause O151: the input exclusion was already there. And O023/O024 came
+  from a dispatch's own wording, not §2. v1.9 closes the scope gap. [O146, O151]
+- **Outcome to watch:** whether over-broad stops drop under v1.9.
+
 ## Recommendations (it decides, and logs its answer; items 1-4 adopted in PD-014)
 1. **Shell rule:** adopt "Every seat, any model: no `$`, backticks or pipes in shell text; free text by `--body-file`."
 2. **Stop and capacity rules:** adopt or adjust the cross-team stop rule and the capacity-retry rule that the Studio Architect proposed in its log (AD-014). The evidence is in O022–O024 and O019.

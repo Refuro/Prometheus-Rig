@@ -39,6 +39,21 @@ models/preview/
 # Per-seat files OpenRig and Claude Code write inside rig folders
 **/.claude/settings.local.json
 **/.openrig/
+# Any seat's Claude settings: their permission rules name this PC's paths (public readiness, 2026-10-15)
+**/.claude/
+
+# Live rig specs whose working folder is outside the repo: only the .example.yaml is published
+/architects/platform-dev/rig.yaml
+
+# Model Architect files kept private (MA-032): ledger edits quote the private ledger; the Diplomacy review quotes
+# game output; these security reviews describe gaps not yet fixed; the archived proposals name a personal path
+models/reviews/*-ledger-updates.json
+models/reviews/diplomacy-1/
+models/reviews/PL-027-recheck.md
+models/reviews/platform-dev-sandbox.md
+models/reviews/rig-seat-mod-security.md
+models/reviews/rig-platform-check-review.md
+models/archive/PROPOSALS.md
 
 # Owner's Advisor private notes (tailnet address) and one-off kickoff messages
 /ADVISOR-HANDOFF.md

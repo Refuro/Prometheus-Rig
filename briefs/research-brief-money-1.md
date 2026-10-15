@@ -76,11 +76,11 @@ Funnel:
 2. **Screen to 5:** each needs verified earnings from at least 3 independent
    operators, a policy page showing it's allowed, and an Economics pass.
 3. **Skeptic pass on the 5**, one line each.
-4. **Checkpoint 1:** report and wait.
+4. **Checkpoint 1:** report, open a gate (`SHARED-RULES.md` §1, `JOBS.md` §4) and wait.
 5. **Deep dive** the ones I choose, with the same verdict categories as
    research-run-2: contradicted, insufficient evidence, worth a small test,
    shortlist. The lead answers each skeptic objection before closing one.
-6. **Checkpoint 2:** report and wait.
+6. **Checkpoint 2:** report, open a gate and wait.
 
 ## 7. Deliverables
 In ~/openrig/research/money-1/: niches.json (per NICHES-SCHEMA.md, installed with the briefs from dashboard/,

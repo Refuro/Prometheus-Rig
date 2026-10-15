@@ -1,0 +1,47 @@
+version: "0.2"
+name: e2-critics
+summary: >
+  Experiment E2 (models/EXPERIMENTS.md): a Claude critic and a Codex critic re-judge depth-1's 24
+  blind cards with the same anchored role and a rubric fixed before scoring. The Studio Architect
+  dispatches and records. No gate. Brief: brief.md.
+
+culture_file: CULTURE.md
+
+docs:
+  - path: brief.md
+  - path: README.md
+
+pods:
+  - id: critics
+    label: Critics
+    summary: Two critics, same inputs, never reading each other's output.
+    members:
+      - id: claude
+        label: "Critic (Claude)"
+        agent_ref: "local:agents/critic"
+        runtime: claude-code
+        profile: default
+        cwd: "."
+        startup:
+          files: []
+          actions:
+            - type: send_text
+              value: "You are the claude critic; your folder is out/claude/. Read brief.md and rubric.md, then wait for the start message from arch-studio@architects."
+              phase: after_ready
+              idempotent: true
+      - id: codex
+        label: "Critic (Codex)"
+        agent_ref: "local:agents/critic"
+        runtime: codex
+        profile: default
+        cwd: "."
+        startup:
+          files: []
+          actions:
+            - type: send_text
+              value: "You are the codex critic; your folder is out/codex/. Read brief.md and rubric.md, then wait for the start message from arch-studio@architects."
+              phase: after_ready
+              idempotent: true
+    edges: []
+
+edges: []

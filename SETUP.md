@@ -1,119 +1,61 @@
-# OpenRig setup
+# Setup notes
 
-This folder holds setup scripts and notes. The rig itself will live inside
-WSL at `~/openrig`, not here: OneDrive syncing and Windows-mounted folders are
-slow for git, tmux and SQLite, and can corrupt them.
+How this rig was set up on one Windows PC, and why. **For the install steps, see `README.md` → Getting started.**
+This file keeps the decisions behind them. Paths use `<you>` for the Windows and Linux user names.
 
-## Step 1: WSL2 + Ubuntu  (done 2026-10-11)
+## Where things run
+- **The agents run inside WSL2 (Ubuntu 24.04),** in `~/openrig`, not in the Windows folder that holds this repo.
+  OneDrive syncing and Windows-mounted folders are slow for git, tmux and SQLite, and can corrupt them.
+- **This repo** lives on the Windows side (`/mnt/c/Users/<you>/…/OpenRig`), so the owner can edit and commit from
+  either side.
+- **WSL settings** (`setup/wslconfig.txt`, copied to `%USERPROFILE%\.wslconfig`): mirrored networking and a memory
+  cap that leaves room for Windows.
+- **`/etc/wsl.conf`** turns systemd on and stops WSL inheriting the Windows `PATH`, so Windows Node or npm can't
+  shadow the Linux tools:
 
-Result: Ubuntu 24.04, Node v22.23.3, tmux 3.4, git 2.43.0, RTX 4080 SUPER
-visible in WSL (16 GB, driver 591.86). Linux user: you.
+      [boot]
+      systemd=true
 
-Follow-up (done, PATH verified clean): stop WSL from inheriting the Windows PATH (Windows npm globals
-were leaking in). Inside Ubuntu:
+      [interop]
+      appendWindowsPath=false
 
-    printf '[boot]\nsystemd=true\n\n[interop]\nappendWindowsPath=false\n' | sudo tee /etc/wsl.conf
+  Then run `wsl --shutdown` in PowerShell and reopen Ubuntu.
 
-then `wsl --shutdown` from PowerShell and reopen Ubuntu.
+## OpenRig
+- **Install:** `npm install -g @openrig/cli`, then `rig setup --no-herdr` (plain tmux, fewer moving parts on WSL),
+  then `rig doctor`. The daemon listens on `127.0.0.1:7433`.
+- **What setup changes:** it edits `~/.claude.json` and `~/.codex/config.toml` to trust the managed workspaces,
+  and writes per-project `.claude/settings.local.json` and `.mcp.json`. We use the standard permission policy,
+  never "YOLO".
+- **The kernel** (operator and advisor seats) starts with the daemon. Teams are launched from rig specs: the
+  architects rig is `architects/rig.yaml`, and team templates live in `briefs/` and `studio/`.
+- **Starting point:** OpenRig's shipped starter rigs, rather than specs written from scratch.
 
+## Always-on services
+- **Snapshot and activity logger:** `setup/install-autostart.sh` installs `rig-snapshots` as a systemd service. It
+  mirrors agent screens and state every 10 s for the console.
+- **Keep-alive:** `setup/install-wsl-keepalive.ps1` (PowerShell, once) is a logon task that keeps Ubuntu and the
+  agents' tmux sessions running with no terminal open.
 
-1. Open **PowerShell as Administrator** and run:
+## Rig Console
+- **Install once:** `bash setup/install-dashboard-service.sh`. Settings and secrets live in
+  `~/.config/rig-console.env`, never in the repo.
+- **Releasing changes:** the Platform Architect prepares a release note, and the owner runs the root-owned
+  `rig-console-release` started straight from Windows (`wsl --exec /usr/local/sbin/rig-console-release`). It shows
+  every changed line, commits only the listed files, then deploys with its own smoke test. See the header of
+  `setup/release-console.sh`.
+- **Phone and laptop access:** Tailscale on each device (same account, two-factor login). The console stays on
+  `127.0.0.1`, and `tailscale serve` publishes it to your tailnet only. Steps are in the README.
+- **Push alerts:** ntfy, with a hard-to-guess topic in the env file. On Android, only one VPN runs at a time, so
+  Tailscale replaces any DNS-filter VPN app.
 
-       wsl --install -d Ubuntu-24.04
-
-2. **Restart the PC.**
-3. Ubuntu opens (or launch it from the Start menu). Pick a Linux username
-   and password.
-4. Back in a normal PowerShell, apply the WSL settings:
-
-       Copy-Item "$env:USERPROFILE\OneDrive\Documents\Projects\OpenRig\setup\wslconfig.txt" "$env:USERPROFILE\.wslconfig"
-       wsl --shutdown
-
-5. Open Ubuntu again and run the bootstrap:
-
-       bash /mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig/setup/bootstrap-wsl.sh
-
-6. Paste the output back to Claude.
-
-## Step 2: Remote access from the laptop
-Tailscale on both machines, SSH into WSL. (Deferred until after step 3,
-since we're at the desktop now.)
-
-## Step 3: Local model  (done 2026-10-11)
-
-Winner: gemma4:12b as the default local model. Test results (model-test/):
-both passed strict-JSON and tool-call format; gemma was faster (90-200 tok/s
-vs ~70) and clearly better on the skeptic task (caught the utility-data API
-problem and churn risk; qwen's tests were vaguer and partly off-target).
-qwen3-coder:30b kept for possible coding seats; remove with `ollama rm` if
-disk is tight. Single run, small sample: revisit if gemma struggles in real use.
-
-Ollama installed natively on Windows (simplest GPU path); WSL reaches it at
-http://localhost:11434 through mirrored networking. Ollama has no Qwen3-Coder 14B; candidates checked on ollama.com:
-- gemma4:12b (~8 GB): fits fully on the 16 GB GPU with room for context.
-- qwen3-coder:30b (19 GB, MoE, ~3B active): spills partly into RAM; the
-  smarter-but-slower experiment.
-
-## Step 4: Minimal rig  (done 2026-10-11)
-
-Smoke test passed: starter team (dev-build = Claude Code, dev-review = Codex
-GPT-6-Astra) in ~/openrig. Chain operator -> builder -> reviewer -> operator
-worked through the durable queue; builder cut its draft 160 -> 130 words to meet
-the limit, reviewer verified independently (wc -w). Output:
-~/openrig/handoff-smoke-test.md. Both seats idle afterwards.
-Snapshots: setup/rig-snapshots.sh mirrors agent screens to snapshots/ every 10s
-so Claude can read them directly.
-
-
-Installed in WSL: Claude Code + Codex CLI (both logged in), OpenRig CLI.
-`rig setup --no-herdr` complete; `rig doctor` all OK (cmux warning is optional,
-ignore). Daemon listens on 127.0.0.1:7433.
-Dry run reviewed: setup edits ~/.claude.json and ~/.codex/config.toml (trust
-managed workspaces), plus per-project .claude/settings.local.json (status line,
-auto-accept edits inside the project) and .mcp.json. Acceptable.
-Choices: core profile, --no-herdr (plain tmux; fewer moving parts on WSL),
-Standard permission policy, never YOLO. Keep the kernel (operator + advisor)
-but watch Pro usage.
-
-`npm install -g @openrig/cli`, then a 3-seat rig: Claude lead, Codex
-implementer, local-model researcher.
-
-## Decisions
-- Rig runs on this desktop in WSL2; the Ubuntu laptop reaches it remotely.
-- Local model runs on Windows (Ollama), shared by WSL agents over localhost.
-- WSL does not inherit the Windows PATH, so Windows Node/npm can't shadow Linux tools.
-- WSL capped at 16 GB RAM to leave room for Windows and model offload.
-
-## Tooling research (2026-10-11)
-- Start from OpenRig's shipped starter rigs (first-project, research-team,
-  adversarial-review) instead of writing RigSpecs from scratch.
-- Local-model seats: OpenRig's Pi adapter + the pi-ollama extension
-  (auto-discovers Ollama models). Review its source before installing.
-- Shared memory: plain markdown decision/experiment logs in the rig repo first.
-  Upgrade path: Basic Memory MCP (also plain markdown, no lock-in).
-- Reddit: self-service API access closed (Nov 2025) and unauthenticated .json
-  reportedly blocked (May 2026). Don't plan the research pod around Reddit
-  MCP servers; use web search/fetch, app-store reviews, review sites, HN.
-- Skip for now: Claude Code Agent Teams (Claude-only, ~3-4x tokens),
-  oh-my-claudecode / other orchestrators (would overlap with OpenRig).
-
-## Always-on measurement
-- setup/install-autostart.sh: snapshot + activity logger as a systemd service.
-- setup/install-wsl-keepalive.ps1: Windows logon task keeping Ubuntu (and the
-  agents' tmux sessions) alive when no terminal is open.
-
-## Rig Console (dashboard)
-- **Install:** `bash setup/install-dashboard-service.sh` (once). Settings live in `~/.config/rig-console.env`.
-- **After code changes:** deploy with `bash setup/deploy-console.sh`. It lists what differs from the live copy
-  and asks before copying. This applies once security option A is installed (PL-011/PL-013); before that,
-  `sudo systemctl restart rig-dashboard`.
-- **Phone and laptop access** (Tailscale, set up 2026-10-11):
-  1. Tailscale is on the PC and phone, on the same account, with two-factor login.
-  2. `RIG_CONSOLE_TOKEN` is in the env file. The console stays on `127.0.0.1`.
-  3. In PowerShell, once:
-     - `tailscale serve --bg 8800` (the console);
-     - `tailscale serve --bg --https=8443 http://localhost:8801` (playable builds, R-006).
-  4. Open `https://<pc>.<tailnet>.ts.net/?token=<token>` once per device; a cookie remembers it.
-- **Phone push:** `NTFY_TOPIC` (hard to guess) and `NTFY_CLICK=https://<pc>.<tailnet>.ts.net` in the env
-  file; subscribe to the topic in the ntfy app (F-Droid build on GrapheneOS). Android allows only one VPN at
-  a time, so Tailscale replaces any DNS-filter VPN app.
+## Decisions worth knowing
+- **Local models are parked.** Ollama ran on Windows with GPU access, and WSL reached it over localhost.
+  `gemma4:12b` passed the format tests, but local models' tool calls failed in real agent loops, so every seat uses
+  Claude Code or Codex.
+- **Shared memory is plain Markdown:** logs, handoffs and briefs in this repo, with no memory service.
+- **Skipped:** Claude Code agent teams (Claude-only, several times the tokens) and other orchestrators that would
+  overlap with OpenRig.
+- **Reddit isn't a research source.** Self-service API access closed in Nov 2025, and unauthenticated access was
+  reportedly blocked in May 2026. Research teams use web search and fetch, app stores, review sites and HN, under
+  `briefs/RESEARCH-WEB-ACCESS-RULE.md`.

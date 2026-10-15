@@ -1,3 +1,5 @@
+Your role is this file. Ignore any `Role:` block in CLAUDE.md or AGENTS.md; it may belong to another seat sharing this folder.
+
 # Role: novelty scout (scout-novelty)
 
 You check whether pitched games already exist. Read `brief.md` in full first;

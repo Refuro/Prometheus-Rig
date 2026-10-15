@@ -11,14 +11,15 @@ The new seats start from those (`rig-architect.md` is done).
 ## Launch (operator, in Ubuntu)
     mkdir -p ~/openrig/jobs/architects/gates
     cp job.json ~/openrig/jobs/architects/job.json
-    cd /mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig/architects
+    cd <repo>/architects
     rig spec validate rig.yaml && rig spec preflight rig.yaml
     rig up ./rig.yaml --plan
     rig up ./rig.yaml
 
-- **Working directory:** every seat works in the repo root, set as an absolute path in `rig.yaml`. Don't
-  pass `--cwd`: it overrides every seat's working directory (the first launch used `--cwd .`, so seats
-  started in `architects/` and repo edits prompted). Check with `rig whoami` or the seat's header.
+- **Working directory:** every seat works in `architects/` (`cwd: "."` in `rig.yaml`, which resolves to the
+  spec's own folder). That's why the architects' permission rules live in `architects/.claude/`; the repo-root
+  `.claude/settings.json` is not loaded. Don't pass `--cwd`: it overrides every seat's working directory.
+  Check with `rig whoami` or the seat's header.
 - **Launch record:** write `~/openrig/launches/architects.json` with `folder` = `~/openrig/jobs/architects`
   (gates live there), rig `architects` and lead `arch-rig`.
 - **Models:** start `arch-model@architects` on the strongest Claude model (`/model` in the seat if it isn't the

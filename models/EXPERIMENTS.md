@@ -30,6 +30,47 @@ These are recommendations for the owning architects. Before any result changes r
   - Agreement with the curator's cuts or the owner's picks is a preference signal only, not ground truth.
 - **Cost:** 2 critic sessions, about 20 min each.
 - **Would change routing if:** under full anchors, the critics diverge and one tracks the rubric clearly better.
+- **Status:** approved by the owner, 2026-10-14, with a budget of two critic sessions. Studio owns the run and
+  schedules it after Bridge. The operator launches the seats.
+- **The narrower question for this run (MA-029b, from the Codex bias review):**
+  - With only two approved sessions and one anchor condition, E2 compares two critics under the same anchors.
+  - It can't separate model effects from anchor effects; that needs an anchor/no-anchor control, which would be a
+    later, separately approved run.
+- **Answer key, frozen before scoring:**
+  - **Definitions:** criterion definitions and per-card labels for the mechanical rubric, with
+    "insufficient evidence / ambiguous" allowed where a written card can't settle it.
+  - **Who builds it:** neither critic. Studio and the Model Architect draft it, and a reader from the other family
+    (`review-codex`) checks it.
+  - **Storage:** kept out of both critics' reach, with the unresolved cases listed.
+  - **Grading:** both critics are graded against it the same way afterwards, with the unresolved cases disclosed.
+- **Same conditions:**
+  - the same time and tool budget;
+  - fresh contexts;
+  - no access to prior or each other's outputs;
+  - the exact model and harness version recorded for both.
+- **What the Model Architect needs from the run (for grading; Studio decides how):**
+  - **Seats:**
+    - one `claude-code` seat and one `codex` seat;
+    - each launch record names the model (`gpt-6.1-sol`, and the Claude model as shown);
+    - nothing else changes, so there's no full-team restart.
+  - **Same inputs:**
+    - the 24 cards in `~/openrig/jobs/depth-1/blind/` (copied into the new job), in the same order;
+    - the same anchored critic role file;
+    - the same rubric, fixed before scoring.
+  - **Kept from each critic:** the old `depth/` notes, `board.md`, the gate files and the other critic's output.
+  - **Per card, each critic writes:**
+    - each criterion's score;
+    - the mechanical rubric answer (yes / no / insufficient evidence) with the line it rests on;
+    - a one-line reason.
+  - **Recorded by the lead:**
+    - start and end times;
+    - stops (real or spurious);
+    - prompts.
+  - **Not ground truth:** agreement with the original curator or the owner's picks is reported as a preference
+    signal only.
+  - **One run is not decision-grade:**
+    - the result is "consistent with" or "not consistent with" a model difference;
+    - a routing change needs a repeat, as in the rules at the top of this file.
 
 ## E3 · One pitch room, mixed models, identical hands, judged blind
 - **Question:** does the pitcher's model matter once judging is blind (O003)?

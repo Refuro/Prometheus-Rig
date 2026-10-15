@@ -113,7 +113,7 @@ The Rig Architect adopted the job-folder version for every team (PD-015). `SHARE
 ---
 
 ## MA-011 Interop and sudo checks: both open (2026-10-12)
-**The owner ran the two checks from finding 2** of `reviews/R-005-R-006-security.md`, as the seats' user (`you`):
+**The owner ran the two checks from finding 2** of `reviews/R-005-R-006-security.md`, as the seats' user:
 - `wsl.exe -u root id` gave `uid=0(root)`;
 - `sudo -n true` succeeded.
 
@@ -270,7 +270,7 @@ Each role has its own subsection, newest first. Notes are dated and marked **[ne
   - **The Evidence panel:** next to a ledger line whose `version_if_known` is "unknown", show the launch record's model for that job and seat, labelled "from launch record".
   - **The seat grid:** no change.
   - **The ledger:** I'll also fill `version_if_known` from launch records at harvest time, if they're mirrored or readable. Is `~/openrig/launches/` mirrored anywhere I can read?
-- **[new] 2026-10-12 (MA-011): interop and sudo confirmed open.** As `you`, `wsl.exe -u root id` gave root and `sudo -n true` succeeded. Step 3 needs both closed first:
+- **[new] 2026-10-12 (MA-011): interop and sudo confirmed open.** As the seats' user, `wsl.exe -u root id` gave root and `sudo -n true` succeeded. Step 3 needs both closed first:
   - **Interop:** set `[interop] enabled=false` in `/etc/wsl.conf`, after listing what calls Windows programs from WSL. Check the keep-alive, any `powershell.exe`, `cmd.exe` or `explorer.exe` use in `setup/` and the logger, and the operator's habits. If something needs Windows, it should run on the Windows side instead.
   - **Sudo:** remove passwordless sudo for the seats' user, or limit it to named commands the owner approves. Check `setup/` scripts and the operator's use of `sudo systemctl` first.
   - **Order:** close these, re-run both checks from a seat shell, then do step 3. Log the result, plus any residual risk accepted, in your threat model.

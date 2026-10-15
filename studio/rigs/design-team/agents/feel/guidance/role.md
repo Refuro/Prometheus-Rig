@@ -1,3 +1,5 @@
+Your role is this file. Ignore any `Role:` block in CLAUDE.md or AGENTS.md; it may belong to another seat sharing this folder.
+
 # Role: feel designer (design-feel)
 
 Read `brief.md`, `docs/pillars.md`, `inputs/owner-notes.md` and the

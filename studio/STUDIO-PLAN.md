@@ -1,6 +1,6 @@
 # Game studio plan
 
-Written 2026-10-11, updated 2026-10-12 after the first prototype round. Audience: you, and any agent seat that needs the big picture.
+Written 2026-10-11, updated 2026-10-12 after the first prototype round and 2026-10-14 (stages 3-4). Audience: you, and any agent seat that needs the big picture.
 Each stage has its own brief and rig. This file says how they fit together; a
 stage's brief wins on details.
 
@@ -21,8 +21,8 @@ imagining it.
 | 1B | Friendslop room (online co-op) | `friends-N` | Up to 6 blind-judged cards | Gate: pick 1-3 (or none) |
 | 2 | Prototype sprint | `proto-N` | Three-beat playable builds (web for 1A; Windows co-op for 1B) | Gate: play them, pick 1-2 (or none) |
 | — | Asset pipeline research | research job | Recommended way for Codex to make game assets | Gate: approve the pipeline |
-| 3 | Vision | `studio` (first seats) | Pillars doc, art bible | Approve pillars + one art direction |
-| 4 | Production | `studio` (full) | Milestone builds | Play every milestone build |
+| 3 | Design | `<game>-design` | Pillars, product, design docs, art bible, data | Approve pillars + one art direction, then the design |
+| 4 | Production | `<game>-prod` | Milestone builds | Play every milestone build |
 
 Going back is cheap and expected: "none of these" at gate 1 or 2 just starts
 another pitch round, carrying your notes forward. Tracks 1A and 1B run in
@@ -134,47 +134,49 @@ milestone 1: a feel build you play.
 - **Data-first:** numbers and text live in the game's `data/`, so designers
   change the game without touching code.
 
-## Stage 4: Production (to spec after gate 3)
+## Stage 4: Production (template ready: `studio/rigs/production/`, AD-027)
 
-**A clean build, not a grown prototype.** Production starts a new project
-designed for shipping from day one: Steam integration (GodotSteam:
-achievements, cloud saves, and lobbies/networking for co-op), save system,
-settings, input remapping, localization hooks, and an architecture the tech
-lead designs up front. The winning prototype is reference material (what
-the fun feels like, which numbers worked), never a code base.
+**A clean build, not a grown prototype.** Production starts a new Godot 4
+project made for Steam from day one. All Steam calls go through one Platform
+service. A null version of it runs and records calls until GodotSteam is
+staged. The winning prototype is reference material (what the fun feels
+like, which numbers worked), never a code base. Running now: `bridge-prod`
+(A Bridge Goes Walking).
 
 | Seat | Runtime | Job |
 |---|---|---|
-| `tech-lead` | Claude | Architecture + milestone plan; each milestone ends in a playable build |
-| `dev-N` + `review-N` | Codex + Claude | Implementer/reviewer pairs, cross-vendor (your starter pattern) |
-| `art-concept` | Codex | Concepts, one-off assets, UI |
-| `art-production` | Codex + the researched pipeline | Production assets (2D and/or 3D) through the pipeline chosen by the asset research job, held to the art bible |
-| `art-review` | Claude | Checks every asset batch against the art bible before it enters the game |
-| `playtest-bot` | Codex | Headless simulations: softlocks, difficulty curves, solvability; reports exploits to the balance designer |
+| `tech-lead` | Claude | Architecture, milestone plans, tasks, merges, packets and gates; the only seat that talks to the design team |
+| `dev-a`, `dev-b` | Codex | Implement tasks with their tests, each in its own worktree |
+| `review-code` | Claude | Reviews every task cross-vendor, building it in its own detached worktree |
+| `playtest-bot` | Codex | Bots, soak runs, determinism and performance captures, exploit reports |
+| `player-eyes` | Claude | Judges screenshots as a first-time player, never code |
+| `art-production` | Codex | Art and audio by the routes in the job's `asset-pipeline.md` (from the asset research gate), held to the art bible |
+| `art-review` | Claude | Checks every asset batch and its lineup against the art bible |
 | producer | kernel operator | Queue health, usage budget, phase tracking |
 
-**Working with the design team** (which stays up in its own rig): builders
-send design questions and discoveries to `creative-director`, never guess;
-`check_text.py` runs as a production build step; balance changes are data
-changes. **Vision check per milestone:** the tech lead sends a packet (what
-changed, screenshots, build path, open exploits) to the creative director,
-who returns PASS or FAIL against the pillars. FAIL goes back to the tech
-lead; PASS milestones reach you as a gate, and you play every one.
+**Working with the design team** (which stays up in its own rig): only the
+tech lead asks the creative director, in numbered batches. Design numbers and
+text reach the game only as a hash-checked copy of the design job's data, so
+balance changes are data changes. **Vision check per milestone:** the
+director returns PASS or FAIL against the pillars; only a PASS reaches you as
+a gate. The tech lead also checks in with the Studio Architect at stage
+boundaries (AD-034).
 
-**Milestones (planned shape, AD-020):** builders loop on their own between
-gates (build, tests and playtest bots, design-team review, fix); you play a
-build at every gate.
+**Milestones:** builders loop on their own between gates. Every build passes
+a real-input test, and the tech lead clicks through the web build before each
+gate (AD-032).
 1. **Feel build:** the core physics and controls in a test space, built to
-   `feel.md`; design-feel checks the acceptance tests, then you play it with
-   the owner checklist.
-2. **Vertical slice:** 10-15 minutes of the game at the full quality bar
-   (final art style, audio, UI, onboarding, achievements working).
-3. **Content** in a few gated chunks.
+   `feel.md`; you play it with the owner checklist.
+2. **Vertical slice, in stages with short gates** (Bridge: m2a grey-box
+   crossings and a depth gate; m2b one crossing in final art and an art-check
+   gate; m2c the rest at the full quality bar). Content milestones report
+   their pace (hours per crossing or level, projected to the full game).
+3. **Content** in gated chunks.
 4. **Polish and beta:** bugs, performance, Steam Deck, settings and
    accessibility, against the quality bar.
 5. **Release prep:** store assets, demo, achievements on a real Steam build.
-   Every outside-world step (Steamworks account, store submission, pricing)
-   is yours.
+   Every outside-world step (Steamworks account, GodotSteam download, store
+   submission, pricing, composer) is yours.
 
 ## Studio-wide rules (from your research-run retros)
 

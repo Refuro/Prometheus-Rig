@@ -26,6 +26,10 @@ prototype code enters this project.
   Never edit `game/data/` by hand; the build fails if it doesn't match
   `game/data/SYNCED.json`. A number or string that needs changing is a
   question for the design team (section 6), then a re-sync.
+- **The asset pipeline** (`asset-pipeline.md` in the job folder): the route
+  the owner approved for each asset type, naming the decision file and the
+  research behind it. The Studio Architect writes it before any art or audio
+  work; seats only read it. No asset batch starts without it.
 - **Owner notes** from each milestone gate (`decisions/`, copied by the tech
   lead into `milestones/<m>/owner-notes.md`). They outrank everything except
   the pillars and the shared rules.
@@ -39,7 +43,7 @@ prototype code enters this project.
 | `review-code` | Claude | Reviews every task against its checks, the design docs and the architecture | Always |
 | `playtest-bot` | Codex | Bots, soak runs, determinism and performance captures, exploit reports | From milestone 1 |
 | `player-eyes` | Claude | Judges screenshots and clips as a first-time player, never code | Woken per milestone |
-| `art-production` | Codex | Production art and audio through the pipeline the owner approved, held to the art bible | Woken from milestone 2 |
+| `art-production` | Codex | Production art and audio by the routes in `asset-pipeline.md`, held to the art bible | Woken from milestone 2 |
 | `art-review` | Claude | Checks every asset batch against the art bible and its lineup before it enters the game | Woken from milestone 2 |
 
 Producer duties (queue health, usage, phases) stay with the kernel operator.
@@ -54,6 +58,7 @@ Woken seats idle until the tech lead sends them work.
     tests/              tests/run.gd runs every tests/test_*.gd
     shots.json          what the screenshot run captures
   work/<seat>/          git worktree per dev or art seat (branch <seat>/<task>)
+  asset-pipeline.md     approved asset routes (Studio Architect; read-only)
   docs/architecture.md  tech lead
   milestones/<m>/       plan.md, tasks/T-nnn.md, reviews/, packet.md, owner-notes.md
   milestones.json       milestone status for the console (section 9)
@@ -76,7 +81,9 @@ else is the tech lead's architecture.
 `Platform` service (`platform/platform.gd`). Its null version runs
 everywhere and records what it was asked (achievements, rich presence,
 cloud saves) so tests can check it. GodotSteam replaces the null version
-when the owner installs it (before the vertical slice). Achievements unlock
+before the vertical slice's Steam work: the owner stages it with
+`studio/setup/install-godotsteam.sh` (record in `ops/godotsteam/installed.json`),
+and the tech lead adds the staged addon to `game/` as a reviewed task. Achievements unlock
 from game events in tests long before a real Steam build exists.
 
 **Local git only.** Seats use git inside `game/` and their worktree. Never
@@ -102,19 +109,31 @@ with a download page, the web build with `build.json`, and screenshots per
 - **Tests come with the code.** Every acceptance check in the design docs
   becomes an automated test, written with (or before) the code it checks.
   A design check with no test is not done.
-- **Determinism where the design asks for it.** If the design says same
-  input, same result (rewind, replays, input-log saves), the simulation
-  never reads frame time, randomness without a seed, or display-only state.
-  The tests prove it with state hashes.
+- **Determinism only where the owner accepted its price.** Exact,
+  bit-reproducible simulation is not a default (owner, 2026-10-15). Rewind and
+  replay must work, but snapshot rewind is fine. Where the owner has chosen
+  exact reproducibility with its cost shown, the simulation never reads frame
+  time, randomness without a seed or display-only state, and tests prove it
+  with state hashes. Don't add exactness work (fixed-point maths,
+  cross-platform hash guarantees) unless a bug forces it.
+- **Constraints carry a price (owner rule, 2026-10-15).** Any gate option,
+  plan choice or design question answer that constrains the architecture
+  (determinism, networking, save compatibility, platform targets,
+  performance floors) gets an Engineering cost block in the gate context:
+  rough effort, what it forecloses, and a cheap alternative, or a plain "I
+  can't estimate this". The tech lead writes it. The owner sees the price
+  before deciding.
 - **Polish is in the task, not after it.** A task that adds an action adds
   its response (visual, sound, camera, rumble) from the design's response
   table, with placeholders marked in the task if the art isn't in yet.
 - **No placeholders in a release build.** Placeholder art and sound are
   allowed until the vertical slice, logged in the milestone plan.
-- **Assets:** only through `art-production` and the approved pipeline. Every
-  asset goes in `game/assets/manifest.json` (`studio/briefs/asset-manifest.md`
-  format; in production it lives with the game, and milestone builds copy it
-  to `<job>/assets/manifest.json` for the console) and every AI-made one in
+- **Assets:** only through `art-production` and the routes in
+  `asset-pipeline.md`; a route it doesn't list is a question for the owner,
+  through the tech lead. Every asset goes in `game/assets/manifest.json`
+  (format v1, `~/openrig/studio/briefs/asset-manifest.md`, paths relative to
+  the job folder; milestone builds copy it to `<job>/assets/manifest.json`
+  for the console) and every AI-made one in
   `ai-content-log.md`. Lineup images come from the game itself: a registered
   `lineup-<batch>` shot in `shots.json`, captured by the web build. Never download asset
   packs, fonts, sounds, addons or code. Godot built-ins are fine. Anything
@@ -182,6 +201,23 @@ lead talks to it, so questions arrive batched and nobody gets ten pings:
    exploit found. Bots that the quality bar requires run in `tests/` or as
    `tools/` scripts the build can call.
 
+**Three checks that keep a milestone honest (from Bridge m1 and m2a, AD-032, AD-036):**
+- **Test the player's path, not just the code.** At least one test boots the main scene and pushes real
+  input through the viewport (`get_viewport().push_input()`): a click, a key, a stick. As soon as the
+  first playable scene exists, the tech lead clicks through the web build once. Calling input handlers
+  directly skips exactly what breaks for a person.
+- **Placeholder art gets one player-eyes round.** While the art is placeholder, run player-eyes once per
+  milestone, fix the fails that block understanding, and send the rest to the milestone that brings real
+  art. Don't loop on taste before the owner has played.
+- **The owner's build must play smoothly.** Before any owner gate, measure frame time in normal play (no debug
+  overlay, profiler or soak running) on every level in the gate, including its busiest moment and a long
+  session (slowdown over time is a leak, not a level cost): p50, p99, max and hitches over 50 ms, against the
+  quality bar's performance numbers. Headless soaks and rewind CPU tests are not this check. Seats never run
+  Windows programs, so: seats measure the Linux desktop export and label it a proxy; the game itself writes a
+  frame-time log (`user://perf/frames.csv`, on by default in gate builds, no overlay), and the owner's own
+  Windows run of the gate build provides the real numbers, which seats read from the file. Put both in the
+  packet. A build that stutters can't be judged for depth or feel.
+
 ## 8. Milestones and gates
 
 The milestone list comes from the design handoff. The usual shape:
@@ -205,7 +241,9 @@ The milestone list comes from the design handoff. The usual shape:
 3. `milestones/<m>/packet.md` from `templates/packet.md`: open exploits and
    known bugs first; the quality-bar table (pass / fail / not yet, each with
    evidence); test and bot results; what changed; screenshots; build paths;
-   exploration spend; for the feel build, the owner checklist.
+   exploration spend; for the feel build, the owner checklist; for milestones
+   that make content, the pace (hours per unit and a projection to the full
+   game).
 4. Packet to the director for the vision check (section 6). FAIL: back to
    the loop.
 5. PASS: write `gates/<m>.json` and stop.
@@ -261,7 +299,8 @@ This is the console contract (`JOBS.md` section 6); if they ever differ,
   commands, `python3 tools/build.py` inside the job folder, read-only `ls`,
   `grep` and `rg` in the job folder, and `git -C game` / `git -C work/<seat>`
   local verbs (no remotes), including `git -C work/review-code switch
-  --detach <commit>` for review-code; for the tech lead also `python3 tools/sync_data.py`
+  --detach <commit>` and `git -C game merge-tree --write-tree main
+  <seat>/T-nnn` (does the branch still merge cleanly?) for review-code; for the tech lead also `python3 tools/sync_data.py`
   and `git revert`.
 - **Dry run first:** each seat does one tiny task through claim, work,
   build, hand back (a dev: a one-line test on a branch, reviewed and

@@ -21,25 +21,25 @@ pods:
         agent_ref: "local:agents/rig"
         runtime: claude-code
         profile: default
-        cwd: "/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig"
+        cwd: "."
       - id: studio
         label: "Studio Architect (Claude)"
         agent_ref: "local:agents/studio"
         runtime: claude-code
         profile: default
-        cwd: "/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig"
+        cwd: "."
       - id: platform
         label: "Platform Architect (Claude)"
         agent_ref: "local:agents/platform"
         runtime: claude-code
         profile: default
-        cwd: "/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig"
+        cwd: "."
       - id: model
         label: "Model Architect (Claude, strongest model)"
         agent_ref: "local:agents/model"
         runtime: claude-code
         profile: default
-        cwd: "/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig"
+        cwd: "."
     edges: []
 
   - id: review
@@ -51,7 +51,7 @@ pods:
         agent_ref: "local:agents/reviewer"
         runtime: codex
         profile: default
-        cwd: "/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig"
+        cwd: "."
     edges: []
 
 edges: []

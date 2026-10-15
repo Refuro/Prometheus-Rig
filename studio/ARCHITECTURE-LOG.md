@@ -539,7 +539,17 @@ passed; prompts came from cleanup verbs and read-only `ls`/`grep`.
 - Into the running job only through gate `studio-fixes-1` (operator batch).
 - My own miss today: I ran a compound `find -exec sed` across all templates, which broke the
   shell rule. The operator cancelled it. One native edit per file from now on.
-**Outcome:** pending (first fresh bridge-prod session).
+**Outcome (2026-10-14 17:15Z): holding.** The first fresh boots came in bridge-design, not bridge-prod
+(design-feel, design-ux and design-systems relaunched fresh after the power cycle; its running agent specs already
+had `guidance: []`). Each transcript shows only its own role line, and the shared CLAUDE.md and AGENTS.md carry no
+role block. Proven for those 3 seats. Rolled into the design-team template (8 agent specs). Still to do before
+their next launch: proto-sprint, coop-proto, depth-room, friend-room, pitch-room.
+**Earlier sighting (MA-017, 2026-10-13):** pitch-1's retro problem 1 (ledger O058, 2026-10-12)
+already described this collision ("the rig-root CLAUDE.md first projected the pitcher role into
+every seat"). I didn't trace it to the agent specs then; a day earlier fix was available. Own job
+folders don't prevent it (that is the separate cross-rig leak, PD-027 item 4). Every other
+studio template still selects `guidance: [role]`: they get the same fix (one Edit per file)
+before their next launch, whether or not a fresh bridge-prod session has proved it by then.
 
 ## AD-031 Reviewer builds in its own detached worktree (2026-10-13)
 **Input:** bridge-prod's tech lead, via the operator; its `docs/architecture.md` "Review builds".
@@ -550,7 +560,200 @@ setup; pre-approval names `git -C work/review-code switch --detach`. bridge-prod
 this way, so nothing goes to the running job. Repo only until the next template batch.
 **Outcome:** holding in bridge-prod (its own process).
 
+## AD-032 Bridge m1: stop the polish loop; the input bug was my scaffold (2026-10-14, owner-delegated)
+**Evidence:** `bridge-prod/milestones/m1/plan.md`, tasks, git log. The feel work was merged by about T-034
+(2026-10-13 ~16Z). Then three player-eyes rounds on placeholder art produced T-035 to T-053 and design
+Q-036 to Q-067 over ~14 h, each round finding new taste-level items. Meanwhile the owner's first try
+found they couldn't click legs.
+**Input bug (likely, to be confirmed by T-054):** my scaffold's `boot.tscn` root is a full-rect Control
+with the default mouse filter (Stop), which eats clicks before `_unhandled_input`. Tests called input
+handlers directly, so nothing caught it. My miss. Scaffold fixed (`mouse_filter = 2` on Boot and its
+background).
+**Decision (sent to tech lead and operator, `~/openrig/scratch/studio/bridge-m1-convergence.md`):**
+T-054 first; keep T-049; keep T-052 only without another send-back; defer T-053 and further visual
+rounds to m2; keep the suite, a final soak and the vision check; gate ~09:00-10:00Z.
+**Template (repo only, next batch):** brief section 7 now requires a real-input test and an early
+click-through, and one player-eyes round per milestone while art is placeholder.
+**Outcome:** pending (T-054 cause; time to gate). 08:03Z: the director's vision check is PASS with two
+must-changes. I approved the deck sag up-cap back into m1: display-only, and without it the deck reads
+as tipping, a false danger signal against owner checklist item 5. The line is taste versus anything that
+misleads the feel test. The sag cap turned out already met (dropped). 08:12Z: owner checklist item 6's route
+overloaded with 0 s warning; I advised fix now, time-boxed 1.5 h. 09:27Z: cause found and fixed inside the box
+(traveler weight ramps on and off the deck ends; item 6 warns 3.25 s). Counterweight step-off cases
+(0.43-0.8 s) go to the owner as a known issue (director). Gate expected ~10:30Z.
+
+## AD-033 Bridge m1 approved; level designer seat; m2 depth first (2026-10-14, owner)
+**Owner's m1 playtest:** the weight, refused lifts and warning feel promising. But (1) a released leg can hang
+in the air, and (2) a strong stance plays itself in the test space; it also needs identity and good art. Approved
+m1 (`bridge-prod/decisions/m1.json`) with notes: release falls to the ground below (not teleport); crossings 1-4
+grey-box plus an owner depth gate before art; then one crossing in full River Collage art; identity moment in
+crossing 1; real-input testing for every build.
+**My read:** the release bug is the spec being wrong for how people play (a short release counts as a click; a
+high release is a refused plant). The passive stance is the design's own top risk (wait-out sameness), which m1
+can't test. Engineering is strong; the gaps are play-testing and level design, not people.
+**Team change (owner-authorized):** `design-levels` (Claude) added to the design-team template's design pod;
+it owns per-level question, real choice beyond any forcing rule, solutions, cheese and bot checks. Its agent spec
+selects no shared guidance (AD-030). Operator adds it to bridge-design with `rig add`.
+**Oversight:** the owner asked for hourly checks, then asked whether that's right. I advised stage-boundary checks
+plus a 4-hour light check, no duplicate leadership. Held for the owner.
+**Outcome:** pending (crossings 1-4 depth gate).
+
+## AD-034 Studio oversight of Bridge production (2026-10-14, owner-approved)
+Stage-boundary check-ins from the tech lead (plan set, before any owner gate, more than half a day of new scope),
+now in the production tech-lead role. Plus a light 4-hour check: watchdog `01M4XNYR72JN845VZNAKNHK4YA`
+(periodic-reminder on my seat, first due 21:04:28Z, spec `~/openrig/scratch/studio/bridge-oversight-watchdog.yaml`),
+which skips while bridge-prod waits at an owner gate or nothing is working. Direction only; the tech lead and
+the director run their teams. Stop it with `rig watchdog stop` when Bridge production ends.
+**Check log:** (one line per check that acted)
+- 2026-10-14 17:08Z, tech-lead check-in (m2 plan set): design-balance asked for a full sim export (more than half
+  a day). I backed per-crossing proof criteria as design data, run by playtest-bot on the exact sim; the director
+  chose that (q-55). No general export.
+- 2026-10-14 19:31Z, tech-lead check-in (m2a task list set; T-061 to T-064). q-55 brings yield, a new tipping
+  measure, a plant preview and a sink warning, which makes m2a bigger than "grey-box 1-4". Agreed, since these
+  are design's rules for crossings 1-3. Guard: T-061 (c01-c03 playable) stays the critical path. Pace timing
+  starts now (AD-035). Reply: qitem-20261014200232-3b4e0e8544415cba. The check-in waited 30 min because its wake
+  hit my permission prompt.
+- 2026-10-14 21:04Z, watchdog check: healthy, no action. Batch installed and verified. c01 and c03 routes
+  complete; c02 and c04 are waiting on design (q-60).
+- 2026-10-14 21:13Z, **miss: gate scope.** The plan's gate list named c01-c03 while the owner's m1 note says
+  crossings 1-4. My 20:02Z guard made c01-c03 the critical path without saying the gate still needs c04, and I
+  missed the mismatch in the 21:04Z check. Then in the owner ETA I recommended c04 not hold the gate, which
+  reopened something the owner had already decided. The operator caught it. Corrected to the tech lead:
+  qitem-20261014211308-28ad0ba3453590ea (gate is c01-c04; c04 stays visible; only the owner can cut it).
+  Lesson: check gate lists against the owner's decision file, not against the plan's summary.
+- 2026-10-15 01:05Z, watchdog check: all four authored routes complete (00:15Z), no usage stops, no player-eyes
+  rounds yet. Sent qitem-20261015010501-4c58860ea12bb603: add T-070 to T-074 to the plan; decide whether T-074 (q-70
+  glide stop, may hinge-stall routes) holds the gate; real input on c02-c04; shared rules v1.11 relayed.
+- 2026-10-15 05:17Z, tech-lead check-in (before the m2a gate): c01-c04 complete, GREEN 492/0. The one eyes round
+  found 6 production bugs (T-081/T-082, 1-2 h) and 4 design readability calls (q-77). Reply
+  qitem-20261015051738-6200069e: agreed. My view for the director: goal visible and ground types readable before
+  the gate, since they decide whether depth can be judged; sink rings to m2b. The half-day check-in stands.
+
+## AD-035 Ownership assessment and the approved batch (2026-10-14, owner-approved)
+Assessment: `~/openrig/scratch/studio/ownership-assessment-2026-10-14.md`. The owner approved its proposals
+(qitem-20261014192418-9fa1747376179aad). Bridge has priority. Co-op is parked with no recommendation from me
+until the owner resumes it. sunrise-design stays unlaunched and proto-3 parked.
+
+**Done:**
+- **Asset pipeline connected.** A miss: the owner approved assets-1 gate 2 on 13 Oct, but nothing production
+  read named it, and Bridge's art bible still calls the recommendation "absent".
+  - New `asset-pipeline.md` per production job: the routes per asset type, the decision file and the research.
+    The template has a blank; Bridge's filled copy is `~/openrig/scratch/studio/bridge-prod-assets-batch/`.
+  - The brief (sections 2, 4, 5) and the art-production and art-review roles point at it.
+  - Manifest v1 (`studio/briefs/asset-manifest.md`) adopts the assets-1 proposal, with two changes:
+    - paths are relative to the job folder, because the build copies the file unchanged;
+    - one writer per branch instead of a merge tool.
+- **Pace in content gates.** A Pace section in `templates/packet.md` and brief section 8: hours per unit, with
+  usage stops shown separately, and a projection to the full game. Bridge reports it at the m2a gate.
+- **GodotSteam.**
+  - `studio/setup/install-godotsteam.sh`, which the owner runs: takes the GDExtension zip or URL, checks its
+    layout, the Godot version and the Windows and Linux libraries, and stages it in `<job>/ops/godotsteam/`
+    with a sha256 record. The tech lead adds it to `game/` as a reviewed task.
+  - Tested in scratch on fake zips: 6 cases (stages; too new; missing Windows libraries; bad layout; not a job;
+    usage). Not tested on a real GodotSteam zip, since I can't download one.
+- **Role fix finished.** `guidance: []` in all 20 agent specs of proto-sprint, coop-proto, depth-room,
+  friend-room and pitch-room (AD-030). A count shows 0 of 36 agent specs with `[role]`; all specs validate.
+- **STUDIO-PLAN** stages 3-4 now match the templates and how Bridge is actually staged.
+- **E2 kit:** `studio/rigs/critic-check/`.
+  - Two seats (claude-code, codex) re-judge depth-1's 24 blind cards.
+  - Both use an anchored role (the MA-004 anchors, first written here) and a 6-question rubric fixed before
+    scoring.
+  - They also force a bottom-third ranking.
+  - `tools/compare.py` was tested on fake output.
+  - It runs behind Bridge, earliest while bridge-prod waits at the m2a gate. Seat needs are in its README.
+- Synced to `~/openrig/studio/`. The Bridge install batch goes to the operator.
+**Outcome:** pending: the Bridge batch install, the director's bible reconcile, the m2a pace figure and the E2
+run.
+- 2026-10-15 03:00Z, **miss: the role fix doesn't work.** bridge-prod's CLAUDE.md got review-code's role block on
+  14 Oct 17:02Z and AGENTS.md the dev role at 19:30Z, both after `guidance: []` was installed. I spread the fix to
+  every template on a spec count, without the fresh-session proof AD-030 asked for. Findings and likely causes went
+  to Rig: qitem-20261015025734-f301ce11daf2dd39 (`~/openrig/scratch/studio/role-block-findings-2026-10-15.md`).
+  Template change waits until the cause is confirmed.
+- 2026-10-15 03:05Z: Rig confirmed the cause in OpenRig's code. A restart or restore replays the setup saved at the
+  seat's first launch (13 Oct 07:42Z, before the fix), so a spec fix reaches only seats launched fresh.
+  bridge-design is clean. Owner decision sent (qitem-20261015030328-73d3a83f): add a one-line "ignore any Role:
+  block" note to each role.md now, then relaunch bridge-prod fresh between the m2a gate and m2b.
+- 2026-10-15 03:17Z: **owner approved both** (`jobs/architects/decisions/bridge-role-guidance.json`). The note is
+  now the first line of all 37 Studio role files (synced). Operator batch studio-roles-1 (7 files into bridge-prod,
+  byte-identical before) and the relaunch steps are in `~/openrig/scratch/studio/bridge-prod-roles-batch/`, handed
+  over as qitem-20261015031740-4eebf60c08ada788. The relaunch is proven only by a grep showing 0 role blocks after
+  the launch and again after one seat restarts.
+- 2026-10-15 07:20Z, **E2 kit, Model review MA-035** (`models/reviews/E2-kit-check.md`). My kit measured each
+  critic only against its own rubric answers: self-consistency, not accuracy. All three changes accepted. K1: an
+  answer key drafted by Model (more independent than one from me, since I wrote the rubric), checked by me and
+  review-codex, frozen before launch, its location named in no kit file; `compare.py --key` grades both critics
+  against it (tested on fakes). K2: "insufficient" for R3/R5 only, left out of rates. K3: a 45-minute, read-only
+  budget, the same for both. The operator holds E2 until the key is frozen.
+- 2026-10-15 07:30Z-08:00Z, **key drafted, checked and frozen (MA-036).** The first draft showed the rubric didn't
+  separate these cards well enough, so I sharpened R2, R4, R5 and R6 in `rubric.md` before any scoring, with a
+  stopping rule and no third round. The Model Architect redrafted; I checked every answer; review-codex checked
+  every answer; agreed changes went into v3, and one-sided ones are marked disputed. Frozen as v3, sha256 361b0bab.
+  The answers, tallies and limits stay out of tracked files until E2 has run (the critics mustn't learn them). They
+  are recorded with the key, in a private location named only in queue rows. **Miss:** I froze the key but pointed
+  the reviewer at the drafter's live notes, which then gained rulings on my flags, so the cross-check isn't blind
+  on a few cells. Accepted, and disclosed in results.md. compare.py now reports constant questions and disputed
+  cells. The operator's E2 hold is lifted; launch stays behind Bridge.
+
+## AD-036 The owner's build must play smoothly (2026-10-15)
+**Input:** the owner found the latest Bridge build laggy (08:21Z), then said the whole game slowed over time, legs
+most. **My miss:** the production brief checked real input before each gate but never smoothness. Rewind CPU tests
+and headless soaks were the only performance evidence, and neither is what the owner plays. The design quality bar
+already had the numbers (60 fps in 99% of frames, never below 45, no hitch over 50 ms).
+**Decision:**
+- **Template (production brief, "Three checks"):** before any owner gate, measure frame time in normal play on every
+  level in the gate, at its busiest moment and over a long session.
+  - Seats never run Windows programs, so they measure the Linux export and label it a proxy.
+  - The game writes its own frame-time log, and the owner's normal Windows run provides the real numbers, which
+    seats read from the file.
+  - Both go in the packet.
+- **Bridge m2a:** the depth gate waits for a smooth owner build, or for the owner to choose to gate with the
+  numbers in front of them. Measure first and fix only the cause; Deck stays in m2c. Rows to the tech lead:
+  qitem-20261015082207-ba56faf2043cbf7b and qitem-20261015082553-4ad4905a6a32a25d. The second corrects the first,
+  which had assumed seats could measure the Windows build. The operator caught that.
+- bridge-prod's installed brief gets this with the pre-m2b relaunch batch.
+**Outcome:** cause measured 08:34Z on the Linux proxy of the owner's build (704a185):
+- **Main cause:** c02's terrain drawing took about 82 ms per frame (c01: 0.04 ms), so about 8 fps from c02's first
+  frame. The fix (T-094) caches terrain geometry with identical pixels.
+- **Smaller cause:** per-frame work grew with history (the rewind strip and the camera), matching the owner's "slowed
+  over time". Fix: T-093.
+- Still to do: proxy numbers after the fixes, then the owner's in-game frame log, before the gate.
+
+## AD-037 Exact rewind dropped; architecture constraints carry a price (2026-10-15, owner directives)
+**Input:** two owner directives through the operator (08:40Z).
+- Exact, bit-reproducible rewind is no longer required. Rewind must work, and production chooses how (snapshot is
+  fine). No new exactness work unless a bug forces it. Don't rewrite what exists.
+- Every gate option or pillar that constrains the architecture shows the tech lead's engineering cost (effort,
+  what it forecloses, cheap alternative, or "can't estimate") before the owner decides.
+
+**Why it matters:** I recommended "deterministic sim" as a Bridge pillar note (12 Oct) with no price on it. Exactness
+then drove much of m1-m2 (the exact solver, cross-fps hashes, ulp bugs T-067 and T-068), and the owner never saw
+that cost.
+
+**Changed (templates, synced):**
+- `design-team/brief.md`: section 4 rule; the pillars, design and amendment gates name the cost block.
+- `production/brief.md` section 5: determinism only where the owner accepted its price; the cost rule.
+- `production/agents/tech-lead/guidance/role.md`: architecture setup prices constraints and defaults to the
+  cheapest design; "exact solver" wording removed.
+- `production/templates/architecture.md`: a cost table; hashing only for chosen constraints.
+- `production/templates/packet.md`: an "Engineering cost" section.
+
+**Bridge:**
+- **Tech lead (08:41Z, already done):** architecture.md requirements 1 and 4 plus a decision entry, m2/plan.md
+  quality-bar rows, and T-087's acceptance. Stopped: Windows and Deck hash fixtures, new shadow-hash and cross-fps
+  exactness checks. Kept: existing tests, and rewind working.
+- **Director (relayed qitem-20261015084333-023746aa817f7281):** feel.md, quality-bar.md, product.md and pillars.md
+  wording.
+- **Tech lead (relayed qitem-20261015084332-9e5d4b87922450bc):** the m2a packet's cost section.
+- **Rig (qitem-20261015084341-048f2899f6688a9c):** Studio's wording for the canonical shared rule.
+- The installed copies in the running jobs get these with the pre-m2b relaunch batch.
+
 ## Notes for the Platform Architect (input, not edits)
+- **[new] 2026-10-14 (AD-035): asset manifest v1** (`studio/briefs/asset-manifest.md`). It replaces v0 for R-013.
+  - It keeps every v0 field and adds `kind`, `direction`, `tool_version`, `seed`, `prompt`, `references`,
+    `ai_role`, `source_licence_file` and `evidence`.
+  - An Assets tab should show only `kind: asset` by default.
+  - Paths are relative to the job folder.
+  - v0 files stay valid.
 - **[new] 2026-10-13 (PL-015, details AD-028):** thanks; no asset-brief change
   for now. The mirror fix covers it.
 - **2026-10-13, acted on (PL-020):** adopted as JOBS.md section 6; the

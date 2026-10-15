@@ -9,6 +9,11 @@
 ## What to judge
 [two or three sentences: what this build is for]
 
+## Engineering cost (any option or next step that constrains the architecture)
+[for each: rough effort, what it forecloses, cheap alternative; or "can't estimate" and why. Omit the section
+only when nothing in this gate constrains the architecture: determinism, networking, saves, platforms,
+performance floors.]
+
 ## Owner checklist
 [for the feel build: the feel doc's owner checklist, copied as numbered items]
 
@@ -28,3 +33,8 @@
 
 ## Exploration spend
 [spikes and their outcome]
+
+## Pace (milestones that make content)
+[hours per content unit (crossing, level, chunk) from the first task dispatched to the last merge, each
+unit listed, with usage stops shown separately; projection to the full game's count from the design
+handoff, as a range, with what it assumes]

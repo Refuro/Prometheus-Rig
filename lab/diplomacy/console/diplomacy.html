@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0f17" media="(prefers-color-scheme: dark)">
+<title>Diplomacy · Rig Console</title>
+<link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<script src="/notify.js"></script>
+<script src="/health.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Diplomacy board (lab job, draft by the Owner's Advisor 2026-10-13; Platform owns this file once adopted).
+     Reads the clerk's files through the existing read-only /job/<job>/... route. The board is the engine's own
+     rendered SVG, shown as an <img> so agent-written SVG can never run script here. All agent text is escaped.
+     The only write is POST /api/lab/control {job, paused|stop} (owner cookie + X-Rig-Console), which Platform wires.
+     Contract: lab/diplomacy/REQUEST-console.md and the clerk role file. -->
+<style>
+:root{
+  --paper:#eef1f4; --surface:#f7f9fb; --raised:#fff; --ink:#152033; --muted:#5d687a; --faint:#8a94a4;
+  --line:#d7dde5; --signal:#c98200; --signal-soft:#fbf0d9; --cut:#c2412b; --ok:#2e9d62; --ok-soft:#e3f4ea;
+  --font:"Schibsted Grotesk",ui-sans-serif,system-ui,"Segoe UI",sans-serif;
+  /* the engine's own palette (standard.svg POWERCOLOR), so the cards match the board */
+  --AUSTRIA:#c48f85; --ENGLAND:#9400d3; --FRANCE:#4169e1; --GERMANY:#a08a75; --ITALY:#228b22; --RUSSIA:#757d91; --TURKEY:#b9a61c;
+}
+@media (prefers-color-scheme:dark){:root{
+  --paper:#0a0f17; --surface:#0f1621; --raised:#141d2a; --ink:#e3e8ef; --muted:#8e9aac; --faint:#5d6a7e;
+  --line:#212c3c; --signal:#f0b23c; --signal-soft:#2f2511; --cut:#f0765c; --ok:#3cb371; --ok-soft:#12261b;
+}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font:14.5px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+main{max-width:1280px;margin:0 auto;padding:20px 16px 60px}
+h1{margin:0 0 2px;font-size:22px;font-weight:800;letter-spacing:-.01em}
+.sub{color:var(--muted);font-size:13.5px;margin-bottom:14px}
+h2{margin:18px 0 8px;font-size:12.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:10px 14px}
+.bar .phase{font-size:18px;font-weight:800;letter-spacing:-.01em}
+.bar .clock{font-variant-numeric:tabular-nums;font-weight:700;color:var(--signal)}
+.bar .clock.over{color:var(--cut)}
+.bar .state{font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:999px;background:var(--signal-soft);color:var(--signal)}
+.bar .state.paused{background:var(--cut);color:#fff}
+.bar .state.over{background:var(--ok-soft);color:var(--ok)}
+.bar .grow{flex:1}
+select{font:inherit;font-weight:600;padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink)}
+button{all:unset;cursor:pointer;font-weight:700;font-size:14px;padding:7px 14px;border-radius:10px;border:1px solid var(--line);background:var(--raised);color:var(--ink)}
+button.primary{background:var(--signal);border-color:var(--signal);color:#111}
+button.danger{border-color:var(--cut);color:var(--cut)}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,select:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;margin-top:14px}
+@media (max-width:900px){.layout{grid-template-columns:1fr}}
+.board{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:8px;min-height:200px;display:flex;align-items:center;justify-content:center}
+.board img{max-width:100%;height:auto;border-radius:8px;display:block}
+.board .empty{padding:30px}
+.powers{display:flex;flex-direction:column;gap:8px}
+.power{display:flex;gap:10px;align-items:center;background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:9px 12px;cursor:pointer;text-align:left}
+.power:hover{border-color:var(--signal)}
+.power.sel{outline:2px solid var(--signal)}
+.power .dot{width:12px;height:12px;border-radius:50%;flex:none}
+.power .name{font-weight:750;flex:1}
+.power .num{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+.power .num b{color:var(--ink);font-size:15px}
+.power.out{opacity:.5}
+.power{flex-wrap:wrap}
+.power .orders{flex-basis:100%;margin:4px 0 0 22px;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);white-space:pre-wrap}
+.power .orders.none{font-style:italic}
+.power .orders .live{font:700 10.5px var(--font);color:var(--signal);text-transform:uppercase;letter-spacing:.04em;margin-left:6px}
+.tabs{display:flex;gap:6px;margin-top:18px;flex-wrap:wrap}
+.tabs button{padding:6px 12px;font-size:13.5px}
+.tabs button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.panel{background:var(--raised);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:10px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;font-size:13px;color:var(--muted)}
+.msg{border-top:1px solid var(--line);padding:9px 0}
+.msg:first-child{border-top:0}
+.msg .who{font-size:12.5px;font-weight:700;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.msg .who .ph{color:var(--faint);font-weight:600;margin-left:auto}
+.msg .text{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:3px}
+.msg .to{color:var(--muted);font-weight:600}
+.msg .arrow{color:var(--faint);margin:0 2px}
+.msg .text.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.msg .more{all:unset;cursor:pointer;font-size:12px;font-weight:700;color:var(--signal);margin-top:2px}
+.thread{border:1px solid var(--line);border-radius:12px;padding:6px 12px;margin-bottom:10px;background:var(--surface)}
+.thread>summary{cursor:pointer;font-weight:750;padding:4px 0;list-style:none;display:flex;gap:8px;align-items:center}
+.thread>summary::-webkit-details-marker{display:none}
+.thread>summary .n{color:var(--muted);font-weight:600;font-size:12.5px;margin-left:auto}
+.digest{white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.55}
+.msg .live{font-size:11px;color:var(--signal);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.tag{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle;margin-right:3px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0}
+.md{white-space:pre-wrap;overflow-wrap:anywhere}
+.empty{color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.chart{width:100%;height:220px;display:block}
+.drawer{position:fixed;inset:0 0 0 auto;width:min(560px,100%);background:var(--paper);border-left:1px solid var(--line);box-shadow:-10px 0 30px rgba(0,0,0,.25);transform:translateX(100%);transition:transform .2s;overflow:auto;padding:18px 18px 40px;z-index:20}
+.drawer.open{transform:none}
+.drawer h2{margin-top:16px}
+.drawer .head{display:flex;gap:10px;align-items:center}
+.drawer .head h1{flex:1}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:13.5px}
+.kv dt{color:var(--muted);font-weight:600}.kv dd{margin:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}
+.chips button{padding:5px 11px;font-size:12.5px;border-radius:999px}
+.chips button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.chips button .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.chips button .cnt{color:var(--muted);font-weight:600;margin-left:5px}
+.chips button.on .cnt{color:inherit;opacity:.75}
+.convo{display:flex;flex-direction:column;gap:8px}
+.convo .day{align-self:center;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--faint);margin:8px 0 2px}
+.bub{max-width:88%;padding:8px 11px;border-radius:14px;background:var(--raised);border:1px solid var(--line);border-left:4px solid var(--who)}
+.bub.me{align-self:flex-end;border-left:1px solid var(--line);border-right:4px solid var(--who);background:var(--surface)}
+.bub .hd{font-size:12px;font-weight:700;color:var(--who);display:flex;gap:8px}
+.bub .hd .t{color:var(--faint);font-weight:600;margin-left:auto}
+.bub .hd .bc{color:var(--muted);font-weight:600}
+.bub .tx{white-space:pre-wrap;overflow-wrap:anywhere;margin-top:2px}
+.seal{font-size:12.5px;color:var(--faint)}
+.incident{border-left:4px solid var(--cut)}
+.note{font-size:12.5px;color:var(--faint);margin-top:8px}
+</style>
+</head>
+<body>
+<script src="/nav.js"></script>
+<main>
+  <h1>Diplomacy</h1>
+  <div class="sub" id="sub">Seven agent powers, one clerk, one board. You watch; you can pause.</div>
+
+  <div class="bar" id="bar">
+    <span class="phase" id="phaseName">—</span>
+    <span class="state" id="state">loading</span>
+    <span class="clock" id="clock"></span>
+    <span class="grow"></span>
+    <label style="font-size:13px;color:var(--muted)">Phase <select id="phaseSel"></select></label>
+    <button id="btnPause" class="primary" title="The clerk stops the clock and tells every power">Pause</button>
+    <button id="btnResume" hidden>Resume</button>
+    <button id="btnStop" class="danger" title="Ends the game after this phase">Stop</button>
+  </div>
+
+  <div class="layout">
+    <div class="board" id="board"><div class="empty">No board yet. The clerk writes <code>board/&lt;phase&gt;.svg</code> after its dry run.</div></div>
+    <div class="powers" id="powers"></div>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <button data-tab="digest" class="on">Digest</button>
+    <button data-tab="press">Press</button>
+    <button data-tab="results">Results</button>
+    <button data-tab="chart">Centres over time</button>
+    <button data-tab="incidents">Incidents</button>
+  </div>
+  <div class="panel" id="panel"></div>
+  <div class="note" id="note"></div>
+</main>
+
+<div class="drawer" id="drawer" aria-hidden="true"></div>
+
+<script>
+(() => {
+  const q = new URLSearchParams(location.search);
+  const JOB = (q.get("job") || "diplomacy-1").replace(/[^A-Za-z0-9._-]/g, "");
+  // BASE lets the page run against a static copy of a job folder for testing; in the console it's /job/<job>.
+  const BASE = q.get("base") || `/job/${JOB}`;
+  const POWERS = ["AUSTRIA","ENGLAND","FRANCE","GERMANY","ITALY","RUSSIA","TURKEY"];
+  const nice = p => p.charAt(0) + p.slice(1).toLowerCase();
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const $ = id => document.getElementById(id);
+
+  const S = { control:null, index:null, phase:null, board:null, timeline:[], press:[], livePress:[], results:"", digest:"", incidents:"", pending:{}, final:false, sel:null, tab:"digest", orders:{}, intentions:{} };
+
+  async function text(path) {
+    try { const r = await fetch(`${BASE}/${path}`, {cache:"no-store"}); return r.ok ? await r.text() : null; } catch { return null; }
+  }
+  async function json(path) { const t = await text(path); if (t == null) return null; try { return JSON.parse(t); } catch { return null; } }
+  async function jsonl(path) { const t = await text(path); if (!t) return []; return t.split("\n").filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); }
+
+  function phaseLabel(p) {
+    // S1901M -> Spring 1901 Movement
+    const m = /^([SFW])(\d{4})([MRA])$/.exec(p || "");
+    if (!m) return p || "—";
+    const s = {S:"Spring",F:"Fall",W:"Winter"}[m[1]], k = {M:"movement",R:"retreats",A:"builds"}[m[3]];
+    return `${s} ${m[2]} ${k}`;
+  }
+
+  async function loadStatic() {
+    S.control = await json("board/control.json");
+    S.index = await json("board/index.json");
+    S.timeline = await jsonl("board/timeline.jsonl");
+    S.incidents = (await text("board/incidents.md")) || "";
+    S.final = (await text("board/final.md")) != null;
+    const phases = S.index?.phases || [...new Set(S.timeline.map(r => r.phase))];
+    if (S.control?.phase && !phases.includes(S.control.phase)) phases.push(S.control.phase);
+    if (!S.phase) S.phase = S.index?.current || S.control?.phase || phases[phases.length - 1] || null;
+    const sel = $("phaseSel"); const cur = sel.value;
+    sel.innerHTML = phases.map(p => `<option value="${esc(p)}">${esc(phaseLabel(p))}</option>`).join("");
+    sel.value = S.phase || cur;
+  }
+
+  async function loadPhase() {
+    if (!S.phase) return;
+    const p = S.phase;
+    [S.board, S.press, S.livePress] = await Promise.all([
+      json(`board/${p}.json`),
+      jsonl(`archive/${p}/press.jsonl`),
+      // during an open phase the archive is empty; powers also append each message to their own sent.jsonl
+      Promise.all(POWERS.map(w => jsonl(`powers/${w.toLowerCase()}/press/sent.jsonl`))).then(a => a.flat().filter(m => m.phase === p)),
+    ]);
+    S.results = (await text(`board/${p}-results.md`)) || "";
+    // Orders as they stand right now: each power's own orders/<phase>.txt (overwritten until the deadline),
+    // or the archived copy once the phase is adjudicated. Owner-only view; powers never see the console.
+    S.pending = Object.fromEntries(await Promise.all(POWERS.map(async w => {
+      const low = w.toLowerCase();
+      const t = (await text(`archive/${p}/orders/${low}.txt`)) ?? (await text(`powers/${low}/orders/${p}.txt`));
+      return [w, t == null ? null : t.trim()];
+    })));
+    S.digest = (await text(`board/${p}-digest.md`)) || "";
+    const img = $("board");
+    const r = await fetch(`${BASE}/board/${p}.svg`, {method:"HEAD", cache:"no-store"}).catch(() => null);
+    const stamp = r && r.ok ? `${p}|${r.headers.get("last-modified") || ""}|${r.headers.get("etag") || ""}|${r.headers.get("content-length") || ""}` : `${p}|none`;
+    if (stamp !== S.boardStamp) {   // only touch the <img> when the file really changed, so the map doesn't blink
+      S.boardStamp = stamp;
+      img.innerHTML = r && r.ok ? `<img alt="Board after ${esc(phaseLabel(p))}" src="${BASE}/board/${p}.svg?v=${encodeURIComponent(stamp)}">`
+                                : `<div class="empty">No board image for ${esc(phaseLabel(p))} yet.</div>`;
+    }
+  }
+
+  function renderBar() {
+    const c = S.control || {};
+    $("phaseName").textContent = phaseLabel(S.phase);
+    const st = $("state"); st.className = "state";
+    if (S.final) { st.textContent = "game over"; st.classList.add("over"); }
+    else if (c.stop) { st.textContent = "stopping"; st.classList.add("paused"); }
+    else if (c.paused) { st.textContent = "paused"; st.classList.add("paused"); }
+    else st.textContent = c.state || "waiting for clerk";
+    $("btnPause").hidden = !!c.paused || S.final; $("btnResume").hidden = !c.paused || S.final;
+    $("btnStop").disabled = S.final || !!c.stop;
+    tick();
+  }
+  function tick() {
+    const c = S.control || {}; const el = $("clock"); el.className = "clock";
+    if (!c.deadline || c.paused || S.final || S.phase !== c.phase) { el.textContent = c.paused ? "clock stopped" : ""; return; }
+    const ms = new Date(c.deadline) - Date.now();
+    if (isNaN(ms)) { el.textContent = ""; return; }
+    if (ms <= 0) { el.textContent = "deadline passed · adjudicating"; el.classList.add("over"); return; }
+    const m = Math.floor(ms / 60000), s = Math.floor(ms / 1000) % 60;
+    el.textContent = `${m}:${String(s).padStart(2,"0")} left`;
+  }
+
+  function renderPowers() {
+    const b = S.board || {}; const units = b.units || {}, centers = b.centers || {};
+    $("powers").innerHTML = POWERS.map(p => {
+      const u = (units[p] || []).length, c = (centers[p] || []).length;
+      const o = S.pending[p]; const live = S.control && S.phase === S.control.phase && !S.results;
+      const ordersHtml = S.showOrders === false ? "" : (o ? `<span class="orders">${esc(o)}${live ? '<span class="live">pending</span>' : ""}</span>`
+                               : (live ? `<span class="orders none">no orders written yet (holds)</span>` : ""));
+      return `<button class="power ${S.sel===p?"sel":""} ${c===0&&u===0&&S.board?"out":""}" data-p="${p}">
+        <span class="dot" style="background:var(--${p})"></span><span class="name">${nice(p)}</span>
+        <span class="num"><b>${c}</b> centres · ${u} units</span>${ordersHtml}</button>`;
+    }).join("");
+    $("powers").querySelectorAll(".power").forEach(el => el.onclick = () => openPower(el.dataset.p));
+  }
+
+  function allPress() {
+    const seen = new Set(); const out = [];
+    for (const m of [...S.press.map(m => ({...m, archived:true})), ...S.livePress]) {
+      const k = `${m.phase}|${m.from}|${m.to}|${m.n}`; if (seen.has(k)) continue; seen.add(k); out.push(m);
+    }
+    return out.sort((a, b) => (a.ts || "").localeCompare(b.ts || "") || (a.n || 0) - (b.n || 0));
+  }
+  function msgHtml(m) {
+    const from = String(m.from || "").toUpperCase(), to = String(m.to || "").toUpperCase();
+    return `<div class="msg"><div class="who"><span class="tag" style="background:var(--${esc(from)},var(--muted))"></span><span style="color:var(--${esc(from)})">${esc(nice(from))}</span>
+      <span class="arrow">→</span>${to === "ALL" ? '<span class="to">everyone</span>' : `<span class="tag" style="background:var(--${esc(to)})"></span><span style="color:var(--${esc(to)})">${esc(nice(to))}</span>`}${m.archived ? "" : '<span class="live">live</span>'}
+      <span class="ph">${esc(m.phase || "")}${m.ts ? " · " + esc(String(m.ts).slice(11,16)) : ""}</span></div>
+      <div class="text ${String(m.text||"").length > 280 || (m.text||"").split("\n").length > 3 ? "clamp" : ""}">${esc(m.text)}</div>
+      ${String(m.text||"").length > 280 || (m.text||"").split("\n").length > 3 ? '<button class="more">show all</button>' : ""}</div>`;
+  }
+  document.addEventListener("click", e => {
+    const b = e.target.closest(".more"); if (!b) return;
+    const t = b.previousElementSibling; const open = t.classList.toggle("clamp"); b.textContent = open ? "show all" : "show less";
+  });
+
+  function renderPanel() {
+    const P = $("panel"); const t = S.tab;
+    $("tabs").querySelectorAll("button").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
+    if (t === "press") {
+      const f = S.pressFilter || "";
+      const msgs = allPress().filter(m => !f || String(m.from).toUpperCase() === f || String(m.to).toUpperCase() === f);
+      const body = msgs.length ? msgs.map(msgHtml).join("") : `<div class="empty">No press yet this phase.</div>`;
+      P.innerHTML = `<div class="filters">Show
+        <select id="pf"><option value="">all powers</option>${POWERS.map(p => `<option value="${p}" ${f===p?"selected":""}>${nice(p)}</option>`).join("")}</select>
+        <span>${msgs.length} message${msgs.length===1?"":"s"} in ${esc(phaseLabel(S.phase))} · conversations by pair are in each power's drawer</span></div>` + body;
+      $("pf").onchange = e => { S.pressFilter = e.target.value; renderPanel(); };
+    } else if (t === "digest") {
+      P.innerHTML = S.digest ? `<div class="digest">${esc(S.digest)}</div>` : `<div class="empty">The clerk writes a one-line-per-power digest when it adjudicates ${esc(phaseLabel(S.phase))}. Until then, the Press tab has the raw conversations.</div>`;
+    } else if (t === "results") {
+      P.innerHTML = S.results ? `<div class="md">${esc(S.results)}</div>` : `<div class="empty">Results appear when the clerk adjudicates ${esc(phaseLabel(S.phase))}.</div>`;
+    } else if (t === "chart") {
+      P.innerHTML = chartSvg();
+    } else {
+      P.innerHTML = S.incidents ? `<div class="md incident" style="padding-left:12px">${esc(S.incidents)}</div>` : `<div class="empty">No incidents recorded. (A power reading another's folder, writing outside its own, or using the web would appear here.)</div>`;
+    }
+  }
+
+  function chartSvg() {
+    const rows = S.timeline.filter(r => /A$|M$/.test(r.phase)); // movement and build phases carry centre counts
+    const phases = [...new Set(rows.map(r => r.phase))];
+    if (phases.length < 2) return `<div class="empty">The chart needs two adjudicated phases.</div>`;
+    const W = 900, H = 220, L = 34, R = 10, T = 10, B = 28, maxC = 18;
+    const x = i => L + (W - L - R) * i / (phases.length - 1), y = c => T + (H - T - B) * (1 - c / maxC);
+    let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Supply centres per power over time">`;
+    for (const g of [0, 6, 12, 18]) s += `<line x1="${L}" x2="${W-R}" y1="${y(g)}" y2="${y(g)}" stroke="var(--line)"/><text x="${L-6}" y="${y(g)+4}" text-anchor="end" font-size="11" fill="var(--muted)">${g}</text>`;
+    phases.forEach((p, i) => { if (i % Math.ceil(phases.length / 8) === 0 || i === phases.length - 1) s += `<text x="${x(i)}" y="${H-8}" text-anchor="middle" font-size="11" fill="var(--muted)">${esc(p)}</text>`; });
+    for (const p of POWERS) {
+      const pts = phases.map((ph, i) => { const r = rows.find(r => r.phase === ph && String(r.power).toUpperCase() === p); return r ? `${x(i)},${y(Math.min(maxC, r.centres ?? 0))}` : null; }).filter(Boolean);
+      if (pts.length) s += `<polyline fill="none" stroke="var(--${p})" stroke-width="2.5" points="${pts.join(" ")}"/>`;
+    }
+    s += `</svg><div class="filters">${POWERS.map(p => `<span><span class="tag" style="background:var(--${p})"></span>${nice(p)}</span>`).join("")}</div>`;
+    return s;
+  }
+
+  async function openPower(p) {
+    S.sel = p; renderPowers();
+    const D = $("drawer"); D.classList.add("open"); D.setAttribute("aria-hidden", "false");
+    const b = S.board || {}; const units = (b.units || {})[p] || [], centers = (b.centers || {})[p] || [];
+    const low = p.toLowerCase();
+    const phases = (S.index?.phases || []).filter(ph => /M$/.test(ph));
+    const [orders, intentions] = await Promise.all([
+      Promise.all(phases.map(ph => text(`archive/${ph}/orders/${low}.txt`).then(t => [ph, t]))),
+      S.final ? Promise.all(phases.map(ph => text(`archive/intentions/${low}/${ph}.md`).then(t => [ph, t]))) : Promise.resolve([]),
+    ]);
+    // Every message this power sent or received, all phases: archived press plus each power's live sent.jsonl.
+    const allPhases = S.index?.phases || [S.phase];
+    const archived = (await Promise.all(allPhases.map(ph => jsonl(`archive/${ph}/press.jsonl`)))).flat().map(m => ({...m, archived:true}));
+    const live = (await Promise.all(POWERS.map(w => jsonl(`powers/${w.toLowerCase()}/press/sent.jsonl`)))).flat();
+    const seen = new Set(); const everything = [];
+    for (const m of [...archived, ...live]) { const k = `${m.phase}|${m.from}|${m.to}|${m.n}`; if (!seen.has(k)) { seen.add(k); everything.push(m); } }
+    const U = x => String(x || "").toUpperCase();
+    const mine = everything.filter(m => U(m.from) === p || U(m.to) === p || U(m.to) === "ALL")
+      .sort((a, b) => allPhases.indexOf(a.phase) - allPhases.indexOf(b.phase) || (a.ts || "").localeCompare(b.ts || "") || (a.n || 0) - (b.n || 0));
+    const others = POWERS.filter(w => w !== p);
+    const count = w => mine.filter(m => (U(m.from) === p && U(m.to) === w) || (U(m.from) === w && (U(m.to) === p || U(m.to) === "ALL"))).length;
+    S.convo = S.convo && others.includes(S.convo) ? S.convo : "ALL";
+    const intMap = Object.fromEntries(intentions);
+    const convoHtml = () => {
+      const sel = S.convo;
+      const msgs = sel === "ALL" ? mine : mine.filter(m => (U(m.from) === p && U(m.to) === sel) || (U(m.from) === sel && (U(m.to) === p || U(m.to) === "ALL")));
+      if (!msgs.length) return `<div class="empty">${sel === "ALL" ? "No press yet." : `Nothing between ${nice(p)} and ${nice(sel)} yet.`}</div>`;
+      let out = '<div class="convo">', ph = null;
+      for (const m of msgs) {
+        if (m.phase !== ph) { ph = m.phase; out += `<div class="day">${esc(phaseLabel(ph))}</div>`; }
+        const from = U(m.from), to = U(m.to), me = from === p;
+        out += `<div class="bub ${me ? "me" : ""}" style="--who:var(--${esc(from)})"><div class="hd">${esc(nice(from))}
+          ${to === "ALL" ? '<span class="bc">to everyone</span>' : (sel === "ALL" ? `<span class="bc">→ ${esc(nice(to))}</span>` : "")}
+          <span class="t">${m.ts ? esc(String(m.ts).slice(11,16)) : ""}${m.archived ? "" : " · live"}</span></div><div class="tx">${esc(m.text)}</div></div>`;
+      }
+      return out + "</div>";
+    };
+    const chipsHtml = () => `<div class="chips" id="chips"><button data-c="ALL" class="${S.convo==="ALL"?"on":""}">All<span class="cnt">${mine.length}</span></button>${
+      others.map(w => `<button data-c="${w}" class="${S.convo===w?"on":""}"><span class="dot" style="background:var(--${w})"></span>${nice(w)}<span class="cnt">${count(w)}</span></button>`).join("")}</div>`;
+    D.innerHTML = `<div class="head"><span class="dot" style="width:16px;height:16px;border-radius:50%;background:var(--${p})"></span><h1>${nice(p)}</h1><button id="closeD">Close</button></div>
+      <dl class="kv"><dt>Centres</dt><dd>${centers.length}: ${esc(centers.join(" "))}</dd><dt>Units</dt><dd>${units.length}: ${esc(units.join(", "))}</dd></dl>
+      <h2>Orders as written for ${esc(S.phase)}</h2>${S.pending[p] ? `<pre>${esc(S.pending[p])}</pre>` : '<div class="empty">Nothing written yet; the clerk will record holds.</div>'}
+      <h2>Press</h2>${chipsHtml()}<div id="convo">${convoHtml()}</div>
+      <h2>Orders by phase</h2>${orders.filter(([, t]) => t != null).map(([ph, t]) => `<div class="msg"><div class="who">${esc(phaseLabel(ph))}</div><pre>${esc(t.trim() || "(no orders: holds)")}</pre>${
+        S.final && intMap[ph] != null ? `<div class="who" style="margin-top:8px">Sealed intention, written before press</div><div class="md">${esc(intMap[ph].trim())}</div>` : ""}</div>`).join("") || '<div class="empty">No archived orders yet.</div>'}
+      ${S.final ? "" : '<p class="seal">Sealed intentions open when the game ends; the clerk copies them to archive/intentions/.</p>'}`;
+    $("closeD").onclick = () => { D.classList.remove("open"); D.setAttribute("aria-hidden", "true"); S.sel = null; renderPowers(); };
+    $("chips").querySelectorAll("button").forEach(b => b.onclick = () => { S.convo = b.dataset.c; $("chips").outerHTML = chipsHtml(); $("convo").innerHTML = convoHtml();
+      $("chips").querySelectorAll("button").forEach(bb => bb.onclick = b.onclick); });
+  }
+
+  async function control(body) {
+    const btns = ["btnPause","btnResume","btnStop"].map($); btns.forEach(b => b.disabled = true);
+    try {
+      const r = await fetch("/api/lab/control", {method:"POST", headers:{"Content-Type":"application/json","X-Rig-Console":"1"}, body: JSON.stringify({job: JOB, ...body})});
+      const j = await r.json().catch(() => ({}));
+      $("note").textContent = r.ok ? (j.note || "Sent. The clerk acts on its next wake.") : `Refused: ${j.error || r.status}`;
+    } catch (e) { $("note").textContent = "Could not reach the console."; }
+    btns.forEach(b => b.disabled = false);
+    await refresh();
+  }
+  $("btnPause").onclick = () => control({paused: true});
+  $("btnResume").onclick = () => control({paused: false});
+  $("btnStop").onclick = () => { if (confirm("End the game after the current phase? The clerk finishes adjudication, writes final standings and tells every power.")) control({stop: true}); };
+  $("phaseSel").onchange = async e => { S.phase = e.target.value; await loadPhase(); renderAll(true); };
+  $("tabs").querySelectorAll("button").forEach(b => b.onclick = () => { S.tab = b.dataset.tab; renderAll(true); });
+
+  function fingerprint() {
+    return JSON.stringify([S.phase, S.control, S.board, S.press.length, S.livePress.map(m => [m.from, m.to, m.n, m.phase]), S.results, S.digest, S.incidents, S.final, S.pending, S.timeline.length, S.tab, S.pressFilter]);
+  }
+  function renderAll(force) {
+    const fp = fingerprint();
+    renderBar();                                   // cheap, text only; the countdown ticks separately
+    if (!force && fp === S.lastFp) return;         // nothing changed: leave the DOM alone
+    S.lastFp = fp;
+    const y = window.scrollY;
+    renderPowers(); renderPanel();
+    window.scrollTo(0, y);                         // a re-render shouldn't move you
+  }
+  async function refresh() {
+    const live = !S.control || S.phase === S.control.phase;   // follow the clerk while looking at the current phase
+    await loadStatic();
+    if (live && S.control?.phase) { S.phase = S.control.phase; $("phaseSel").value = S.phase; }
+    await loadPhase(); renderAll();
+  }
+  refresh();
+  setInterval(tick, 1000);
+  setInterval(() => { if (document.hidden || $("drawer").classList.contains("open")) return; refresh(); }, 20000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+})();
+</script>
+</body>
+</html>

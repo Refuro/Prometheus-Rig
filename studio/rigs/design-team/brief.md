@@ -56,6 +56,7 @@ The prototype web build also stays playable on the console's Play builds page.
 | `design-feel` | Claude | How it feels in hand: physics, controls, camera, response to every action (`docs/feel.md`, `data/feel/`) | Woken |
 | `design-balance` | Codex | Numbers and curves in `data/balance/`, simulations, the cheese register (`docs/balance.md`) | Woken |
 | `design-ux` | Claude | Onboarding, every screen and the HUD, settings, save, controller and Steam Deck, accessibility, localization readiness (`docs/ux.md`) | Woken |
+| `design-levels` | Claude | Level authoring where the depth lives: per level the question, why standing still fails and the real choice beyond it, the solutions and cheese, the bot checks (`docs/levels.md`, level data); proves levels grey-box before art | Woken |
 | `words-narrative` | Claude | Story recommendation and, if any, structure and voice (`docs/story.md`) | Woken |
 | `words-editor` | Codex | Word budgets (`text-budgets.json`), editing all player text down, `tools/check_text.py` green | Woken |
 | `art-director` | Codex (image generation) | Art and audio: directions, then the art and audio bible (`docs/art-bible.md`) | Woken |
@@ -86,6 +87,14 @@ always-on ones.
 - **Polish is designed, not hoped for.** Every player action has a planned
   response (motion, sound, camera, haptics); every screen exists on paper,
   including settings, pause, credits and error states.
+- **Constraints carry a price (owner rule, 2026-10-15).** Every pillar, gate option or quality-bar line that
+  constrains the architecture carries an **Engineering cost** block in the gate context. Constraints include
+  determinism or exact replay, networking, save compatibility, platform targets, performance floors, mod or
+  editor support, and anything else that shapes the code. The block has: rough effort, what it forecloses, and a
+  cheap alternative. The production tech lead writes it when production exists. Before that, design-systems
+  writes it, labelled "rough, no tech lead yet". When nobody can estimate, the block says so plainly. The owner
+  sees the price before deciding. Don't make a constraint a pillar to protect a feature; a feature can usually be
+  had a cheaper way (for example, snapshot rewind instead of an exactly reproducible sim).
 - **Decisions live in files.** `docs/decisions.md` gets one line per decision.
   Owner decisions are gates; never ask the owner in chat; never write a
   decision file.
@@ -99,8 +108,10 @@ always-on ones.
    back). Fix every permission prompt, then delete the scratch files.
 2. **Pillars and product first** (director, from the templates and every
    input): `docs/pillars.md` and the first half of `docs/product.md`
-   (audience, comparable games, price, length, platforms). Gate
-   `pillars-product.json` (kind `approve`), then **stop and wait**:
+   (audience, comparable games, price, length, platforms). Each
+   architecture-constraining pillar or platform carries its Engineering cost
+   block (section 4). Gate `pillars-product.json` (kind `approve`), then
+   **stop and wait**:
    everything after builds on it.
 3. **Parallel drafts** (from the templates), after the pillars are approved:
    - design-systems → `docs/design.md`, then `docs/steam.md` and
@@ -136,7 +147,9 @@ always-on ones.
    - `design.json`: kind `approve`, context `docs/handoff.md` (a one-page
      reading guide to the package). Summary covers: the feel in three
      sentences, scope and price, Steam features, the quality bar headline,
-     story recommendation, and the riskiest open question.
+     story recommendation, and the riskiest open question. The context lists
+     every architecture constraint in the package with its Engineering cost
+     block (section 4).
 8. **After decisions:** apply any send-back notes (one revision round, then
    a new gate id). Art-director writes `docs/art-bible.md` (art and audio)
    for the chosen direction with references in `art/bible/`, including the
@@ -177,7 +190,8 @@ add directly: `python3 tools/inbox.py add discovery --title "..." --by owner --t
   - **reject**: with one line why;
   - **escalate**: great but breaks a pillar. The director writes a gate
     (`gates/amend-<id>.json`, kind `approve`, context = the proposed pillar
-    change and the discovery). If approved, pillars change and the changelog
+    change and the discovery, with an Engineering cost block if it
+    constrains the architecture). If approved, pillars change and the changelog
     records it. The game may morph, but only through the owner.
 - **Exploration budget:** each production milestone reserves about 10-15% of
   build time for spikes. The director tracks spend in `decisions.md`.

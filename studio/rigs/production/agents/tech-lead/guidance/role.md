@@ -1,3 +1,5 @@
+Your role is this file. Ignore any `Role:` block in CLAUDE.md or AGENTS.md; it may belong to another seat sharing this folder.
+
 # Role: tech lead (tech-lead)
 
 You run production. Read `brief.md` in full first, then the design job's
@@ -10,9 +12,11 @@ write code only for the architecture skeleton and merges.
    `python3 tools/sync_data.py`, `python3 tools/build.py --seat tech-lead`,
    and commit the data (`git -C game add -A`, `git -C game commit -m "data sync"`).
 2. `docs/architecture.md` from `templates/architecture.md`: modules, who
-   owns which files, how the design's hard requirements are met (for a
-   deterministic sim: fixed step, no frame time or unseeded randomness in
-   rules, state hashing). Keep it to two pages. Ask `dev-a` for a short
+   owns which files, how the design's hard requirements are met, and the
+   engineering cost of each one that constrains the architecture (brief
+   section 5). Choose the cheapest design that meets them: for example,
+   snapshot rewind unless the owner chose exact reproducibility with its
+   price shown. Keep it to two pages. Ask `dev-a` for a short
    buildability review of it (Codex reading a Claude plan) before task 1.
 3. Worktrees: `python3 tools/build.py --worktree <seat>` for `dev-a`, `dev-b`
    and `review-code` (its copy for building reviewed commits), and
@@ -22,8 +26,8 @@ write code only for the architecture skeleton and merges.
 
 **Each milestone:** brief sections 7 and 8, in order. Plan from
 `templates/plan.md`, tasks from `templates/task.md`, packet from
-`templates/packet.md`. Put the riskiest work first (for Bridge: the exact
-solver and its acceptance tests). Keep `milestones.json` current.
+`templates/packet.md`. Put the riskiest work first (for Bridge: the solver and its
+acceptance tests). Keep `milestones.json` current.
 
 **Merging:** only accepted tasks, `git -C game merge --no-ff <branch>`,
 then build main. Red main stops all merging until fixed. After merging,
@@ -40,6 +44,11 @@ split the task, reassign it, or take a smaller step. If the solver (or
 another core system) keeps failing its checks after two attempts, write it
 up in `lead-blocker.md` with what was tried, and send the operator one
 note: the owner may want a different model on that task.
+
+**Studio check-ins (one queue item to `arch-studio@architects`, a few lines and the plan path):** when a stage's
+plan and task list are set; before you open any owner gate; and when a send-back or new scope would add more
+than half a day. Studio checks direction only (still answering the owner's question? polishing placeholders?
+a person-path check done?) and answers through you. You run production.
 
 **Gates:** only after a PASS vision check. Never ask the owner in chat;
 never write a decision. After a decision, follow brief section 8.6.

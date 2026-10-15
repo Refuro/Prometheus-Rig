@@ -444,16 +444,193 @@ no wakes, pushes or usage worth noticing.
   - After three failures, check daemon status once and tell the operator. Never restart the daemon.
 - **Evidence:** `scratch/rig/dev-a-queue-show-20261013.md`. Two slowdowns, both soon after a restart.
 - **Item 4 (added 15:00Z, before the decision):** each team launches in its own job folder.
-  - **Cause:** all my research and validation launches used `cwd: /home/you/openrig`, so
+  - **Cause:** all my research and validation launches used `cwd: ~/openrig` (as an absolute path), so
     validation-1's culture went into `~/openrig/CLAUDE.md` and `AGENTS.md`, and every job below inherited
     it. Bridge's dev-b stopped T-013.
   - **My miss:** the templates never said where seats should work.
   - **Evidence:** `scratch/rig/root-culture-leak-20261013.md`.
 - **Not reviewed by Codex:** the retry rule can't duplicate work.
+- **Related (MA-017, 18:30Z):** the same OpenRig mechanism (launch text written into `<cwd>/CLAUDE.md` and
+  `AGENTS.md`) causes role collision inside one rig: Studio's AD-030 and ledger O058. Own folders don't fix
+  that one. My research and validation briefs don't select role guidance.
+  - **The architects rig does:** all five `agent.yaml` files have `guidance: [role]` in one shared cwd. No
+    role text shows in `architects/CLAUDE.md` or `AGENTS.md` today (checked 18:30Z), and the roles also
+    arrive as required startup files.
+  - **Plan:** once AD-030's fix is proven, propose dropping `guidance: [role]` at the next architects
+    relaunch, under a gate.
 
 **Outcome:** the owner approved all four items at 15:31Z, with no note. SHARED-RULES is now v1.7
 (§3 retries; §7 reply files and own-folder launches) and the brief v1.4. The operator was sent the
 install instruction with the decision path.
+
+## PD-028 Shared rules v1.8: the operator's phone notifications (2026-10-13)
+**Gated:** `~/openrig/jobs/architects/gates/pd-028-rules-v1-8.json` (exact text in its `.md`).
+- **Owner's preference** (operator qitem-20261013181608-4d0e493aa3f333ab, authorized now): the operator
+  notifies the owner's phone whenever it judges something deserves attention. That covers milestones,
+  actionable issues and news the owner would want, kept useful and restrained, without asking each time.
+- **Change:** the §7 "Notifying the owner" bullet gains that judgment rule. Seats still never push (§1).
+- **No lead notice needed:** it's an operator-only duty.
+
+**Outcome:** the owner approved at 18:18Z ("Perfect, looks good"). SHARED-RULES is now v1.8, and the
+operator was sent the install instruction with the decision path.
+
+## PD-029 Shared rules v1.9: narrower stops (Model's MA-019, 2026-10-13)
+**Gated:** `~/openrig/jobs/architects/gates/pd-029-rules-v1-9.json` (exact text in its `.md`).
+- **Evidence:** five over-broad stops in three runs (O077, O103, O104, O146, O151). assets-1 stopped all of
+  phase 1 over a blocked `nvidia-smi`; research-market called its own script's segfault an approved tool
+  failing.
+- **Change, §2 item 3:** stop only the work that needs the failed tool. The line after it: scripts you or
+  your team wrote are your input, not an approved tool. This adopts Model's wording.
+- **On approval:** the operator installs v1.9 and tells active leads.
+- **Not reviewed by Codex:** it narrows stops and adds no permission.
+
+**Outcome:** the owner approved at 19:07Z. SHARED-RULES is now v1.9, and the operator was sent the install and
+lead-notice instruction with the decision path.
+
+## PD-030 Diplomacy game 1: game-only deception rule and launch (2026-10-13)
+**Gated:** `~/openrig/jobs/architects/gates/pd-030-diplomacy-1.json` (choose: B capped / A full / C not now).
+The Owner's Advisor drafted it in `lab/diplomacy/`; I adopted it with amendments:
+- **§1 scope:** deception only in press between powers, in your own name. No impersonation. Honest intentions,
+  retros, notes and anything said to non-players.
+- **Clerk deadline wake:** there was none, so the game would have stalled. Now the clerk sets an OpenRig timer
+  and tests it in its dry run.
+- **Clerk paths:** they now run from its `clerk/` cwd.
+- **Python:** the job gets a local venv, because Ubuntu's Python has no pip or venv. The owner installs
+  `python3-venv` and `python3-pip` (Needs-you card `python-venv`).
+- **Shell:** press is shell-safe, and the launch steps have no loops.
+
+**On approval:** send the operator the README launch steps with the decision path, including the cap values if
+B is chosen. Tell the Model Architect to harvest `archive/` at game end.
+
+**Outcome:** the owner chose **A (the full game)** at 22:05Z, with the condition "be sure the game pauses if we
+hit a usage limit".
+- **The pause:** a seat reports `USAGE LIMIT:` (brief §7). The clerk pauses everyone (`state: paused-usage`)
+  and resumes on the operator's word, with the remaining time restored.
+- **Handoffs:** launch steps to the operator (qitem-20261013221014-079b0368). Model was told to harvest
+  `archive/`; Platform was told about the new control state.
+
+## PD-031 Shared rules v1.10: saving usage (2026-10-14)
+**Gated:** `~/openrig/jobs/architects/gates/pd-031-rules-v1-10.json`, the exact wording for the owner-approved usage
+options 2-5 (operator qitem-20261014014156-fc6c047b2af7c566): batch messages, no acknowledgment-only replies,
+small tool output, and recurring prompts fixed by narrow rules. It goes in a new §4b.
+- **Separately:** a push consultation with Platform (qitem-20261014014228-5bb896fa3cf0f7d3). The operator would be
+  the sole judge of phone pushes, with usage limits consolidated per provider. The recommendation comes before
+  any notification change.
+
+**Outcome:** the owner approved at 02:17Z ("Yes"). SHARED-RULES is now v1.10 (§4b), and the operator was sent the
+install and lead-notice instruction.
+
+## PD-032 Ownership assessment and the combined gate (2026-10-14)
+**Assessment** (owner request): `~/openrig/scratch/rig/ownership-assessment-20261014.md`.
+- After the 16:31Z restart, approvals ran at about 22 an hour, against about 12 before. About 15 of those were my
+  own native-log investigations.
+- `ROLES.md` is stale, and my handoff is too long.
+
+**The owner approved the batch** (operator qitem-20261014192418-3a1685718c299464):
+- **Done now:**
+  - my investigations use one bounded copy from the operator plus one script it inspects;
+  - my handoff is compacted to current state;
+  - the `docket-ideas-source` card is resolved: ideas come from `lab/IDEAS.md`, read-only, kept by the Advisor.
+    Platform was told (qitem-20261014193327-7ed4ff791d0c87b9).
+  - the patch removing the root validation block is ready for the operator's next batch
+    (`scratch/rig/root-block-removal/STEPS.md`).
+- **Gated** (`gates/pd-032-roles-handoffs-freeze.json`):
+  - the ROLES rewrite;
+  - SHARED-RULES v1.11: handoffs of 100 lines or fewer, and the closing step for model notes;
+  - architects brief v1.5: the deploy-card freeze and dated log headings;
+  - `TEMPLATE.md`.
+
+  Eight conflicts were vetted; they're listed in the gate's `.md`. There are no permission changes.
+- **Held:** the cheaper tripwire (proposal 4).
+- **Next:** re-measure approvals about 24 hours from now (about 10-15 19:30Z).
+
+**Miss:** the owner answered `docket-ideas-source` on 10-13 at 22:32Z ("yes, the handoff table, with idea
+markers"), and I didn't act on it for about 21 hours. I even reported it as unanswered in today's assessment. I
+never checked `decisions/task-docket-ideas-source.json`.
+- **Rule for me:** before calling any of my cards unanswered, check `decisions/task-<id>.json`.
+
+**Outcome:** approved at 19:32Z, with one fix.
+- **The owner's fix:** only the owner closes gates in the console, unless the operator has a real route.
+  - The operator does have one: it writes `decisions/<id>.json` with `decided_by: "operator recording owner chat …"`,
+    and four such files exist. So SHARED-RULES §1, §7 and ROLES item 6 now say the owner decides in the console and
+    the operator *records* chat decisions.
+- **The freeze includes Platform:** kept, as the owner asked.
+- **Written at 22:15Z:** ROLES, SHARED-RULES v1.11, brief v1.5 and TEMPLATE. The operator was asked to install the
+  rules and tell leads (qitem-20261014221510-d5d421079c1781ac). The four other architects got a no-nudge FYI.
+- **Miss:** I acted about 2.7 hours late. I didn't check `decisions/` until a later request made me, the same miss as
+  `docket-ideas-source`. My rule already said to check `decisions/task-<id>.json`; it applies to every gate I open.
+
+**Miss (2026-10-14 20:20Z):** the delivery-break request from the owner asked me to *report* a narrow remedy.
+- I wrote to Platform: "it's your call and your edit". Platform then changed the developer role's step 3 before the
+  owner had seen the proposal.
+- The change itself is instructions only, with no permission change, and I recommend keeping it.
+- **Rule for me:** when a request says to investigate or report, my notes to other seats say "proposal, don't apply
+  until the owner says so".
+
+## PD-033 Platform check runner, exact rules, fresh start (2026-10-14)
+**Gated** (`gates/pd-033-platform-runner.*`) after the owner asked "are you sure Platform's permissions can't expand?".
+- **Reports:** `scratch/rig/platform-approvals-reassess-20261014.md`, plus Model's review MA-031.
+- **Finding:** rules installed mid-session at 16:50Z and 17:23Z never loaded in Platform's 16:30Z session (they prompted
+  at 16:55Z), even though the docs promise reload. The /mnt/c cause is a hypothesis.
+- **The candidate:** a root-owned runner with 9 fixed subcommands and 9 exact rules. Three old rules are retired
+  (Model's C2), and the tripwire is excluded (owner hold).
+- **C1 accepted for now:** shared settings can't narrow scratch Edit per seat; per-seat settings come at the next
+  relaunch.
+
+**Outcome:** the owner chose A ("Good") at 21:32Z.
+- **Steps, in order** (operator qitem-20261014213241-a5046c27ee4d39d9):
+  1. Platform applies Model's fixes;
+  2. it commits after the PL-060 deploy is live;
+  3. the owner does the root install;
+  4. the operator installs the hash-pinned candidates;
+  5. a fresh start of Platform's session, with 9 probes.
+- **To grade:** the measured prompt reduction against Platform's 70–80% estimate.
+
+**Miss and finding (2026-10-14 22:35Z):** architect seats run in `architects/`, and Claude Code reads the shared
+`.claude/settings.json` from the working directory (`/docs/en/settings`).
+- **So the repo-root `.claude/settings.json` was never loaded:** not the harvest rule (04:02Z), not the 30
+  syntax-check rules (16:50Z), not the staged-smoke rule (17:23Z), not PD-033's 9 rules (installed about 22:30Z).
+- **My "/mnt/c doesn't reload" hypothesis was wrong.** I had recommended that file as the stale-save-proof home
+  without checking which file the seats read.
+- **Corrected candidates** target `architects/.claude/settings.json` and `settings.local.json`
+  (`scratch/rig/architects-settings*.candidate6`, hash-pinned).
+- **Rule for me:** verify the file a seat actually loads (its cwd plus the docs) before proposing where a rule goes.
+- **Installed (verified at 22:45Z):** the live `architects/.claude/settings.json` and `settings.local.json` are
+  cmp-identical to candidate6, and page-check is gone from both. Native proof (`/permissions` view, 9 probes) is
+  pending with the operator.
+- **Platform's process note (22:27Z):** the owner's deploy didn't install the runner. The deploy runs the copy from
+  the previous deploy, so a new install step first runs one deploy later. It was fixed with a one-time manual install
+  card. Platform's lesson: every new deploy install step needs a first-time manual step, and its review asks "which
+  copy of the deploy runs this?". No shared-rule change.
+
+**Miss (21:32Z):** I sent the approved PD-033 steps to Platform with `--no-nudge`, so the row was never woken and
+sat unclaimed (`scratch/rig/unclaimed-approval-20261014.md`). **Rule:** `--no-nudge` only for FYI notes.
+
+**My miss (corrected in this entry):** my 10-14 permissions assessment said the 16:31Z restart had fixed loading.
+That was true only for rules on disk before each session started.
+
+## PD-034 Shared rules v1.12: result rows go back to the sender (2026-10-15)
+- **Why:** results were lost three times in two days because a row was closed (which wakes nobody) or a turn ended
+  with rows pending: Platform's developer on 10-14, the unclaimed PD-033 row on 10-14, and Model's two review rows on
+  10-15 (Platform's note qitem-20261015070745-72aa4e508b770673). The root was our own §4b, "Closing the queue item is
+  the receipt".
+- **Change (§4b):** closing is the receipt only for information-only rows. A row that asked for a result goes back to
+  the sender with `rig queue handoff … --body-file <result>`. Before ending a turn, settle every pending row. The
+  "finish in one turn" bullet now says "or hand it back".
+- **Gate:** `gates/pd-034-rules-v1-12.*`, approved by the owner at 07:10Z ("Works").
+- **Related (10-15, bridge-prod):** a restart replays the projection stored at the seat's first launch, so a spec fix
+  reaches only seats launched fresh after it (`scratch/rig/role-block-cause-20261015.md`).
+
+## PD-035 Shared rules v1.13: engineering cost on architecture constraints (owner's rule, 2026-10-15)
+- **Source:** the owner's direct instruction, recorded by the operator (log 08:40Z;
+  `~/.openrig/workspace/state/owner-architecture-decisions-20261015.md`). The owner authorized adoption, so there's
+  no gate.
+- **Change (§1):** any gate option or design pillar implying an architecture constraint carries the tech lead's cost
+  line in the gate's context: rough effort, what it forecloses, the cheap alternative. It's grounded in agent
+  development evidence, with the uncertainty labelled. "Can't estimate" is stated plainly. A team without a tech lead:
+  the gate's writer supplies the line.
+- **Studio** carries it into its team templates (tech-lead role and gate guidance). The gate format (`JOBS.md`) is
+  unchanged: the line goes in the existing context field.
 
 ---
 

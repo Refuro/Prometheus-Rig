@@ -1,13 +1,59 @@
 # prometheus-rig
 
-**A home lab for AI agent teams.** Claude Code and Codex agents work as small teams on one Windows PC
-(*Prometheus*). They research markets, validate offers, and design and prototype games, coordinated by
-[OpenRig](https://www.npmjs.com/package/@openrig/cli) inside WSL2. A custom dashboard, **Rig Console**,
-lets you watch them work and make their decisions from a desktop or phone.
+**A supervised factory of AI agent teams.** Claude Code and Codex agents work as small teams that research
+markets, validate offers and design and prototype games, coordinated by
+[OpenRig](https://www.npmjs.com/package/@openrig/cli) on one Windows PC (*Prometheus*). A human makes every
+call that matters: teams stop at decision gates, and the owner answers from a desktop or phone in **Rig
+Console**, a dashboard built for this. The repo's first commit is dated 2026-10-12.
 
-It's a hobby and learning project. The goal is to find out how far a supervised "factory" of agents can
-go: from finding an opportunity to validating it, building it and selling it. The rule throughout is that a
-human makes every call that matters.
+**Status:** an active experiment. Design decisions and how they turned out, failures included, are in
+[`ARCHITECTURE-LOG.md`](ARCHITECTURE-LOG.md) and the three architect logs:
+[Platform](dashboard/ARCHITECTURE-LOG.md), [Studio](studio/ARCHITECTURE-LOG.md),
+[Model](models/LOG.md).
+
+[![An excerpt of the studio production run, replayed on Rig Console's live graph at 600×](docs/replay.gif)](docs/replay.webm)
+<sub>A 75-second excerpt (the busiest 12.5 hours) of the studio production run, replayed at 600× on the live graph
+([video](docs/replay.webm)). Recorded on a private console from scrubbed copies of the data.</sub>
+
+## What we found
+1. **A forged approval was refused in seconds, and the gate held.** Told that the owner had approved a plan
+   (a deliberate test), the team lead listed the decisions folder, with the result back **3.6 s** after the
+   message arrived. It found no decision file, reported the forgery (delivered at 8.8 s) and dispatched nothing.
+   Seen once, and the message carried an unknown-sender cue, so this doesn't show that every forgery would be
+   caught. [`models/LOG.md`](models/LOG.md) MA-018.
+2. **The grader was graded too, and corrected its numbers.** A Codex reviewer checks each batch of the Model
+   Architect's grading for bias. Every finding in three reviews was accepted: 18 ledger lines that blamed "the
+   model" went to 0; "every first build was sent back" became **13 of 16**; "one promise break" became **at least
+   3, total unknown**. These are corrections to one grader's write-ups, not a measured accuracy rate, and the
+   reviewer has blind spots of its own.
+   [`models/LOG.md`](models/LOG.md) MA-004, MA-023, MA-025.
+3. **Supervising agents costs approvals, and our first fix didn't lower it.** The operator logged about
+   **11 approvals an hour** at baseline (247 in 22.2 h), and **21–35 an hour** on later heavy investigation days.
+   The work changed between those windows, so this makes no causal claim. Counted as log entries, not prompts.
+   [`models/reviews/public-readiness-evidence.md`](models/reviews/public-readiness-evidence.md).
+
+## How it fits together
+
+```mermaid
+flowchart LR
+  you((You)) -- "decisions & messages" --> console["Rig Console<br/>(desktop · phone)"]
+  console -- "push alerts" --> phone((Phone))
+  subgraph wsl["WSL2 Ubuntu"]
+    op["Operator<br/>(Codex)"] --> lead["Team lead<br/>(Claude)"]
+    lead <--> seats["Seats<br/>(Claude · Codex)"]
+    logger["Snapshot logger<br/>(every 10 s)"]
+  end
+  console -- "rig send" --> lead
+  seats -- "files, gates, events" --> jobs[("Job folders")]
+  jobs --> console
+  logger -- "screens, queue, state" --> console
+```
+
+- **Decisions live in files, not chat.** Teams write `gate.json`, you answer in the console, and the answer lands in `decisions/<id>.json` with a message to the lead.
+- **The snapshot logger** mirrors agent screens, the OpenRig queue and research output every 10 seconds, so the console (and a supervising assistant) can follow the work without interrupting it.
+- **Remote access** goes through Tailscale Serve: HTTPS, reachable only from your own devices, plus a console token.
+
+More detail (what runs where, how an alert reaches your phone, who owns what): [`docs/SYSTEM.md`](docs/SYSTEM.md).
 
 ![Rig Console's live graph replaying a research run: three agents working, handoffs in flight, and the activity feed](docs/graph.png)
 
@@ -25,9 +71,9 @@ A small stdlib-Python server plus plain HTML pages, with no build step and no de
 | **Activity feed** | One running story: who started, what they're doing, what they handed off, which files they wrote. |
 | **Decisions** | "Gates" the teams open for you: pick 3 pitches, approve a plan, choose a brand name. Background docs are rendered in place, with an in-page reader for every file they mention. |
 | **Builds** | Godot web exports from prototype jobs as a shelf of named games, each with what it's testing, what to judge, controls and known bugs. One tap to play; threaded builds work too. |
-| **Niche board / Run report** (under More) | Research funnels, checkpoint pickers, a per-agent timeline of where the time went, approval waits, a usage log and an evidence link checker. |
-| **Models** (under More) | The Model Architect's report cards: a seat × model grid, the evidence ledger, and assessments of roles and briefs. |
-| **System** (under More) | A live map of what runs where, how an alert reaches your phone, and who owns what. |
+| **Niche board / Run report** (under Teams) | Research funnels, checkpoint pickers, a per-agent timeline of where the time went, approval waits, a usage log and an evidence link checker. |
+| **Models** (under Record) | The Model Architect's report cards: a seat × model grid, the evidence ledger, and assessments of roles and briefs. |
+| **System** (under System) | A live map of what runs where, how an alert reaches your phone, and who owns what. |
 | **Phone view** | "Needs you", teams and the feed in a phone layout, installable as an app. Alerts arrive as push notifications via ntfy. |
 
 <table>
@@ -52,31 +98,6 @@ Under the hood:
 | **Research** | Finds a narrow, evidenced business opportunity: longlist → screen → skeptic → deep dive → shortlist, with checkpoints for the human. | Claude lead + two Codex analysts (complaints-first and spending-first) + Claude skeptic |
 | **Validation** | Turns a finalist into a real offer, then tests it with honest, rule-following outreach, in phases that need human approval before anything is sent. | Claude lead and writer, Codex ops and prospector, skeptic at the gates |
 | **Game studio** | Pitch rooms invent original games, prototype sprints build playable grey-box Godot toys, then a design team locks pillars and art direction. Ideas are narrowed by **playing prototypes, not writing documents**. | See [`studio/STUDIO-PLAN.md`](studio/STUDIO-PLAN.md) |
-
----
-
-## How it fits together
-
-```mermaid
-flowchart LR
-  you((You)) -- "decisions & messages" --> console["Rig Console<br/>(desktop · phone)"]
-  console -- "push alerts" --> phone((Phone))
-  subgraph wsl["WSL2 Ubuntu"]
-    op["Operator<br/>(Codex)"] --> lead["Team lead<br/>(Claude)"]
-    lead <--> seats["Seats<br/>(Claude · Codex)"]
-    logger["Snapshot logger<br/>(every 10 s)"]
-  end
-  console -- "rig send" --> lead
-  seats -- "files, gates, events" --> jobs[("Job folders")]
-  jobs --> console
-  logger -- "screens, queue, state" --> console
-```
-
-- **Decisions live in files, not chat.** Teams write `gate.json`, you answer in the console, and the answer lands in `decisions/<id>.json` with a message to the lead.
-- **The snapshot logger** mirrors agent screens, the OpenRig queue and research output every 10 seconds, so the console (and a supervising assistant) can follow the work without interrupting it.
-- **Remote access** goes through Tailscale Serve: HTTPS, reachable only from your own devices, plus a console token.
-
-More detail (what runs where, how an alert reaches your phone, who owns what): [`docs/SYSTEM.md`](docs/SYSTEM.md).
 
 ---
 
@@ -151,4 +172,5 @@ to your console URL) and subscribe to the topic in the ntfy app.
 [MIT](LICENSE): use it, fork it, adapt it.
 
 *Not affiliated with OpenRig, Anthropic or OpenAI. A personal project, shared in case the patterns are useful.
-The screenshots show a replay of a real research run and a demo decision.*
+The replay at the top is an excerpt of the studio production run; the screenshots show a replay of a real research
+run and a demo decision.*

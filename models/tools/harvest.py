@@ -46,11 +46,16 @@ def main(dry, live=False):
     new_obs, new_met, problems = [], [], []
 
     for mirror, rig, d in job_dirs(live):
-        notes = os.path.join(d, 'model-notes.jsonl')
+      # The job folder itself, plus seats' own folders one or two levels down (e.g. a lab game's clerk/ and
+      # powers/<nation>/). The hash still uses only the job name and the line, so it's unchanged (MA-024).
+      for notes in [os.path.join(d, 'model-notes.jsonl')] + sorted(glob.glob(os.path.join(d, '*', 'model-notes.jsonl'))) \
+              + sorted(glob.glob(os.path.join(d, '*', '*', 'model-notes.jsonl'))):
+        sub = os.path.relpath(os.path.dirname(notes), d)
+        sub = '' if sub == '.' else sub + '/'
         if os.path.exists(notes):
             for n, line in enumerate(open(notes, encoding='utf-8'), 1):
                 if not line.strip(): continue
-                where = f'{mirror}/{rig}/model-notes.jsonl:{n}'
+                where = f'{mirror}/{rig}/{sub}model-notes.jsonl:{n}'
                 try:
                     e = json.loads(line)
                 except ValueError as ex:
@@ -73,10 +78,13 @@ def main(dry, live=False):
                        'harvested_from': where, 'harvest_hash': key, 'status': 'harvested: needs review'}
                 next_id += 1
                 new_obs.append(rec)
-        mfile = os.path.join(d, 'model-metrics.csv')
+      for mfile in [os.path.join(d, 'model-metrics.csv')] + sorted(glob.glob(os.path.join(d, '*', 'model-metrics.csv'))) \
+              + sorted(glob.glob(os.path.join(d, '*', '*', 'model-metrics.csv'))):
+        sub = os.path.relpath(os.path.dirname(mfile), d)
+        sub = '' if sub == '.' else sub + '/'
         if os.path.exists(mfile):
             for n, r in enumerate(csv.DictReader(open(mfile, encoding='utf-8')), 2):
-                where = f'{mirror}/{rig}/model-metrics.csv:{n}'
+                where = f'{mirror}/{rig}/{sub}model-metrics.csv:{n}'
                 if not (r.get('seat') and r.get('model')):
                     problems.append(f'{where}: missing seat or model'); continue
                 key = h(rig, json.dumps(r, sort_keys=True))

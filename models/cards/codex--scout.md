@@ -6,11 +6,18 @@
 ## Did well
 - **Kept to the search budget,** with full receipts (pitch-1: 63 searches, 28 page opens). [O011]
 - **On time:** the friends-1 market read finished before the pitchers. [O014]
+- **Labels its limits (depth-1):** 72 searches, all tier 1, "Fresh" stated as a bounded survey; stopped at a store's
+  age gate without clicking through. [O097]
+- **Rule conflict escalated, not guessed (friends-1 dry run):** declined fixture checks that the web rule seemed
+  to forbid, then ran them all once the operator authorised. Brief and rule conflicted (attribution brief). [O073]
 
 ## Did badly
 - **Theme instead of verb:** searched the theme rather than the core verb on 3 of 21 pitch-1 cards, although the dispatch said to judge the core verb and win condition. An execution miss, not something the brief asked for. [O069]
-- **Bounded surveys:** "Fresh" means "not found in 3 searches", which follows from the brief's cap. [O013]
 - **Path slip in the dry run,** self-corrected. Seen once. [O012]
+
+## Task limits (not failures)
+- **Bounded surveys:** "Fresh" means "not found in 3 searches". That follows from the brief's cap, and the scout
+  complied and said so. [O013, O097]
 
 ## Compensating rules
 - **Search order:** a core-verb search first.

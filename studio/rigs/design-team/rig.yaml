@@ -54,6 +54,12 @@ pods:
         runtime: claude-code
         profile: default
         cwd: "."
+      - id: levels
+        label: "Level designer (Claude)"
+        agent_ref: "local:agents/levels"
+        runtime: claude-code
+        profile: default
+        cwd: "."
     edges: []
 
   - id: words
@@ -97,6 +103,9 @@ edges:
   - kind: delegates_to
     from: creative.director
     to: design.ux
+  - kind: delegates_to
+    from: creative.director
+    to: design.levels
   - kind: delegates_to
     from: creative.director
     to: words.narrative

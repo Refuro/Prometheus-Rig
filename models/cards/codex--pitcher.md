@@ -17,6 +17,8 @@
 
 ## Did badly
 - **Weak on dealt hands:** Codex alone put 6 of 40 hand cards on a board, against 13 of 16 free cards. The Claude seat showed the same direction (2/5 vs 2/2). These are descriptive selection rates; they don't show which deck feature causes the gap. [O004]
+- **Free pitches dominate the board:** in depth-1, 5 of the 8 board cards were free pitches, from only 6 of 24 cards
+  (each seat 7/7 valid first time). [O099]
 - **Convergence:** seats that drew the same setting cards produced 2 near-duplicate pairs in depth-1. In friends-1, 4 of the 6 gate failures were voice-driven; the retro poses the deck as a question, not a cause. [O005, O006]
 
 ## How it responds to instructions

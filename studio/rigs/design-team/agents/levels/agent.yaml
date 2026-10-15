@@ -1,0 +1,29 @@
+name: levels
+version: "1.0"
+description: "Level designer: authors levels where the depth lives; proves each one grey-box before art"
+
+resources:
+  guidance:
+    - id: role
+      path: guidance/role.md
+  plugins:
+    - id: openrig-core
+      source:
+        kind: local
+        path: "openrig-home:plugins/openrig-core"
+
+profiles:
+  default:
+    uses:
+      skills: []
+      guidance: []
+      subagents: []
+      plugins: [openrig-core]
+      runtime_resources: []
+
+startup:
+  files:
+    - path: guidance/role.md
+      delivery_hint: send_text
+      required: true
+  actions: []
