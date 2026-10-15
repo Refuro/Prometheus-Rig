@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Step 1b: run INSIDE Ubuntu (WSL) after WSL is installed and you've created your Linux user.
-#   bash /mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig/setup/bootstrap-wsl.sh
+#   bash <repo>/setup/bootstrap-wsl.sh
 set -euo pipefail
 
 echo "== Installing base packages (will ask for your Linux password) =="

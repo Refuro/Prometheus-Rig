@@ -1,4 +1,4 @@
-# Copy to C:\Users\you\.wslconfig (no file extension), then run: wsl --shutdown
+# Copy to C:\Users\<you>\.wslconfig (no file extension), then run: wsl --shutdown
 [wsl2]
 # Cap WSL's RAM so Windows and the local model keep room (PC has 32 GB).
 memory=16GB

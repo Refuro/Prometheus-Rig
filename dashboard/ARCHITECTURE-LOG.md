@@ -1684,7 +1684,7 @@ nothing deployed: that run had stopped before copying. The owner reran it.)
 - **Symptom:** the owner's Lounge was empty after option A. The three posts (0712Z, 0743Z and 1810Z) are
   intact on disk.
 - **Cause (mine, PL-029):** `lounge._open_dir` opened every folder on the path for reading, to refuse planted
-  links. Under option A the console may only pass through the owner's home (`getfacl /home/you`:
+  links. Under option A the console may only pass through the owner's home (`getfacl /home/<owner>`:
   `user:rigconsole:--x`), so it can't open it for reading. The open failed, and `posts()` treats any failure
   as "no posts". Lounge posting and the Diplomacy pause (`lab.py`) use the same opener, so both fail too.
   My tests ran as the owning user, who can read everything, and so never saw it.
@@ -2362,7 +2362,39 @@ The 9 rules are in `architects/.claude/settings.json`, and all 9 subcommands pas
 
 **Review-8:** two medium findings, the profile's double staleness and keys piling up, both fixed. Its point
 about requests waiting during a write is also handled. **Recheck-8** confirmed those fixes and found the cap
-could be exceeded under a burst; that's fixed too. **Checked:** smoke 292/292. Re-measurement: see below.
+could be exceeded under a burst; that's fixed too. **Checked:** smoke 292/292.
+
+**Measured on the final code** (same script and data as the assessment; one run):
+- repeat calls to graph, gates, docket, digest and the profile went from 300–900 ms to 1–2 ms;
+- Decisions settled in 0.09 s on desktop (was 1.0 s);
+- System settled in 0.5 s on the phone (was 1.9 s).
+
+The first call in each 5-second window still costs the full time. Details are in
+`jobs/architects/ops/console-speed-assessment.md`.
+
+**Live:** commit 9c8ae78, deployed by the owner and verified 2026-10-15 05:30Z. `deployed-diff` shows no
+differences, and the deployed `serve.py` has the cache.
+
+## PL-064 2026-10-15 No personal paths in the console's files (owner approved public-paths, 2026-10-14 23:36Z)
+Part of the owner's public-readiness batch. Each owner cleans their own files; these are mine in `dashboard/`
+and `setup/`:
+- **`serve.py`:** the usage line in its header says `<repo>/dashboard/serve.py`.
+- **`setup/bootstrap-wsl.sh` and `setup/install-autostart.sh`:** the usage lines say `<repo>/setup/…`.
+  - **One functional change:** `install-autostart.sh` now works out the logger's path from its own folder
+    (`$(cd "$(dirname "$0")" && pwd)/rig-snapshots.sh`) instead of a typed-in path. The installed service is
+    unchanged; rerunning the script writes the same absolute path.
+- **`setup/wslconfig.txt`:** `C:\Users\<you>\.wslconfig`.
+- **This log:** one line now says `/home/<owner>`.
+
+**Not in this release:**
+- `setup/rig-platform-check` still has its three paths (repo, home, node) built in. Filling them in at install
+  changes its hash, so it's a separate small gate with a Model Architect re-review, as the approved proposal says.
+- `dashboard/state/` holds runtime files that mention the user. It's gitignored and never published.
+
+**Review-10** found one medium problem that was already there before: the generated unit's
+`ExecStart=/bin/bash $SCRIPT` didn't quote the path, so a repo folder with spaces would split into several
+arguments and the service would fail. It's now `ExecStart=/bin/bash "$SCRIPT"`. The live service is unaffected,
+because the current path has no spaces, and the unit only changes when the owner reruns the installer.
 
 ---
 

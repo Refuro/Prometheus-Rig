@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Rig dashboard. Run in Ubuntu:
-    python3 /mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig/dashboard/serve.py
+    python3 <repo>/dashboard/serve.py
 then open http://localhost:8800 in your Windows browser.
 
 Reads (never writes):

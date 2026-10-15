@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Run in Ubuntu once:  bash /mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig/setup/install-autostart.sh
+# Run in Ubuntu once:  bash <repo>/setup/install-autostart.sh
 # Makes the snapshot/activity logger a system service that starts whenever
 # Ubuntu starts and restarts itself if it crashes.
 set -euo pipefail
-SCRIPT="/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig/setup/rig-snapshots.sh"
+SCRIPT="$(cd "$(dirname "$0")" && pwd)/rig-snapshots.sh"   # the logger beside this script, as an absolute path
 # Stop a manually started copy so there aren't two loggers.
 tmux kill-session -t snapshots 2>/dev/null || true
 sudo tee /etc/systemd/system/rig-snapshots.service >/dev/null <<UNIT
@@ -14,7 +14,7 @@ After=local-fs.target
 [Service]
 User=$USER
 Environment=HOME=$HOME
-ExecStart=/bin/bash $SCRIPT
+ExecStart=/bin/bash "$SCRIPT"
 Restart=always
 RestartSec=10
 # Copies fill the page cache, and systemd counts it against the service (3.6 GB on 2026-10-12).
