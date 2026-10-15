@@ -2322,6 +2322,48 @@ It was held in `scratch/platform/held-h/` until PL-060 was live. It's now re-app
 - smoke 284/284, with 2 new checks: the deploy installs the runner from the staged commit, root-owned, with its
   hash printed; and the runner has exactly the nine subcommands and refuses anything else.
 
+**Live (2026-10-14):** the deploy of 466bf4c didn't install the runner. It ran the previously installed deploy
+script, which had no runner step, and a second deploy stops at "already live". The owner installed it by hand
+from the commit (card `deploy-check-runner`), and the operator verified it: root:root, mode 755, hash 06740982….
+The 9 rules are in `architects/.claude/settings.json`, and all 9 subcommands passed once after a fresh start.
+**Lesson:** a new install step in the deploy first runs one deploy later.
+
+## PL-063 2026-10-15 Console speed: a short cache for the five slow answers (owner approved 2026-10-14 23:35Z)
+- **Why:** the measurement (`jobs/architects/ops/console-speed-assessment.md`) found `graph`, `gates`, `docket`,
+  `digest` and `seat` cost 300–1000 ms each, are recomputed on every request, and are polled by every page.
+  During page loads they reached 1.5–2 s.
+- **What (`serve.py`):** `cached(key, fn)` reuses an answer for `RIG_CACHE_S` seconds (default 5, below the
+  logger's 10-second write interval).
+  - **Shared work:** identical requests that arrive while one is being computed wait for it, rather than
+    computing again.
+  - **Writes show at once:** every POST clears the cache before and after it runs, so the owner's decisions and
+    answers appear immediately.
+  - **Errors are never cached.**
+  - **No more recomputing inside `/api/seat`:** it now reuses the cached graph and docket. It isn't cached itself:
+    a second layer would add a second window of staleness (review-8).
+  - **Bounded:** at most 64 keys; expired entries go first, then the oldest (review-8). If every entry is still
+    being computed, a new key is answered but not kept, so the limit holds under a burst too (recheck-8).
+  - **No stale answer after a write:** a request that was waiting when a write cleared the cache computes again,
+    instead of taking the old answer (review-8).
+- **A change from the assessment:** it proposed keys from file modification times. A short time window plus
+  clearing on every write is simpler, and needs no list of every file each answer reads. The cost is that a
+  change made outside the console (a team writing a gate) can take up to 5 s longer to appear.
+- **Smoke:**
+  - the main test server runs with `RIG_CACHE_S=0`, because its checks change files and read them back at once;
+  - 8 new in-process checks:
+    - reuse, and recomputing after a clear;
+    - six concurrent requests share one computation;
+    - a request waiting when a write clears the cache recomputes;
+    - the 64-key cap, and expired entries dropped, in sequence and under a burst of 64 computing at once;
+    - errors aren't cached, and 0 turns it off;
+    - every POST clears it, and the four routes use it while the profile reuses them.
+  - **Limit (review-8):** the POST clearing is checked in the source, not end to end with the cache on, because
+    the test server runs with it off.
+
+**Review-8:** two medium findings, the profile's double staleness and keys piling up, both fixed. Its point
+about requests waiting during a write is also handled. **Recheck-8** confirmed those fixes and found the cap
+could be exceeded under a burst; that's fixed too. **Checked:** smoke 292/292. Re-measurement: see below.
+
 ---
 
 ## Notes for other roles

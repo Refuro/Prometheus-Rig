@@ -7,7 +7,7 @@ every page, API, safety rule and decision flow. Touches no real rig, data or sta
 
 Standard library only. Takes about 15-30 s (it waits for the 10 s collector to run once).
 """
-import http.client, json, os, re, shutil, socket, subprocess, sys, tempfile, time, urllib.parse
+import http.client, json, os, re, shutil, socket, subprocess, sys, tempfile, threading, time, urllib.parse
 from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -139,7 +139,8 @@ def main():
     json.dump({"roots": [{"root": os.path.join(fx, "research"), "type": "research"},
                          {"root": os.path.join(fx, "jobs"), "type": "general"}]}, open(jobs_cfg, "w"))
     port, play_port = free_port(), free_port()
-    env = {**os.environ, "PORT": str(port), "PLAY_PORT": str(play_port), "HOST": "127.0.0.1", "RIG_CONSOLE_TOKEN": TOKEN, "RIG_BIN": "",
+    # RIG_CACHE_S=0: these checks change files and read them back at once; the cache has its own checks (in-process).
+    env = {**os.environ, "RIG_CACHE_S": "0", "PORT": str(port), "PLAY_PORT": str(play_port), "HOST": "127.0.0.1", "RIG_CONSOLE_TOKEN": TOKEN, "RIG_BIN": "",
            "RIG_SNAPSHOTS": os.path.join(fx, "snapshots"), "RIG_RESEARCH_DIR": os.path.join(fx, "research"),
            "RIG_STATE_DIR": os.path.join(tmp, "state"), "RIG_DB": os.path.join(tmp, "console.db"),
            "RIG_JOBS_CONFIG": jobs_cfg, "RIG_MODELS_DIR": os.path.join(fx, "models"), "RIG_BRIEFS_DIR": os.path.join(fx, "briefs"), "RIG_LAUNCHES_DIR": os.path.join(tmp, "launches"), "RIG_CONSOLE_HOSTS": "mypc.tail1234.ts.net",
@@ -976,6 +977,77 @@ def main():
     e = next(e for e in CV.history() if e["id"] == op)
     check("a confirmed reply stays 'replied' when screen text appears later", e["status"] == "replied", e["status"])
     import serve as SV
+    # The read cache (owner-approved console-speed fix): reuse, sharing, errors, and writes clearing it.
+    calls = []
+    def slow():
+        calls.append(1); time.sleep(0.3); return {"n": len(calls)}
+    SV.CACHE_S = 5; SV.invalidate_cache()
+    a, b = SV.cached("t", slow), SV.cached("t", slow)
+    SV.invalidate_cache(); c3 = SV.cached("t", slow)
+    check("cache: an answer is reused within its window, and recomputed after a clear", a is b and len(calls) == 2 and c3["n"] == 2, (a, b, c3, len(calls)))
+    calls.clear(); SV.invalidate_cache(); out = []
+    ts = [threading.Thread(target=lambda: out.append(SV.cached("t", slow)), daemon=True) for _ in range(6)]
+    for th in ts: th.start()
+    for th in ts: th.join(10)
+    check("cache: six requests at once share one computation", len(calls) == 1 and len(out) == 6 and all(o is out[0] for o in out), len(calls))
+    # A request waiting on a computation that a write (POST) clears meanwhile gets a fresh answer, not the old one.
+    calls.clear(); SV.invalidate_cache(); got = []
+    lead = threading.Thread(target=lambda: SV.cached("w", slow), daemon=True); lead.start(); time.sleep(0.05)
+    wait = threading.Thread(target=lambda: got.append(SV.cached("w", slow)), daemon=True); wait.start(); time.sleep(0.05)
+    SV.invalidate_cache()
+    lead.join(10); wait.join(10)
+    check("cache: a request waiting when a write clears the cache computes again instead of taking the old answer",
+          len(calls) == 2 and got and got[0]["n"] == 2, (len(calls), got))
+    # Distinct keys (days, seats) can't pile up: expired ones are dropped, and there are never more than CACHE_MAX.
+    SV.invalidate_cache(); SV.CACHE_S = 0.01
+    for i in range(200):
+        SV.cached(f"day:{i}", lambda: i)
+    time.sleep(0.02); SV.cached("after", lambda: 0)
+    n_short = len(SV._CACHE)
+    SV.CACHE_S = 60
+    for i in range(200):
+        SV.cached(f"seat:{i}", lambda: i)
+    check("cache: expired entries are dropped, and it never holds more than CACHE_MAX keys",
+          n_short <= 2 and len(SV._CACHE) <= SV.CACHE_MAX, (n_short, len(SV._CACHE)))
+    # The same under a burst: CACHE_MAX keys all still computing, then one more distinct key (recheck-8).
+    SV.invalidate_cache(); hold = threading.Event(); peak = []
+    def held(i):
+        return lambda: (hold.wait(10), i)[1]
+    burst = [threading.Thread(target=lambda i=i: SV.cached(f"burst:{i}", held(i)), daemon=True) for i in range(SV.CACHE_MAX)]
+    for th in burst: th.start()
+    for _ in range(200):
+        if len(SV._CACHE) >= SV.CACHE_MAX: break
+        time.sleep(0.01)
+    extra = SV.cached("burst:extra", lambda: "computed, not kept")
+    peak.append(len(SV._CACHE))
+    hold.set()
+    for th in burst: th.join(10)
+    check("cache: with every entry still computing, a new key is answered but not kept, so the cap holds under a burst",
+          extra == "computed, not kept" and peak[0] <= SV.CACHE_MAX and len(SV._CACHE) <= SV.CACHE_MAX
+          and "burst:extra" not in SV._CACHE, (peak, len(SV._CACHE)))
+    fails = []
+    def flaky():
+        fails.append(1)
+        if len(fails) == 1:
+            raise OSError("first read failed")
+        return "ok"
+    SV.invalidate_cache()
+    try:
+        SV.cached("f", flaky); raised = False
+    except OSError:
+        raised = True
+    check("cache: an error isn't cached; the next request computes again", raised and SV.cached("f", flaky) == "ok" and len(fails) == 2)
+    SV.CACHE_S = 0; calls.clear()
+    SV.cached("t", slow); SV.cached("t", slow)
+    check("cache: RIG_CACHE_S=0 turns it off", len(calls) == 2)
+    src = open(os.path.join(DASH, "serve.py"), encoding="utf-8").read()
+    post = src[src.index("    def do_POST(self):"):src.index("    def _do_post(self):")]
+    seat_route = src[src.index('if path == "/api/seat":'):src.index('if path == "/api/oplog":')]
+    check("cache: every write (POST) clears it before and after; graph, gates, docket and digest go through it; the profile reuses them without a second layer",
+          post.count("invalidate_cache()") == 2 and "finally:" in post
+          and all(k in src for k in ('cached("graph", graph)', 'cached("gates", G.list_gates)', 'cached("docket", _docket)', 'cached(f"digest:{day}"'))
+          and 'cached("docket", _docket)' in seat_route and 'cached("graph", graph)' in seat_route and 'cached(f"seat:' not in seat_route)
+    SV.CACHE_S = 5; SV.invalidate_cache()
     SV.G.folder_of_rig = lambda rig: arch_job   # not the live launch records
     txt = SV._delivered("arch-rig@architects", ar, "ok?")
     check("an architect's message names the reply file in its own job folder",

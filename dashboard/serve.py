@@ -412,6 +412,76 @@ def _notify_title(al, age_s):
     return _label(al)
 
 
+# A short cache for the slow read-only answers every page polls (graph, gates, docket, digest, seat; owner approved
+# 2026-10-14, measurements in jobs/architects/ops/console-speed-assessment.md). An answer is reused for CACHE_S
+# seconds, below the logger's 10 s write interval. Identical requests that arrive while one is being computed wait
+# for it instead of computing again. Any POST clears the cache before and after it runs, so the owner's own
+# changes show at once. Errors are never cached. Cached values are shared, so callers must not change them.
+CACHE_S = float(os.environ.get("RIG_CACHE_S", "5"))
+CACHE_MAX = 64   # keys include a day or a seat, so entries are capped: expired ones go first, then the oldest
+_CACHE, _CACHE_LOCK, _CACHE_GEN = {}, threading.Lock(), [0]
+
+
+class _Entry:
+    __slots__ = ("gen", "t", "value", "err", "ready")
+
+    def __init__(self, gen):
+        self.gen, self.t, self.value, self.err, self.ready = gen, time.monotonic(), None, None, threading.Event()
+
+
+def cached(key, fn):
+    if CACHE_S <= 0:
+        return fn()
+    with _CACHE_LOCK:
+        e = _CACHE.get(key)
+        now = time.monotonic()
+        reuse = e is not None and e.gen == _CACHE_GEN[0] and (not e.ready.is_set() or now - e.t < CACHE_S)
+        if not reuse:
+            if len(_CACHE) >= CACHE_MAX:
+                for k in [k for k, x in _CACHE.items() if x.ready.is_set() and now - x.t >= CACHE_S]:
+                    del _CACHE[k]
+                done = sorted((x.t, k) for k, x in _CACHE.items() if x.ready.is_set())
+                for _, k in done[:max(0, len(_CACHE) - CACHE_MAX + 1)]:
+                    del _CACHE[k]
+            if len(_CACHE) >= CACHE_MAX:
+                e = None   # still full: every entry is mid-computation, so this one isn't kept (recheck-8)
+            else:
+                e = _CACHE[key] = _Entry(_CACHE_GEN[0])
+    if e is None:
+        return fn()
+    if reuse:
+        # Use the shared answer only if it finished, didn't fail, and no write cleared the cache while we waited.
+        if e.ready.wait(60) and e.err is None and e.gen == _CACHE_GEN[0]:
+            return e.value
+        return fn()   # failed, cleared meanwhile, or over a minute: compute for this request, uncached
+    try:
+        e.value = fn()
+    except BaseException as x:
+        e.err = x
+        with _CACHE_LOCK:
+            if _CACHE.get(key) is e:
+                del _CACHE[key]
+        raise
+    finally:
+        e.t = time.monotonic()
+        e.ready.set()
+    return e.value
+
+
+def _docket():
+    qa = os.path.join(SNAP, "_queue_active.json")
+    full = _load("_queue_active.json") if os.path.isfile(qa) else None
+    qp = qa if full is not None else os.path.join(SNAP, "_queue.json")
+    return JP.docket(_load("_ps.json"), full, _load("_queue.json"), os.path.getmtime(qp) if os.path.isfile(qp) else None,
+                     [t for t in G.list_tasks() if not t.get("error")])
+
+
+def invalidate_cache():
+    with _CACHE_LOCK:
+        _CACHE_GEN[0] += 1
+        _CACHE.clear()
+
+
 def graph():
     ps = _load("_ps.json")
     queue = _load("_queue.json")
@@ -1134,7 +1204,7 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
             if path == "/api/team":
                 return self.send_json(team())
             if path == "/api/graph":
-                return self.send_json(graph())
+                return self.send_json(cached("graph", graph))
             q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
             arg = lambda k: (q.get(k) or [""])[0]
             if path == "/api/events":
@@ -1146,7 +1216,7 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                     return self.send_json({"error": "bad rig"})
                 return self.send_json(S.replay(rig, run or None))
             if path == "/api/gates":
-                return self.send_json(G.list_gates())
+                return self.send_json(cached("gates", G.list_gates))
             if path == "/api/builds":
                 return self.send_json(G.list_builds())
             if path == "/api/models":
@@ -1162,7 +1232,8 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                                        "decisions_new_n": len(gates_new),
                                        "cards_new": [str(t.get("title") or "")[:100] for t in cards_new][:5], "cards_new_n": len(cards_new)})
             if path == "/api/digest":   # the daily digest (R-026), read-only; ?day=YYYY-MM-DD (UTC), default today
-                return self.send_json(DG.build(arg("day") or None))
+                day = arg("day") or None
+                return self.send_json(cached(f"digest:{day}", lambda: DG.build(day)))
             if path == "/api/lab/games":   # the Diplomacy games, for the page's game list
                 return self.send_json(LAB.games())
             if path == "/api/deploy":   # which commit is live, and whether a newer one waits in the repo
@@ -1224,22 +1295,16 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 fn = {"/api/job": JP.overview, "/api/job/docs": JP.docs, "/api/job/assets": JP.assets}[path]
                 return self.send_json(fn(name))
             if path == "/api/docket":   # each architect's work (R-023), from queue rows, gates and cards only
-                qa = os.path.join(SNAP, "_queue_active.json")
-                full = _load("_queue_active.json") if os.path.isfile(qa) else None
-                qp = qa if full is not None else os.path.join(SNAP, "_queue.json")
-                return self.send_json(JP.docket(_load("_ps.json"), full, _load("_queue.json"),
-                                                os.path.getmtime(qp) if os.path.isfile(qp) else None,
-                                                [t for t in G.list_tasks() if not t.get("error")]))
+                return self.send_json(cached("docket", _docket))
             if path == "/api/seat":     # an architect's profile (R-027), read-only, from existing sources
                 seat = arg("seat") or ""
                 if not PR.SEAT_RE.match(seat):
                     raise ValueError("Unknown seat")
-                qa = os.path.join(SNAP, "_queue_active.json")
-                full = _load("_queue_active.json") if os.path.isfile(qa) else None
-                qp = qa if full is not None else os.path.join(SNAP, "_queue.json")
-                dk = JP.docket(_load("_ps.json"), full, _load("_queue.json"), os.path.getmtime(qp) if os.path.isfile(qp) else None,
-                               [t for t in G.list_tasks() if not t.get("error")])
-                node = next((n for n in graph()["nodes"] if n.get("id") == seat), None)
+
+                # Not cached itself: a second cache layer on top of graph and docket would add a second window of
+                # staleness (review-8). Those two are the expensive part, and they're cached.
+                dk = cached("docket", _docket)
+                node = next((n for n in cached("graph", graph)["nodes"] if n.get("id") == seat), None)
                 return self.send_json(PR.profile(seat, node, next((s for s in dk.get("seats", []) if s["seat"] == seat), None),
                                                  LG.posts(), CV.history(seat)))
             if path == "/api/oplog":    # the operator's log, read-only (R-022)
@@ -1264,6 +1329,15 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
         return super().do_GET()
 
     def do_POST(self):
+        # Every change clears the read cache, before (so nothing computed from the old state is reused) and after (so
+        # nothing computed during the change survives it).
+        invalidate_cache()
+        try:
+            return self._do_post()
+        finally:
+            invalidate_cache()
+
+    def _do_post(self):
         if not self._host_ok():
             return self._refuse_host()
         if not self._allowed():
