@@ -361,6 +361,16 @@ def main():
         check("replay returns the team's history", st == 200 and rp.get("events"), (rp or {}).get("error"))
         st, jobs = c.json("/api/jobs")
         check("jobs registry", st == 200 and {j["name"] for j in jobs} >= {"pitch-demo", "run-demo"})
+        st, g = c.json("/api/graph")
+        demo = next((r for r in (g or {}).get("rigs", []) if r["name"] == "demo-team"), {})
+        demo_jobs = {j["name"] for j in jobs if j.get("rig") == "demo-team"}
+        page = c.req("GET", "/graph.html")[2]
+        check("a team's name links to its newest job page (audit C); the link doesn't start a drag",
+              demo.get("job") in demo_jobs and b'href="/job.html?job=${encodeURIComponent(job)}"' in page
+              and b'if (ev.target.closest("a")) return;' in page, (demo.get("job"), demo_jobs))
+        check("...a change of a team's job redraws its link, and a redraw keeps keyboard focus on that team's link (review-14)",
+              b"(data.rigs||[]).map(r => [r.name, r.phase, r.job])" in page and b"const focusedRig" in page
+              and b'?.querySelector(".tlink")?.focus()' in page)
 
         print("Operator's outbox (PL-017, after the watcher's first round)")
         sent_path = os.path.join(tmp, "state", "notify-sent.json")

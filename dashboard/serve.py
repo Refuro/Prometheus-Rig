@@ -624,6 +624,11 @@ def graph():
         for run, info in runs.items():
             if run in (n["rig"] or ""):
                 rg["phase"], rg["run"] = info.get("phase"), run
+    # Each team's job page (audit C): the newest job pinned to that team, so the graph can link its name.
+    for j in S.jobs_list():
+        rg = rigs.get(j.get("rig"))
+        if rg is not None and not rg.get("job") and G.ID_RE.match(j.get("name") or ""):
+            rg["job"] = j["name"]
     # Context meters: warn when an agent's memory is nearly full.
     for n in nodes:
         c = n.get("ctx") or {}

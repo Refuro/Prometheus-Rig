@@ -2429,6 +2429,40 @@ Reviewers got frozen read-only copies named by hash, after the operator caught m
 - runner tests 27/27, including reading the real installed release command;
 - smoke 292/292.
 
+**Live:** commit f2a9ebd, deployed by the owner 2026-10-15 08:11Z. The installed runner is root:root, mode 755, and
+its sha256 is exactly `5c37960c…`. It ran its first checks itself (`deployed-diff`, `git-status`).
+
+**PL-066** is the owner's public-readiness commit (README, replay, personal paths out, each owner's confirmed
+files). That's repo-wide, not a console change. It's still local: it's being amended to remove E2 experiment text
+before any push.
+
+## PL-067 2026-10-15 A team's name on the live graph opens its job page (audit C, owner approved)
+- **Server (`graph()` in `serve.py`):** each team in `rigs` gets `job`, the newest job pinned to that team (the
+  `jobs` table, newest `last_seen` first). A name is only used if it passes `G.ID_RE`. A team with no job gets no
+  link.
+- **Page (`graph.html`):** a team with a job has its name wrapped in an SVG link to `/job.html?job=…`
+  (`encodeURIComponent`), with a hover title, an underline, and the signal colour on hover or focus. A team
+  without a job keeps its plain name. Replays have no jobs, so their names stay plain.
+- **Dragging:** the pointer-down handler returns early on a link, so clicking the name follows it and doesn't
+  start a drag. Dragging anywhere else on the team box works as before.
+
+**Checked:**
+- smoke 293/293, with a new check that the fixture team's job is one of its pinned jobs, and that the page has
+  the link and the drag guard;
+- the browser check over all pages at three widths passes.
+
+**Limit:** that's a render-and-errors check. It doesn't click the name or drag the box. Clicking and dragging go
+on the developer's review list.
+
+**Review-14:** the developer used browser reproductions on offline mocks. Escaping, clicking, dragging, panning,
+node selection and Tab-then-Enter all passed. It found two problems, both fixed:
+- **Medium:** `refresh()`'s redraw signature left out `job`, so a change to only a team's job didn't redraw the
+  link. The signature now includes `r.job`.
+- **Low:** every redraw of the team layer dropped keyboard focus from a team link. `draw()` now notes which team's
+  link has focus and refocuses that team's new link.
+
+**Checked:** smoke 294/294 (one more check), and the all-page browser check passes.
+
 ---
 
 ## Notes for other roles
