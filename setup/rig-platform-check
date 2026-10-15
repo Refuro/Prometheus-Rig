@@ -1,9 +1,13 @@
 #!/usr/bin/python3 -I
-"""rig-platform-check: Platform's fixed checks, one subcommand each, nothing else (DRAFT, not installed).
+"""rig-platform-check: Platform's fixed checks, one subcommand each, nothing else (PD-033).
 
-Intended install (owner, like rig-console-release): root-owned, mode 755, at /usr/local/sbin/rig-platform-check,
-from a reviewed commit. Invocation is exactly `/usr/local/sbin/rig-platform-check <subcommand>`: no other
-arguments, no options, no environment taken from the caller.
+Installed root-owned, mode 755, at /usr/local/sbin/rig-platform-check by the console deploy, from a reviewed
+commit. Invocation is exactly `/usr/local/sbin/rig-platform-check <subcommand>`: no other arguments, no options,
+no environment taken from the caller.
+
+No personal paths are written in this file (public readiness, PL-065). The repo's location is read from the
+root-owned rig-console-release, whose REPO line the deploy fills in; the home folder comes from the system's user
+record for whoever runs it; node is the newest version under that home's nvm folder.
 
 Each subcommand runs one fixed argument list (never a shell) with a fixed, minimal environment (no NTFY_*,
 no RIG_* folders, no GIT_*). The full output goes to a fixed log; the screen gets the failures and the summary.
@@ -16,18 +20,67 @@ the repo's own config, which a seat can edit. That config could name a filter dr
 contents), so these two refuse to run if any filter.* setting exists (MA-031 F-d); the worktree's
 .gitattributes is ignored as well.
 """
-import errno, os, signal, subprocess, sys
+import errno, glob, os, pwd, re, signal, subprocess, sys
+from stat import S_ISREG as stat_isreg
 
-REPO = "/mnt/c/Users/you/OneDrive/Documents/Projects/OpenRig"
-SCRATCH = "/home/you/openrig/scratch/platform"
+RELEASE = "/usr/local/sbin/rig-console-release"
+
+
+def _installed_repo():
+    """The repo path from rig-console-release's REPO line, only if that file is a regular file, root-owned and not
+    writable by group or others (so no seat can steer it). The file is opened once and that open file is checked, so
+    it can't be swapped between the check and the read. Exactly one REPO line, in the simple form the deploy writes
+    (REPO="/absolute/path" and an optional comment), is accepted; anything else, including shell expansion or escapes,
+    gives an empty REPO and main() refuses (review-11)."""
+    try:
+        fd = os.open(RELEASE, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        return ""
+    try:
+        st = os.fstat(fd)
+        if not stat_isreg(st.st_mode) or st.st_uid != 0 or st.st_mode & 0o022:
+            return ""
+        with os.fdopen(os.dup(fd), encoding="utf-8") as f:
+            text = f.read()
+    except (OSError, UnicodeDecodeError):
+        return ""
+    finally:
+        os.close(fd)
+    return _parse_repo(text)
+
+
+def _parse_repo(text):
+    # Top-level assignments only (column 0): the release command's indented REPO= inside its "not installed" branch
+    # runs only while the top line is still unfilled, which this already refuses.
+    assigns = [l for l in text.splitlines() if l.startswith("REPO=")]
+    if len(assigns) != 1:
+        return ""
+    # A comment needs whitespace before it: in bash, REPO="/x"#y assigns /x#y (recheck-11).
+    m = re.fullmatch(r'REPO="(/[^"$`\\\n]+)"(?:[ \t]+#.*)?[ \t]*', assigns[0])
+    # A normal absolute path only: no "..", "." or doubled slashes (MA-034 L1).
+    return m.group(1) if m and os.path.normpath(m.group(1)) == m.group(1) else ""
+
+
+def _node(home):
+    """The newest node under the user's nvm folder, else the system's; empty if there's none."""
+    def version(p):
+        m = re.search(r"/v(\d+)\.(\d+)\.(\d+)/bin/node$", p)
+        return tuple(int(x) for x in m.groups()) if m else (0, 0, 0)
+    found = sorted(glob.glob(glob.escape(home) + "/.nvm/versions/node/v*/bin/node"), key=version)   # home is literal
+    return found[-1] if found else ("/usr/bin/node" if os.path.exists("/usr/bin/node") else "")
+
+
+REPO = _installed_repo()
+HOME = pwd.getpwuid(os.getuid()).pw_dir
+SCRATCH = HOME + "/openrig/scratch/platform"
 CANDIDATE = SCRATCH + "/candidate"          # the one fixed place a scratch copy of the repo is tested
 LOGS = SCRATCH + "/check-logs"
-NODE = "/home/you/.nvm/versions/node/v22.23.3/bin/node"
+NODE = _node(HOME)
 EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"   # attributes read from here: no worktree .gitattributes
 GIT = ["/usr/bin/git", "--attr-source=" + EMPTY_TREE, "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null",
        "-c", "core.pager=cat", "-c", "diff.external=", "--no-pager", "-C", REPO]
 
-ENV = {"PATH": "/usr/bin:/bin", "HOME": "/home/you", "LANG": "C.UTF-8"}
+ENV = {"PATH": "/usr/bin:/bin", "HOME": HOME, "LANG": "C.UTF-8"}
 
 # name: (argument list, working folder, timeout in seconds, lines worth showing besides the last one)
 # The smoke runs use -s so the user's site-packages (and any usercustomize.py) don't load (MA-031 F-b); not -I,
@@ -48,9 +101,14 @@ CHECKS = {
 
 
 def main(argv):
+    if os.geteuid() == 0:   # under sudo the checks would run user-writable code as root (MA-034 L2)
+        sys.exit("rig-platform-check: refused, because it must not run as root")
     if len(argv) != 2 or argv[1] not in CHECKS:
         sys.exit("usage: rig-platform-check <" + "|".join(CHECKS) + ">  (exactly one, nothing else)")
     name = argv[1]
+    if not REPO:
+        sys.exit(f"{name}: refused, because the repo's location couldn't be read from {RELEASE} "
+                 "(missing, not root-owned, writable by others, or its REPO line isn't filled in)")
     args, cwd, timeout, show = CHECKS[name]
     if name.startswith("git-"):
         filters = subprocess.run(GIT + ["config", "--get-regexp", r"^filter\."], env=ENV, stdin=subprocess.DEVNULL,

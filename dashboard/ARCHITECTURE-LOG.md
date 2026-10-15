@@ -2396,6 +2396,39 @@ and `setup/`:
 arguments and the service would fail. It's now `ExecStart=/bin/bash "$SCRIPT"`. The live service is unaffected,
 because the current path has no spaces, and the unit only changes when the owner reruns the installer.
 
+**Live:** commit 06edfa2, deployed by the owner and verified 2026-10-15 06:22Z (`deployed-diff` shows no
+differences).
+
+## PL-065 2026-10-15 rig-platform-check without personal paths (owner approved public-paths; its own gate)
+The runner had three paths built in: the repo, the home folder and the nvm `node`. Now it works them out:
+- **REPO:** from the root-owned `/usr/local/sbin/rig-console-release`, whose top-level `REPO="…"` line the deploy
+  fills in. The file is opened once (`O_NOFOLLOW`), and that open file must be a regular file, uid 0, with no group
+  or other write.
+  - **Accepted:** exactly one column-0 `REPO=` line of the simple form `REPO="/abs/path"`, with an optional
+    whitespace-separated `# comment`. The value must equal `os.path.normpath(value)`.
+  - **Refused:** `..`, `.`, a trailing slash and doubled slashes inside the path.
+  - **Exception:** Python keeps exactly two leading slashes, so `//srv/x` is accepted (recheck-11c). Only root
+    can write this line, so that's accepted as is.
+  - **Anything else gives an empty REPO**, and every subcommand then refuses.
+- **HOME:** from the system's user record (`pwd.getpwuid(os.getuid())`), not the environment.
+- **NODE:** the newest `~/.nvm/versions/node/v*/bin/node` (home matched literally), else `/usr/bin/node`.
+  **Note:** an nvm upgrade now changes which node the page and dip checks use (MA-034).
+- **It refuses to run as root** (MA-034 L2). Under `sudo`, the checks would run user-writable code as root.
+
+**Why there's no first-install trap this time:** the deploy script is unchanged, and the deploy installed on
+10-14 already copies `setup/rig-platform-check` from the staged commit. So the next normal deploy installs it.
+
+**Reviews:**
+- developer review-11 (two low findings, fixed), recheck-11 (one low, fixed), recheck-11b and recheck-11c (pass);
+- Model Architect MA-034: fit at `6d44508c`, with two hardening points, both taken;
+- MA-034 follow-up: **confirmed** the final `5c37960c…`, the hash the owner's card pins.
+
+Reviewers got frozen read-only copies named by hash, after the operator caught me editing a file under review.
+
+**Checked:**
+- runner tests 27/27, including reading the real installed release command;
+- smoke 292/292.
+
 ---
 
 ## Notes for other roles
