@@ -245,8 +245,33 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   const clerkHolds = c => /^paused/.test(String(c.state || ""));   // paused-operator, paused-usage: the clerk's clock is stopped
   const sealLabel = () => S.final ? "Sealed intention, written before press" : "Sealed intention, written before press · live, unarchived until game end";
 
+  // Opening a power's drawer fetched every phase's press, orders and intention: 97 requests per open on a
+  // 30-phase game (review-18), the owner's "sometimes takes a while to load". A short cache cuts a re-open to the
+  // few live files (7 in review-18's fixture). It holds only an earlier phase's archived press and orders, which
+  // the clerk writes once at adjudication. Archiving can be re-run, and intentions are copied into archive/ only
+  // after final.md, so nothing is trusted as permanent:
+  // - entries expire after 60 s;
+  // - a path must count as settled both before and after its fetch, so a phase that becomes "earlier" mid-request
+  //   isn't kept (review-18);
+  // - archive/intentions/, missing files and everything outside archive/ are always fetched fresh.
+  const ARCH = new Map(), ARCH_TTL = 60_000;
+  const settled = path => {
+    const [top, ph] = path.split("/");
+    if (top !== "archive" || !PHASE_RE.test(ph || "")) return false;
+    if (S.final) return true;
+    const live = S.control?.phase;
+    return PHASE_RE.test(live || "") && phaseKey(ph) < phaseKey(live);
+  };
   async function text(path) {
-    try { const r = await fetch(`${BASE}/${path}`, {cache:"no-store"}); return r.ok ? await r.text() : null; } catch { return null; }
+    const hit = ARCH.get(path);
+    if (hit && Date.now() - hit.at < ARCH_TTL) return hit.t;
+    const before = settled(path);
+    try {
+      const r = await fetch(`${BASE}/${path}`, {cache:"no-store"});
+      const t = r.ok ? await r.text() : null;
+      if (t != null && before && settled(path)) ARCH.set(path, {t, at: Date.now()});
+      return t;
+    } catch { return null; }
   }
   async function json(path) { const t = await text(path); if (t == null) return null; try { return JSON.parse(t); } catch { return null; } }
   async function jsonl(path) { const t = await text(path); if (!t) return []; return t.split("\n").filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); }
@@ -526,11 +551,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
         <select id="po" aria-label="Order"><option value="oldest" ${S.pressOrder!=="newest"?"selected":""}>oldest first</option><option value="newest" ${S.pressOrder==="newest"?"selected":""}>newest first</option></select>
         <span>${msgs.length} message${msgs.length===1?"":"s"} in ${esc(phaseLabel(S.phase))} · conversations by pair are in each power's drawer</span></div>` + body;
       $("pf").onchange = e => { S.pressFilter = e.target.value; renderPanel(); };
-      $("po").onchange = e => {
-        S.pressOrder = e.target.value === "newest" ? "newest" : "oldest";
-        try { localStorage.setItem(ORDER_KEY, S.pressOrder); } catch { /* private window: this visit only */ }
-        renderPanel();
-      };
+      $("po").onchange = e => setOrder(e.target.value);
     } else if (t === "compare") {
       P.innerHTML = compareHtml();
     } else if (t === "final" || t === "chronicle" || t === "analysis") {
@@ -596,15 +617,36 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     return s;
   }
 
-  async function openPower(p) {
+  // One setter for the press order, so the Press tab and an open drawer always agree (review-18).
+  function setOrder(v) {
+    S.pressOrder = v === "newest" ? "newest" : "oldest";
+    try { localStorage.setItem(ORDER_KEY, S.pressOrder); } catch { /* private window: this visit only */ }
+    if (S.tab === "press") renderPanel();
+    S.redrawConvo?.();
+  }
+  // Each drawer load has a generation. Opening, closing, a refresh and the intentions toggle each start a new
+  // one, and a load writes to the page only while its generation is current. Checking the power alone let an
+  // older load of the same power land after A -> B -> A (review-18).
+  let drawerGen = 0;
+  async function openPower(p, refresh = false) {
+    const gen = ++drawerGen, showInt = S.showInt;
     S.sel = p; renderPowers();
     const D = $("drawer"); D.classList.add("open"); D.setAttribute("aria-hidden", "false");
     const b = S.board || {}; const units = (b.units || {})[p] || [], centers = (b.centers || {})[p] || [];
     const low = p.toLowerCase();
+    // Open at once with what's already loaded; press, then the by-phase history, fill in as they arrive.
+    const top = `<div class="head"><span class="dot" style="width:16px;height:16px;border-radius:50%;background:var(--${p})"></span><h1>${nice(p)}</h1><button id="closeD">Close</button></div>
+      <dl class="kv"><dt>Centres</dt><dd>${centers.length}: ${esc(centers.join(" "))}</dd><dt>Units</dt><dd>${units.length}: ${esc(units.join(", "))}</dd></dl>
+      <h2>Orders as written for ${esc(S.phase)}</h2>${S.pending[p] ? `<pre>${esc(S.pending[p])}</pre>` : '<div class="empty">Nothing written yet; the clerk will record holds.</div>'}`;
+    const close = () => { drawerGen++; S.redrawConvo = null; D.classList.remove("open"); D.setAttribute("aria-hidden", "true"); S.sel = null; renderPowers(); };
+    // A live refresh keeps what's on screen until the new content is ready (no "Loading" flash every refresh).
+    if (!refresh) { D.innerHTML = top + `<h2>Press</h2><div class="empty">Loading press…</div>`; $("closeD").onclick = close; }
     // Every phase so far plus the one being played now (checked names only). Newest first for intentions and orders.
     const allPhases = [...new Set([...(S.index?.phases || []), S.control?.phase || "", S.phase || ""])].filter(ph => PHASE_RE.test(ph));
-    const rows = await Promise.all([...allPhases].reverse().map(async ph =>
-      [ph, await ordersFor(low, ph), S.showInt ? await text(intentionPath(low, ph)) : null]));
+    const rowsP = Promise.all([...allPhases].reverse().map(async ph => {
+      const [o, i] = await Promise.all([ordersFor(low, ph), showInt ? text(intentionPath(low, ph)) : null]);
+      return [ph, o, i];
+    }));
     // Every message this power sent or received, all phases: archived press plus each power's live sent.jsonl.
     const archived = (await Promise.all(allPhases.map(ph => jsonl(`archive/${ph}/press.jsonl`)))).flat().map(m => ({...m, archived:true}));
     const live = (await Promise.all(POWERS.map(w => jsonl(`powers/${w.toLowerCase()}/press/sent.jsonl`)))).flat();
@@ -620,8 +662,11 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     const sealed = t => `<div class="who" style="margin-top:8px">${esc(sealLabel())}</div><div class="md">${esc(t.trim())}</div>`;
     const convoHtml = () => {
       const sel = S.convo;
-      const msgs = sel === "ALL" ? mine : mine.filter(m => (U(m.from) === p && U(m.to) === sel) || (U(m.from) === sel && (U(m.to) === p || U(m.to) === "ALL")));
+      // Always a fresh list: reversing `mine` itself flipped the order on every redraw (review-18).
+      const msgs = mine.filter(m => sel === "ALL" || (U(m.from) === p && U(m.to) === sel) || (U(m.from) === sel && (U(m.to) === p || U(m.to) === "ALL")));
       if (!msgs.length) return `<div class="empty">${sel === "ALL" ? "No press yet." : `Nothing between ${nice(p)} and ${nice(sel)} yet.`}</div>`;
+      // The same oldest/newest choice as the Press tab (owner, 2026-10-15): one remembered setting for both.
+      if (S.pressOrder === "newest") msgs.reverse();
       let out = '<div class="convo">', ph = null;
       for (const m of msgs) {
         if (m.phase !== ph) { ph = m.phase; out += `<div class="day">${esc(phaseLabel(ph))}</div>`; }
@@ -634,20 +679,30 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     };
     const chipsHtml = () => `<div class="chips" id="chips"><button data-c="ALL" class="${S.convo==="ALL"?"on":""}">All<span class="cnt">${mine.length}</span></button>${
       others.map(w => `<button data-c="${w}" class="${S.convo===w?"on":""}"><span class="dot" style="background:var(--${w})"></span>${nice(w)}<span class="cnt">${count(w)}</span></button>`).join("")}</div>`;
-    D.innerHTML = `<div class="head"><span class="dot" style="width:16px;height:16px;border-radius:50%;background:var(--${p})"></span><h1>${nice(p)}</h1><button id="closeD">Close</button></div>
-      <dl class="kv"><dt>Centres</dt><dd>${centers.length}: ${esc(centers.join(" "))}</dd><dt>Units</dt><dd>${units.length}: ${esc(units.join(", "))}</dd></dl>
-      <h2>Orders as written for ${esc(S.phase)}</h2>${S.pending[p] ? `<pre>${esc(S.pending[p])}</pre>` : '<div class="empty">Nothing written yet; the clerk will record holds.</div>'}
-      <h2>Press</h2>${chipsHtml()}<div id="convo">${convoHtml()}</div>
-      <h2>By phase: ${S.showInt ? "intention and orders" : "orders"}</h2>${rows.filter(([, o, i]) => o != null || i != null).map(([ph, o, i]) =>
+    const orderHtml = () => `<div class="filters"><select id="dpo" aria-label="Press order"><option value="oldest" ${S.pressOrder!=="newest"?"selected":""}>oldest first</option><option value="newest" ${S.pressOrder==="newest"?"selected":""}>newest first</option></select></div>`;
+    const rowsHtml = rows => rows.filter(([, o, i]) => o != null || i != null).map(([ph, o, i]) =>
         `<div class="msg"><div class="who">${esc(phaseLabel(ph))}${ph === S.control?.phase && !S.final ? ' <span class="live">this phase</span>' : ""}</div>${
         i != null ? sealed(i) : ""}${o != null ? `<div class="who" style="margin-top:8px">Orders</div><pre>${esc(o.trim() || "(no orders: holds)")}</pre>` : ""}</div>`).join("")
-        || `<div class="empty">Nothing written yet${S.showInt ? "" : " (intentions are hidden: turn on Show intentions)"}.</div>`}`;
-    $("closeD").onclick = () => { D.classList.remove("open"); D.setAttribute("aria-hidden", "true"); S.sel = null; renderPowers(); };
+        || `<div class="empty">Nothing written yet${showInt ? "" : " (intentions are hidden: turn on Show intentions)"}.</div>`;
+    // A refresh writes once, with everything, so nothing flashes or shifts; a fresh open shows press first.
+    const early = refresh ? await rowsP : null;
+    if (gen !== drawerGen) return;   // a newer load (another power, a close, a refresh) owns the drawer now
+    const scroll = D.scrollTop;
+    D.innerHTML = top + `<h2>Press</h2>${chipsHtml()}${orderHtml()}<div id="convo">${convoHtml()}</div>
+      <h2>By phase: ${showInt ? "intention and orders" : "orders"}</h2><div id="byph">${early ? rowsHtml(early) : '<div class="empty">Loading…</div>'}</div>`;
+    if (refresh) D.scrollTop = scroll;   // a live refresh doesn't move you
+    $("closeD").onclick = close;
     // Each chip reads its own power when clicked. (The draft copied the first-clicked chip's handler onto the
     // redrawn chips, so after one click every chip selected that same power: owner report, 23:28Z.)
     const wire = () => $("chips").querySelectorAll("button").forEach(b => b.onclick = () => {
       S.convo = b.dataset.c; $("chips").outerHTML = chipsHtml(); $("convo").innerHTML = convoHtml(); wire(); });
     wire();
+    $("dpo").onchange = e => setOrder(e.target.value);
+    S.redrawConvo = () => { if (gen !== drawerGen || !$("convo")) return; $("dpo").value = S.pressOrder; $("convo").innerHTML = convoHtml(); };
+    if (early) return;
+    const rows = await rowsP;
+    if (gen !== drawerGen || !$("byph")) return;
+    $("byph").innerHTML = rowsHtml(rows);
   }
 
   async function control(body) {
@@ -673,7 +728,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   $("intToggle").onchange = async e => {
     S.showInt = e.target.checked;
     try { localStorage.setItem(INT_KEY, S.showInt ? "on" : "off"); } catch { /* private window: this visit only */ }
-    await loadPhase(); renderAll(true); if (S.sel) openPower(S.sel);
+    await loadPhase(); renderAll(true); if (S.sel) openPower(S.sel, true);
   };
 
   function fingerprint() {
@@ -695,7 +750,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   }
   refresh();
   setInterval(tick, 1000);
-  setInterval(() => { if (document.hidden || $("drawer").classList.contains("open")) return; refresh(); }, 20000);
+  // An open drawer refreshes too, so its live press keeps up (review-18); it keeps its scroll and conversation.
+  setInterval(async () => { if (document.hidden) return; await refresh(); if (S.sel) openPower(S.sel, true); }, 20000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
 })();
 </script>

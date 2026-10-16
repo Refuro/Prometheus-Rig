@@ -2463,6 +2463,58 @@ node selection and Tab-then-Enter all passed. It found two problems, both fixed:
 
 **Checked:** smoke 294/294 (one more check), and the all-page browser check passes.
 
+**Live:** deployed by the owner 2026-10-15 20:10Z as 4619484.
+
+## PL-068 2026-10-15 Diplomacy before game 2: switch games, a faster power drawer, press order there too (owner, urgent)
+The owner required all three before game 2 begins (operator qitem bad9e993).
+- **Switching games already worked** (2026-10-14). `/api/lab/games` lists every lab job with a started board
+  (`board/control.json`), oldest first, with `over` from `board/final.md`.
+  - **The page's game picker** shows once there are two games.
+  - **With no `?job=`,** the page opens the game being played.
+  - **Game 1 stays where it is** (`jobs/diplomacy-1`). Game 2 only needs its own folder, with a `job.json` of
+    type `lab` and its own board.
+  - **New smoke check:** builds a game 2 beside a finished game 1, and both are listed.
+- **The power drawer was slow on finished games.** Opening it fetched every phase's orders, intention and
+  archived press, plus all 7 live press files: about 100 requests on game 1's 31 phases. All are served
+  `no-store`, and each one rescans the job folders. Nothing showed until all of them returned.
+  - **That count is from the code path, not timed on the live console.**
+  - **Now the drawer opens at once:** the header, centres, units and this phase's orders show immediately. Press
+    fills in next, then the by-phase history.
+  - **Settled archive files are kept for the visit:** anything once the game is over, otherwise only phases before
+    the live one, never the phase being archived. Missing files and live files are always fetched fresh.
+  - **The row's orders and intention now load together,** not one after the other.
+  - **A refresh keeps the drawer's content** until the new content is ready, and a slow load can't overwrite a
+    power opened since.
+- **Press order in the drawer:** the same oldest/newest choice as the Press tab, and the same remembered setting.
+  Changing it in the drawer also re-sorts the Press tab.
+
+**Checked:**
+- smoke 296/296 (two new checks);
+- the browser check on all pages passes.
+
+**Limit:** the speed-up and the toggle aren't exercised in a browser by those checks. That's on the developer's
+review list.
+
+**Review-18:** the developer ran browser repros on a 30-phase synthetic game. It measured 97 requests per drawer
+open before the change. The first version made it 94 on the first open and 7 on the second. Five findings, all
+fixed:
+- **P1:** with "All" selected, the order reversed the drawer's list in place, so it flipped on every redraw. It now
+  filters into a fresh list first.
+- **P1:** a file's eligibility for the cache was checked only after it had been fetched, so a read made mid-phase
+  could stay cached. The clerk can also re-run archiving, and intentions are copied in after `final.md`.
+  - **Now:** a file must count as settled both before and after its fetch;
+  - entries expire after 60 s;
+  - `archive/intentions/` is never cached.
+- **P2:** checking the power name couldn't stop an older load of the same power from landing after A → B → A.
+  Each load now has a generation number, which opening, closing, refreshing and the intentions toggle all
+  advance. The intentions setting is snapshotted for each load.
+- **P2, older behaviour:** an open drawer's live press didn't update, because the 20-second refresh skipped
+  while the drawer was open. Now the refresh runs and redraws the drawer. It writes once, keeps the scroll
+  position and conversation, and doesn't flash "Loading".
+- **P2:** an order change on the Press tab didn't reach an open drawer. One `setOrder` now updates both.
+
+**Checked:** smoke 297/297, and the page check passes.
+
 ---
 
 ## Notes for other roles

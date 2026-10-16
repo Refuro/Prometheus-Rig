@@ -418,6 +418,24 @@ def main():
         st, gm = c.json("/api/lab/games")
         check("the Diplomacy game list: lab jobs with a started board, and whether each is over (a linked board isn't listed)",
               st == 200 and [g["job"] for g in gm.get("games", [])] == ["diplomacy-1"] and gm["games"][0]["over"] is False, gm)
+        # Game 2 beside a finished game 1 (owner, 2026-10-15): both listed, oldest first, game 1 marked over, and
+        # game 1's folder untouched. Built and removed here so the later checks still see one running game.
+        g1, g2 = os.path.join(fx, "jobs", "diplomacy-1"), os.path.join(fx, "jobs", "diplomacy-2")
+        os.makedirs(os.path.join(g2, "board"))
+        with open(os.path.join(g2, "job.json"), "w") as f:
+            json.dump({"type": "lab", "rig": "diplomacy-2", "title": "Diplomacy, game 2"}, f)
+        with open(os.path.join(g2, "board", "control.json"), "w") as f:
+            json.dump({"phase": "S1901M", "state": "running"}, f)
+        with open(os.path.join(g1, "board", "final.md"), "w") as f:
+            f.write("final\n")
+        st, gm2 = c.json("/api/lab/games")
+        os.remove(os.path.join(g1, "board", "final.md"))
+        for p in (os.path.join(g2, "board", "control.json"), os.path.join(g2, "job.json")):
+            os.remove(p)
+        os.rmdir(os.path.join(g2, "board")); os.rmdir(g2)
+        check("two games: game 1 (over) and game 2 (running) both listed, so the page's game picker shows and the "
+              "default opens the running one",
+              st == 200 and [(g["job"], g["over"]) for g in gm2.get("games", [])] == [("diplomacy-1", True), ("diplomacy-2", False)], gm2)
         st, rv = c.json("/api/models/review?id=diplomacy-1")
         check("a game's Model Architect report is readable by its id (Diplomacy postgame)", st == 200 and "Germany won" in (rv.get("text") or ""), rv)
         os.makedirs(os.path.join(fx, "models", "reviews", "linked"), exist_ok=True)
@@ -569,6 +587,17 @@ def main():
               b"clerkHolds(c) && !c.paused" in raw and b"waiting for the clerk" in raw)
         check("the Press tab has an oldest/newest order, remembered per browser",
               b'id="po"' in raw and b"dip.pressOrder" in raw and b"msgs.reverse()" in raw)
+        check("a power's drawer: the same remembered oldest/newest order, it opens at once, and earlier phases' "
+              "archived files are kept briefly (never the phase being archived, intentions or live files)",
+              b'id="dpo"' in raw and b'if (S.pressOrder === "newest") msgs.reverse();' in raw and b"Loading press" in raw
+              and b"phaseKey(ph) < phaseKey(live)" in raw and b'if (top !== "archive" || !PHASE_RE.test(ph || "")) return false;' in raw
+              and b"openPower(S.sel, true)" in raw)
+        check("...review-18: a fresh list before reversing, settled checked before and after a fetch, a 60 s limit, a load "
+              "generation instead of the power name, one order setter for both views, and the open drawer refreshes",
+              b"const msgs = mine.filter(" in raw and b"before && settled(path)" in raw and b"ARCH_TTL = 60_000" in raw
+              and b"if (gen !== drawerGen) return;" in raw and b"S.sel !== p" not in raw and b'$("po").onchange = e => setOrder(e.target.value);' in raw
+              and b'$("dpo").onchange = e => setOrder(e.target.value);' in raw and b"await refresh(); if (S.sel) openPower(S.sel, true);" in raw
+              and b'classList.contains("open")) return; refresh();' not in raw)
         check("the page follows the live phase unless an earlier one was picked, with Back to live; chips rewire themselves",
               b"S.follow = S.phase === S.live" in raw and b'id="btnLive"' in raw and b"phaseKey" in raw
               and b"bb.onclick = b.onclick" not in raw and b"wire();" in raw)
