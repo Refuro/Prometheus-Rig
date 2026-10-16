@@ -2515,6 +2515,46 @@ fixed:
 
 **Checked:** smoke 297/297, and the page check passes.
 
+**Live:** a90cb42, deployed 2026-10-16 about 00:14Z. The owner's first run committed but didn't deploy; I
+verified that, and a deploy-only rerun put it live.
+
+**PL-069** is the owner's README commit 11e5305 (README, 8 captures, replay.webm removed). It's repo-wide, not a
+console change.
+
+## PL-070 2026-10-16 Diplomacy: the owner's digest from clerk/press-digest/ (game 2)
+In game 2 the clerk found that the public `board/<phase>-digest.md` leaked private press, because powers read
+`board/`. Rig's ruling, in effect from S1902M:
+- the board digest holds only orders and outcomes;
+- the full promises-against-orders digest the owner reads is at `clerk/press-digest/<phase>.md`.
+
+**The change:** the page's digest, for both the current phase and the "latest digest" fallback, now reads
+`clerk/press-digest/<phase>.md` first, then the board file. Game 1 has no `clerk/press-digest/`, so it keeps
+its board digests. The owner can read both; powers never read the console. `clerk/` is outside `archive/`, so
+the drawer's short cache never holds these files.
+
+**Checked:** smoke 298/298, and the page check passes.
+
+**Review-19 (P2), fixed:** an empty or half-written private file hid the board digest that did exist. Empty or
+whitespace-only now counts as missing.
+
+**Game-2 intentions (owner, 00:32Z: "intentions missing from my view").** The page looked for game 1's
+`powers/<nation>/intentions/<phase>.md`, and game 2 has no such files.
+- **Game 2's layout:** the sealed open note at `clerk/sealed/<phase>/<nation>-open.md` (the first seal is
+  authoritative), the close note at `powers/<nation>/intentions/<phase>-close.md`, and both under
+  `archive/intentions/<nation>/` after `finalcopy`.
+- **The fix:** `intentionText` reads that layout when the game has `board/seals.jsonl`, checked once per visit
+  through a shared promise. Game 1's single note is unchanged.
+- **Where it shows:** the drawer's by-phase rows and the Compare tab, as one escaped plain text ("open … Close
+  note: …").
+- **No new drawer:** that's the owner's choice A. This only restores what the existing view showed.
+- **Review-19b (P2), fixed:** a "no" from the layout check was kept for the whole visit, so a game opened before
+  its first seal, or after one failed fetch, stayed on the old paths. A "yes" is still kept; a "no" now expires
+  after 60 s and is checked again.
+- **Recheck-19c (P2), fixed:** after a "no" expired, every concurrent load re-probed (7 requests). Whether to
+  probe is now decided synchronously, before any await, so concurrent loads share one probe.
+
+**Checked:** smoke 299/299, and the page check passes.
+
 ---
 
 ## Notes for other roles

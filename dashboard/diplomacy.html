@@ -236,6 +236,41 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
   // to archive/intentions/ at game end, orders to archive/<phase>/ at each adjudication. p is a checked phase,
   // low one of the seven powers, so no agent text reaches these paths.
   const intentionPath = (low, p) => S.final ? `archive/intentions/${low}/${p}.md` : `powers/${low}/intentions/${p}.md`;
+  // Game 2's layout (v0.2, 2026-10-16): an open note sealed before press and a close note after orders. The
+  // clerk's first seal is the authoritative open note, at clerk/sealed/<phase>/<nation>-open.md. The close note
+  // stays in powers/<nation>/intentions/<phase>-close.md. Both are copied to archive/intentions/<nation>/ at game
+  // end. Game 1 had one note per phase. A game is game-2 style if it has board/seals.jsonl, checked once per visit.
+  // The owner-only view joins both notes into one escaped plain text, like before (owner, 00:32Z: "intentions
+  // missing" was the old path finding nothing in game 2).
+  // One shared check, however many notes load at once. A "yes" is kept for the visit. A "no" is kept only 60 s:
+  // a game opened before its first seal, or a failed fetch, must not stay on game 1's paths (review-19b).
+  // The decision to probe is made synchronously, before any await, so concurrent loads share one probe even when
+  // a "no" has just expired (recheck-19c: seven loads each re-probed).
+  let sealed = null, sealedAt = 0, sealedProbe = null;
+  function layoutCheck() {
+    if (!sealedProbe && (sealed === null || (sealed === false && Date.now() - sealedAt > 60_000))) {
+      sealedAt = Date.now();
+      sealedProbe = text("board/seals.jsonl").then(t => { sealed = t != null; sealedProbe = null; return sealed; });
+    }
+    return sealedProbe || Promise.resolve(sealed);
+  }
+  async function intentionText(low, p) {
+    if (!(await layoutCheck())) return text(intentionPath(low, p));
+    const [open, close] = await Promise.all(S.final
+      ? [text(`archive/intentions/${low}/${p}-open.md`), text(`archive/intentions/${low}/${p}-close.md`)]
+      : [text(`clerk/sealed/${p}/${low}-open.md`), text(`powers/${low}/intentions/${p}-close.md`)]);
+    if (open == null && close == null) return null;
+    return `${open != null ? open.trim() : "(no open note sealed)"}\n\nClose note: ${close != null ? close.trim() : "(none yet)"}`;
+  }
+  // The owner's digest (promises against orders) for a checked phase. In game 2 it's private to the owner at
+  // clerk/press-digest/<phase>.md, because powers read board/ and the board digest had leaked press (Rig's ruling,
+  // 2026-10-16). board/<phase>-digest.md now holds only orders and outcomes there. Game 1 has only the board file.
+  // An empty or whitespace-only private file counts as missing, so it can't hide this phase's board digest
+  // (review-19: a zero-byte or half-written clerk file showed an older phase instead).
+  async function digestFor(p) {
+    const own = await text(`clerk/press-digest/${p}.md`);
+    return own && own.trim() ? own : text(`board/${p}-digest.md`);
+  }
   async function ordersFor(low, p) {
     return (await text(`archive/${p}/orders/${low}.txt`)) ?? (await text(`powers/${low}/orders/${p}.txt`));
   }
@@ -334,8 +369,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
       return [w, t == null ? null : t.trim()];
     })));
     // This phase's sealed intentions, only while Show intentions is on (seven small reads, like the orders).
-    S.intent = S.showInt ? Object.fromEntries(await Promise.all(POWERS.map(async w => [w, await text(intentionPath(w.toLowerCase(), p))]))) : {};
-    S.digest = (await text(`board/${p}-digest.md`)) || "";
+    S.intent = S.showInt ? Object.fromEntries(await Promise.all(POWERS.map(async w => [w, await intentionText(w.toLowerCase(), p)]))) : {};
+    S.digest = (await digestFor(p)) || "";
     // The clerk writes a phase's digest and results when it adjudicates, so the phase being played has none
     // yet. Then show the latest finished phase's, labelled with its phase (owner, 00:21Z: following the live
     // phase hid every digest). Checked phase names only; at most three earlier phases are tried.
@@ -343,7 +378,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     if (!S.digest || !S.results) {
       const earlier = (S.index?.phases || []).filter(ph => phaseKey(ph) >= 0 && phaseKey(ph) < phaseKey(p)).sort((a, b) => phaseKey(b) - phaseKey(a)).slice(0, 3);
       for (const ph of earlier) {
-        const [dg, rs] = await Promise.all([text(`board/${ph}-digest.md`), text(`board/${ph}-results.md`)]);
+        const [dg, rs] = await Promise.all([digestFor(ph), text(`board/${ph}-results.md`)]);
         if (dg || rs) { S.prev = { phase: ph, digest: dg || "", results: rs || "" }; break; }
       }
     }
@@ -644,7 +679,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.45 ui-monospace,SF
     // Every phase so far plus the one being played now (checked names only). Newest first for intentions and orders.
     const allPhases = [...new Set([...(S.index?.phases || []), S.control?.phase || "", S.phase || ""])].filter(ph => PHASE_RE.test(ph));
     const rowsP = Promise.all([...allPhases].reverse().map(async ph => {
-      const [o, i] = await Promise.all([ordersFor(low, ph), showInt ? text(intentionPath(low, ph)) : null]);
+      const [o, i] = await Promise.all([ordersFor(low, ph), showInt ? intentionText(low, ph) : null]);
       return [ph, o, i];
     }));
     // Every message this power sent or received, all phases: archived press plus each power's live sent.jsonl.

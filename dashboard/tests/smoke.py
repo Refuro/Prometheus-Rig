@@ -592,6 +592,18 @@ def main():
               b'id="dpo"' in raw and b'if (S.pressOrder === "newest") msgs.reverse();' in raw and b"Loading press" in raw
               and b"phaseKey(ph) < phaseKey(live)" in raw and b'if (top !== "archive" || !PHASE_RE.test(ph || "")) return false;' in raw
               and b"openPower(S.sel, true)" in raw)
+        check("the owner's digest comes from clerk/press-digest/<phase>.md (game 2, private to the owner), falling back "
+              "to the board file (game 1); both the current and earlier-phase digests use it",
+              b"return own && own.trim() ? own : text(`board/${p}-digest.md`);" in raw
+              and b"S.digest = (await digestFor(p))" in raw and b"digestFor(ph), text(`board/${ph}-results.md`)" in raw)
+        check("game-2 intentions: the sealed open note from clerk/sealed/<phase>/<nation>-open.md and the close note, "
+              "or both from archive/intentions/<nation>/ at game end; game 1's single note otherwise; one shared layout check",
+              b"text(`clerk/sealed/${p}/${low}-open.md`), text(`powers/${low}/intentions/${p}-close.md`)" in raw
+              and b"text(`archive/intentions/${low}/${p}-open.md`), text(`archive/intentions/${low}/${p}-close.md`)" in raw
+              and b'sealedProbe = text("board/seals.jsonl").then(t => { sealed = t != null; sealedProbe = null; return sealed; });' in raw
+              and b"if (!sealedProbe && (sealed === null || (sealed === false && Date.now() - sealedAt > 60_000)))" in raw
+              and b"intentionText(low, ph)" in raw
+              and b"await intentionText(w.toLowerCase(), p)" in raw)
         check("...review-18: a fresh list before reversing, settled checked before and after a fetch, a 60 s limit, a load "
               "generation instead of the power name, one order setter for both views, and the open drawer refreshes",
               b"const msgs = mine.filter(" in raw and b"before && settled(path)" in raw and b"ARCH_TTL = 60_000" in raw
