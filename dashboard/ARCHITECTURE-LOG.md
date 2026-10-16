@@ -2555,6 +2555,69 @@ whitespace-only now counts as missing.
 
 **Checked:** smoke 299/299, and the page check passes.
 
+**Live:** 317aaf2, deployed by the owner 2026-10-16 02:09Z. Verified: deployed-diff empty, installed page =
+rechecked file.
+
+## PL-071 2026-10-16 An append-only history of the owner's console actions (owner, urgent)
+`state/conversations.json` keeps only the newest 500 messages (`convo.py`, `KEEP`), so older history was rolling
+away. The new `history.py` writes `conversations.jsonl`, one JSON line per owner action, append-only.
+- **What's recorded,** once the action has succeeded:
+  - **message:** seat, message id, text, and whether it was forced;
+  - **card:** the Needs-you answer: id, title, result, answer, note and who asked. Restart cards are answered
+    here; the console has no restart button of its own;
+  - **gate:** a team gate decision;
+  - **checkpoint:** a research checkpoint;
+  - **lab:** a lab game's pause, resume or stop;
+  - **lounge:** the owner's lounge post.
+
+  Refused or unsigned requests add nothing. No tokens, cookies or headers. Text is clipped at 4000 characters.
+- **Where:** `RIG_HISTORY_DIR`, by default `/var/lib/rig-console-history`. It's a folder owned by the console user,
+  with the owner's group (`2750`, see review-22 below), so the snapshot logger (the owner's user) can mirror it. The
+  console's own state folder stays 750.
+  - **One-time setup:** the owner creates the folder with sudo, on the deploy card.
+  - **Until then:** lines go to the private `state/conversations.jsonl`, and the first shared write carries them
+    over once.
+- **Seeding:** at start-up, the buffer's messages not yet in the file are copied in, oldest first, with their real
+  ids and times, marked `"reconstructed": true` and deduplicated by id. Messages that already rolled out of the
+  buffer aren't invented, and the file doesn't claim to cover them.
+- **Safety:** the file is opened with `O_APPEND|O_NOFOLLOW` and fsynced. A failed write is logged and never breaks
+  the owner's action.
+- **Mirror:** `setup/rig-snapshots.sh` copies the folder one way to `snapshots/console-history/` beside the
+  operator log: links skipped, no `--delete`, so the mirror keeps every line.
+  - **The logger runs from the repo,** so it picks this up after a restart: `sudo systemctl restart
+    rig-snapshots`, on the card.
+
+**Checked:**
+- smoke 305/305. Six new checks: private seeding, dedup, carry-over and append, append-only plus clipping, a link
+  never followed, and the server recording exactly the accepted lab actions;
+- the page check passes.
+
+**Review-22: 4 P1s and 1 P2, all fixed:**
+- **Short writes:** writes loop until every byte is down, and a partial last line left by a crash is closed off
+  with a newline.
+- **Lost private lines:** every line has its own `uid` (`seed-<id>` for seeded ones). On every write while the
+  shared folder is usable, private lines missing from it are reconciled in, even if the shared file already
+  existed. The private file is then renamed aside, never deleted.
+- **History failures broke actions:** `append` and `seed` never raise. Each API reply carries
+  `"history": "saved" | "saved-private" | "failed"`, so a lost record is never claimed as saved.
+- **Raw requests recorded:** gates and checkpoints are now logged as saved (`_record` from `decide` and
+  `save_decision`, stripped before replying): filtered choices, closures and all per-niche notes.
+- **Seeding:** deduplicated within the buffer too, and one damaged line no longer resets the set.
+
+**The boundary tightened:** the folder is created `2750` with the owner's group, and files are 0640, so only the
+console and the owner's user (which the logger and agents run as) can read it. It's no longer world-readable.
+Free text is kept as typed, pasted secrets included, and the docstring says so.
+
+**Checked:** smoke 310/310, with checks for each finding.
+
+**Recheck-22, two P1s, fixed:**
+- **Re-seeding:** after a restart, seeding re-added messages already recorded live. It now skips any message id
+  present as a message line in either file.
+- **Lines without a uid:** these were skipped by the carry-over. None exist outside tests, since PL-071 was never
+  deployed, but each now gets a stable `legacy-<hash>` uid and is carried once.
+
+**Checked:** smoke 312/312.
+
 ---
 
 ## Notes for other roles

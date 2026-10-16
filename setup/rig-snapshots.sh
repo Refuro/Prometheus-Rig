@@ -19,6 +19,7 @@ MIRROR_MAX_SIZE="${MIRROR_MAX_SIZE:-20M}"
 STEP_TIMEOUT="${STEP_TIMEOUT:-20}"      # any one rig or tmux command
 RESEARCH="$HOME/openrig/research"
 OPERATOR="${RIG_OPERATOR_DIR:-$HOME/openrig/operator}"   # the operator's log (R-022), mirrored for reading (owner, 2026-10-13)
+HISTORY="${RIG_HISTORY_DIR:-/var/lib/rig-console-history}"   # the console's append-only owner history (PL-071)
 MIRROR="${RESEARCH_MIRROR:-$REPO/research-mirror}"
 LOCK="$HOME/.cache/rig-snapshots/mirror.lock"
 LOG="$OUT/activity-log.csv"
@@ -173,6 +174,11 @@ PY
     # ever changed (--delete applies to the mirror); links are skipped, never followed.
     if [ -d "$OPERATOR" ]; then
       t "$STEP_TIMEOUT" "operator mirror" rsync -rt --delete --no-links --max-size=5M "$OPERATOR/" "$OUT/operator/" 2>>"$ERRLOG"
+    fi
+    # The owner's append-only console history (PL-071), beside the operator log. One way, links skipped, and
+    # no --delete: the mirror keeps every line even if the source folder is ever moved or emptied.
+    if [ -d "$HISTORY" ]; then
+      t "$STEP_TIMEOUT" "history mirror" rsync -rt --no-links --max-size=50M "$HISTORY/" "$OUT/console-history/" 2>>"$ERRLOG"
     fi
   fi
   sleep "$INTERVAL"

@@ -21,6 +21,7 @@ import jobpage as JP
 import lab as LAB
 import escalate as EP
 import convo as CV
+import history as HI
 import seatprofile as PR
 import digest as DG
 
@@ -813,7 +814,8 @@ def save_decision(run, body):
             sent = r.returncode == 0
         except Exception:
             sent = False
-    return {"saved": True, "decided_at": stamp, "count": len(picks), "lead": lead, "lead_notified": sent}
+    # _record: the checkpoint exactly as saved, for the owner's history (PL-071); stripped before replying.
+    return {"saved": True, "decided_at": stamp, "count": len(picks), "lead": lead, "lead_notified": sent, "_record": record}
 
 
 
@@ -1379,20 +1381,32 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
             if path == "/api/usage":
                 return self.send_json(F.usage_add(body))
             if path == "/api/send":
-                return self.send_json(send_message(body))
+                res = send_message(body)
+                if res.get("sent"):   # the append-only history (PL-071): only messages that really went out
+                    res["history"] = HI.append("message", seat=str(body.get("seat") or ""), id=res.get("id"),
+                                               text=str(body.get("message") or "").strip(), forced=res.get("forced"))
+                return self.send_json(res)
             if path == "/api/task":
                 tid = str(body.get("id") or "")
                 if not G.ID_RE.match(tid):
                     raise ValueError("Unknown task")
                 record, asker, rec_path = G.answer_task(tid, body)
+                saved = HI.append("card", id=tid, title=record.get("title"), result=record.get("result"),
+                                  answer=record.get("answer") or None, note=record.get("note") or None, asked_by=asker)
                 said = {"done": "Done", "wont": "Won’t do", "answered": "answered", "skipped": "skipped"}[record["result"]]
                 told = bool(asker) and _console_send(asker, f"The owner answered your card '{record['title']}': {said}. "
                                                             f"Read {rec_path}, act on it, then remove the task file.")
-                return self.send_json({"saved": True, "result": record["result"], "asker_told": told})
+                return self.send_json({"saved": True, "result": record["result"], "asker_told": told, "history": saved})
             if path == "/api/lab/control":   # pause, resume or stop a lab game (R-024): one file, then wake the clerk (PL-045)
-                return self.send_json(_lab_control(body))
+                res = _lab_control(body)
+                res["history"] = HI.append("lab", id=str(body.get("job") or ""),
+                                           action="stop" if body.get("stop") is True else ("pause" if body.get("paused") else "resume"))
+                return self.send_json(res)
             if path == "/api/lounge":   # the owner's post or reply (R-021): quiet, no notification or message
-                return self.send_json(LG.post(body.get("text"), body.get("reply_to")))
+                res = LG.post(body.get("text"), body.get("reply_to"))
+                if isinstance(res, dict) and not res.get("error"):
+                    res["history"] = HI.append("lounge", text=str(body.get("text") or ""), reply_to=body.get("reply_to"))
+                return self.send_json(res)
             if path == "/api/dismiss":
                 key = str(body.get("key") or "")
                 if not re.match(r"^[a-z]+:[A-Za-z0-9._@-]{1,128}$", key):
@@ -1409,10 +1423,21 @@ button{{margin-top:12px;width:100%;padding:12px;border:0;border-radius:10px;back
                 return self.send_json(F.evidence_start((q.get("run") or [""])[0], DATA))
             if path == "/api/gate":
                 q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
-                return self.send_json(G.decide((q.get("job") or [""])[0], (q.get("gate") or [""])[0], body, _rig_bin()))
+                job, gid = (q.get("job") or [""])[0], (q.get("gate") or [""])[0]
+                res = G.decide(job, gid, body, _rig_bin())
+                rec = res.pop("_record", {})   # the decision as saved: filtered choices, verdict, closure, note
+                res["history"] = HI.append("gate", seat=job, id=gid, chosen=rec.get("chosen"), verdict=rec.get("verdict"),
+                                           note=rec.get("note") or None, decided_at=rec.get("decided_at"))
+                return self.send_json(res)
             if path == "/api/decision":
                 q = urllib.parse.parse_qs(self.path.split("?", 1)[1] if "?" in self.path else "")
-                return self.send_json(save_decision((q.get("run") or [""])[0], body))
+                run = (q.get("run") or [""])[0]
+                res = save_decision(run, body)
+                rec = res.pop("_record", {})   # as saved: valid picks only, per-niche notes, general note, phase
+                res["history"] = HI.append("checkpoint", id=run, checkpoint=rec.get("checkpoint"), deep_dive=rec.get("deep_dive"),
+                                           notes=rec.get("notes") or None, general_note=rec.get("general_note") or None,
+                                           decided_at=rec.get("decided_at"))
+                return self.send_json(res)
         except Exception as e:
             return self.send_json({"error": str(e)})
         self.send_error(404)
@@ -1599,6 +1624,7 @@ if __name__ == "__main__":
     import threading
     if HOST not in ("127.0.0.1", "localhost") and not TOKEN:
         raise SystemExit("Refusing to listen beyond localhost without RIG_CONSOLE_TOKEN set.")
+    print(f"History: {HI.seed()} buffered messages added to the append-only log (PL-071)", flush=True)
     threading.Thread(target=_watch, daemon=True).start()
     if PLAY_PORT:
         threading.Thread(target=http.server.ThreadingHTTPServer((HOST, PLAY_PORT), PlayHandler).serve_forever, daemon=True).start()

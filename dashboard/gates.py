@@ -361,7 +361,8 @@ def decide(job, gid, body, rig_bin):
             sent = subprocess.run(rig_cmd(rig_bin, "send", lead, msg), capture_output=True, text=True, timeout=30).returncode == 0
         except Exception:
             sent = False
-    return {"saved": True, "decided_at": stamp, "lead": lead, "lead_notified": sent}
+    # _record: the decision exactly as saved, for the owner's history (PL-071); serve.py strips it before replying.
+    return {"saved": True, "decided_at": stamp, "lead": lead, "lead_notified": sent, "_record": record}
 
 
 def _read_text(path, limit=200_000):

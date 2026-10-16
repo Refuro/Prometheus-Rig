@@ -61,7 +61,9 @@ def main():
                        "RIG_OPERATOR_DIR": os.path.join(tmp, "operator"), "RIG_ACTIVITY_ARCHIVE": os.path.join(tmp, "activity-unit"),
                        "RIG_MODELS_DIR": os.path.join(fx, "models"), "RIG_BRIEFS_DIR": os.path.join(fx, "briefs"),
                        # review-1: never the real repo's files or the live deploy record, whatever the caller set
-                       "RIG_REPO_DIR": fx, "RIG_DEPLOYED_MARK": os.path.join(tmp, "no-deploy", "deployed")})
+                       "RIG_REPO_DIR": fx, "RIG_DEPLOYED_MARK": os.path.join(tmp, "no-deploy", "deployed"),
+                       # PL-071: never the real /var/lib/rig-console-history
+                       "RIG_HISTORY_DIR": os.path.join(tmp, "history-unit")})
     # Plain copies: the deploy runs this from read-only staging as another user (PL-030).
     shutil.copytree(os.path.join(HERE, "fixtures"), fx, copy_function=shutil.copyfile)
     os.chmod(fx, 0o755)
@@ -144,7 +146,8 @@ def main():
            "RIG_SNAPSHOTS": os.path.join(fx, "snapshots"), "RIG_RESEARCH_DIR": os.path.join(fx, "research"),
            "RIG_STATE_DIR": os.path.join(tmp, "state"), "RIG_DB": os.path.join(tmp, "console.db"),
            "RIG_JOBS_CONFIG": jobs_cfg, "RIG_MODELS_DIR": os.path.join(fx, "models"), "RIG_BRIEFS_DIR": os.path.join(fx, "briefs"), "RIG_LAUNCHES_DIR": os.path.join(tmp, "launches"), "RIG_CONSOLE_HOSTS": "mypc.tail1234.ts.net",
-           "RIG_OPERATOR_DIR": oplog, "RIG_REPO_DIR": fx, "RIG_DEPLOYED_MARK": os.path.join(tmp, "no-deploy", "deployed")}
+           "RIG_OPERATOR_DIR": oplog, "RIG_REPO_DIR": fx, "RIG_DEPLOYED_MARK": os.path.join(tmp, "no-deploy", "deployed"),
+           "RIG_HISTORY_DIR": os.path.join(tmp, "history")}
     for k in ("NTFY_TOPIC", "NTFY_CLICK"):
         env.pop(k, None)
     log = open(os.path.join(tmp, "server.log"), "w")
@@ -559,6 +562,11 @@ def main():
         check("malformed requests and unknown jobs are refused", all("error" in x for x in bad), bad)
         st, r = c.post("/api/lab/control", {"job": "prod-demo", "paused": True})
         check("a game that hasn't started (no board/control.json) is refused", "hasn't started" in (r.get("error") or ""), r)
+        hist = os.path.join(tmp, "state", "conversations.jsonl")   # no shared folder in this run: the private file
+        labs = [json.loads(l) for l in open(hist) if '"kind": "lab"' in l] if os.path.isfile(hist) else []
+        check("history (PL-071): the server records exactly the three accepted lab actions, in order; refused or "
+              "unsigned requests add nothing", [(l["id"], l["action"]) for l in labs]
+              == [("diplomacy-1", "pause"), ("diplomacy-1", "resume"), ("diplomacy-1", "stop")], labs)
         st, r = c.post("/api/lab/control", {"job": "lab-link", "paused": True})
         check("a board folder that's a planted link is refused, and the file it points at is untouched",
               "error" in r and json.load(open(os.path.join(tmp, "elsewhere", "control.json")))["paused"] is False, r)
@@ -1027,6 +1035,66 @@ def main():
     CV.capture([{"id": "operator-agent@kernel", "state": "idle"}], lambda s: codex, lambda s: True, arch_job, now=t + 170)
     e = next(e for e in CV.history() if e["id"] == op)
     check("a confirmed reply stays 'replied' when screen text appears later", e["status"] == "replied", e["status"])
+    # The append-only owner history (PL-071).
+    import history as HI
+    hdir = os.environ["RIG_HISTORY_DIR"]
+    lines = HI._read   # valid lines only, as every reader of this file should
+
+    n_seed = HI.seed()
+    priv = lines(HI.PRIVATE)
+    check("history: with no shared folder yet, the buffer's messages are seeded privately, marked reconstructed, "
+          "with their real ids and times", n_seed == len(CV._load()) > 0 and len(priv) == n_seed
+          and all(l["reconstructed"] is True and l["kind"] == "message" and l["id"] for l in priv)
+          and [l["id"] for l in priv] == [x["id"] for x in CV._load()], (n_seed, len(priv)))
+    check("history: seeding again adds nothing (deduplicated by uid)", HI.seed() == 0 and len(lines(HI.PRIVATE)) == n_seed)
+    sh = os.path.join(hdir, HI.NAME)
+    os.makedirs(hdir)
+    with open(sh, "w") as f:
+        f.write("")   # review-22: an already-existing (empty) shared file must not stop the carry-over
+    r1 = HI.append("lab", id="diplomacy-1", action="pause")
+    shared = lines(sh)
+    check("history: private lines reach the shared file even when it already exists, each once, then the new line",
+          r1 == "saved" and [l["uid"] for l in shared[:n_seed]] == [l["uid"] for l in priv] and shared[-1]["kind"] == "lab"
+          and len(shared) == n_seed + 1 and not os.path.isfile(HI.PRIVATE), (r1, len(shared)))
+    check("history: every line has its own uid (seeded ones 'seed-<id>')",
+          len({l["uid"] for l in shared}) == len(shared) and all(l["uid"].startswith("seed-") for l in shared[:n_seed]))
+    HI.append("message", seat="x@y", id="m-1", text="z" * 9000)
+    after = lines(sh)
+    check("history: append-only (earlier lines unchanged) and long text clipped to 4000",
+          after[:len(shared)] == shared and len(after[-1]["text"]) == 4000)
+    with open(sh, "a") as f:
+        f.write('{"uid": "half", "kind": "mess')   # a crash mid-write
+    HI.append("card", id="t-0", result="done")
+    raw = open(sh).read().splitlines()
+    check("history: a partial last line is closed off; the next line is whole and readable",
+          raw[-2].startswith('{"uid": "half"') and json.loads(raw[-1])["id"] == "t-0" and lines(sh)[-1]["id"] == "t-0")
+    os.rename(sh, os.path.join(hdir, "moved.jsonl"))
+    os.symlink(os.path.join(hdir, "moved.jsonl"), sh)
+    r2 = HI.append("card", id="t-1", result="done")   # must not follow the link: kept privately instead
+    check("history: a link in place of the shared file is never followed; the line is kept privately and says so",
+          r2 == "saved-private" and len(lines(os.path.join(hdir, "moved.jsonl"))) == len(after) + 1
+          and lines(HI.PRIVATE)[-1]["id"] == "t-1", r2)
+    os.remove(sh); os.rename(os.path.join(hdir, "moved.jsonl"), sh)
+    r3 = HI.append("lab", id="diplomacy-1", action="resume")
+    check("history: once the shared file is usable again, the privately kept line is carried over",
+          r3 == "saved" and [l.get("id") for l in lines(sh)[-2:]] == ["t-1", "diplomacy-1"], r3)
+    with open(HI.PRIVATE, "w") as f:
+        f.write("not json\n")   # a corrupt private file must never turn the owner's action into an error
+    r4 = HI.append("card", id="t-2", result="done")
+    check("history: a corrupt private file never raises; damaged lines are skipped one by one",
+          r4 == "saved" and lines(sh)[-1]["id"] == "t-2", r4)
+    buf = CV._load()
+    CV._save(buf + [dict(buf[0])])   # the same id twice in the buffer
+    check("history: seeding again adds nothing, even with a duplicate id inside the buffer", HI.seed() == 0)
+    HI.append("message", seat="x@y", id="m-live", text="sent live")   # recorded live, then in the buffer at restart
+    CV._save(CV._load() + [{"id": "m-live", "seat": "x@y", "question": "sent live", "asked_at": "t", "asked_ts": 1}])
+    check("history: a message recorded live is never seeded again after a restart (recheck-22)",
+          HI.seed() == 0 and sum(1 for l in lines(sh) if l.get("id") == "m-live") == 1)
+    with open(HI.PRIVATE, "w") as f:
+        f.write(json.dumps({"kind": "card", "id": "old", "result": "done"}) + "\n")   # an earlier line with no uid
+    HI.append("card", id="t-3", result="done")
+    check("history: a private line without a uid is still carried over, once, with a stable legacy uid",
+          [l["id"] for l in lines(sh)[-2:]] == ["old", "t-3"] and lines(sh)[-2]["uid"].startswith("legacy-"))
     import serve as SV
     # The read cache (owner-approved console-speed fix): reuse, sharing, errors, and writes clearing it.
     calls = []
