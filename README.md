@@ -11,9 +11,8 @@ Console**, a dashboard built for this. The repo's first commit is dated 2026-10-
 [Platform](dashboard/ARCHITECTURE-LOG.md), [Studio](studio/ARCHITECTURE-LOG.md),
 [Model](models/LOG.md).
 
-[![An excerpt of the studio production run, replayed on Rig Console's live graph at 600×](docs/replay.gif)](docs/replay.webm)
-<sub>A 75-second excerpt (the busiest 12.5 hours) of the studio production run, replayed at 600× on the live graph
-([video](docs/replay.webm)). Recorded on a private console from scrubbed copies of the data.</sub>
+![Rig Console's live graph: the Bridge production and design teams, the architects and the kernel, with handoffs between seats](docs/replay.gif)
+<sub>Rig Console's live graph during the Bridge game work, captured by the owner.</sub>
 
 ## What we found
 1. **A forged approval was refused in seconds, and the gate held.** Told that the owner had approved a plan
@@ -53,9 +52,14 @@ flowchart LR
 - **The snapshot logger** mirrors agent screens, the OpenRig queue and research output every 10 seconds, so the console (and a supervising assistant) can follow the work without interrupting it.
 - **Remote access** goes through Tailscale Serve: HTTPS, reachable only from your own devices, plus a console token.
 
+The console draws the same picture live. Its System page maps what runs where, and who owns what:
+
+![System map: agents, files, Rig Console and you, with alerts flowing to your phone](docs/system.png)
+![Roles map: the four architects, the shared files they talk through, you with the final say, and the live rig](docs/roles.png)
+
 More detail (what runs where, how an alert reaches your phone, who owns what): [`docs/SYSTEM.md`](docs/SYSTEM.md).
 
-![Rig Console's live graph replaying a research run: three agents working, handoffs in flight, and the activity feed](docs/graph.png)
+![Rig Console's live graph: three teams and eleven seats at work, with handoffs between them](docs/graph.png)
 
 ---
 
@@ -78,14 +82,27 @@ A small stdlib-Python server plus plain HTML pages, with no build step and no de
 
 <table>
 <tr>
-<td width="68%"><img src="docs/decision.png" alt="A decision gate on desktop: pick 3 pitches, with picks numbered in order"></td>
-<td width="32%"><img src="docs/phone.png" alt="The same decision on a phone"></td>
+<td width="68%"><img src="docs/decision.png" alt="The Bridge m2a gate on desktop: play crossings 1-4, with the background notes and design's seven questions"></td>
+<td width="32%"><img src="docs/phone.png" alt="A decision on a phone"></td>
 </tr>
 <tr>
-<td align="center"><sub>Teams ask, you decide: a gate on desktop</sub></td>
-<td align="center"><sub>…or from your phone</sub></td>
+<td align="center"><sub>Teams ask, you decide: the Bridge m2a gate on desktop</sub></td>
+<td align="center"><sub>…or decide from your phone</sub></td>
 </tr>
 </table>
+
+<table>
+<tr>
+<td width="68%"><img src="docs/diplomacy.png" alt="A Diplomacy game between seven agent powers: the board at Winter 1908 and the final standings"></td>
+<td width="32%"><img src="docs/diplomacy-press.png" alt="The press drawer for England: its orders and its negotiations with France"></td>
+</tr>
+<tr>
+<td align="center"><sub>Agents play Diplomacy: the board and final standings</sub></td>
+<td align="center"><sub>…and the press drawer, where powers negotiate</sub></td>
+</tr>
+</table>
+
+![Run report for the architects team: each seat's working, waiting-for-approval and idle time over three days](docs/run-report.png)
 
 Under the hood:
 - **SQLite event store** for states, actions, handoffs, files and custom events. It backfills from logs, uses numbered migrations, and lives outside the synced folder.
